@@ -11,11 +11,15 @@ plugins {
 val binomVersion = project.property("binom.version") as String
 val kotlinVersion = kotlin.coreLibrariesVersion
 val shadowVersion = project.property("shadow.version") as String
+val kotlinxCoroutinesVersion = project.property("kotlinx_coroutines.version") as String
+val kotlinxSerializationVersion = project.property("kotlinx_serialization.version") as String
 buildConfig {
     packageName(project.group.toString())
     buildConfigField("String", "BINOM_VERSION", "\"$binomVersion\"")
     buildConfigField("String", "KOTLIN_VERSION", "\"$kotlinVersion\"")
     buildConfigField("String", "SHADOW_VERSION", "\"$shadowVersion\"")
+    buildConfigField("String", "KOTLINX_COROUTINES_VERSION", "\"$kotlinxCoroutinesVersion\"")
+    buildConfigField("String", "KOTLINX_SERIALIZATION_VERSION", "\"$kotlinxSerializationVersion\"")
 }
 repositories {
     mavenCentral()

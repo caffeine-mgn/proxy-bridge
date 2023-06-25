@@ -9,4 +9,5 @@ pluginManagement {
 rootProject.name="proxy-bridge"
 include(":proxy-node")
 include(":proxy-client")
-include(":proxy-server")
+//include(":proxy-server")
+include(":shared")
