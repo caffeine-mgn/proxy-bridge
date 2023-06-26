@@ -1,9 +1,6 @@
 package pw.binom.proxy
 
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.*
 import pw.binom.*
 import pw.binom.io.ByteBuffer
 import pw.binom.io.http.websocket.Message
@@ -18,12 +15,15 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.severe
 import pw.binom.logger.warn
+import pw.binom.network.SocketClosedException
+import pw.binom.network.SocketConnectException
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import pw.binom.url.toURL
 import kotlin.coroutines.coroutineContext
+import kotlin.time.Duration.Companion.seconds
 
-class ControlService : Strong.LinkingBean {
+class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
     val httpClient by inject<HttpClient>()
     val transportService by inject<TransportService>()
     val runtimeProperties by inject<RuntimeProperties>()
@@ -34,13 +34,10 @@ class ControlService : Strong.LinkingBean {
         val port = msg.readShort(buffer).toInt()
         val channelId = msg.readInt(buffer)
         try {
-            transportService.connectTcp(
-                    id = channelId,
-                    address = NetworkAddress.create(
-                            host = host,
-                            port = port,
-                    )
-            )
+            transportService.connectTcp(id = channelId, address = NetworkAddress.create(
+                    host = host,
+                    port = port,
+            ))
             connection.write(MessageType.BINARY).use { msg ->
                 msg.writeInt(id, buffer = buffer)
                 msg.writeByte(1, buffer = buffer)
@@ -58,46 +55,64 @@ class ControlService : Strong.LinkingBean {
 
     private var clientProcess: Job? = null
 
-    override suspend fun link(strong: Strong) {
-        clientProcess = GlobalScope.launch(coroutineContext) {
+    private suspend fun createConnection() {
+        val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
+        logger.info("Connection to $url")
+        val connection = httpClient.connectWebSocket(
+                uri = url,
+        ).start()
+        logger.info("Connected to $url")
+        ByteBuffer(100).use { buffer ->
             try {
-                val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
-                logger.info("Connection to $url")
-                val connection = httpClient.connectWebSocket(
-                        uri = url,
-                ).start()
-                logger.info("Connected to $url")
-                ByteBuffer(100).use { buffer ->
-                    try {
-                        while (true) {
-                            connection.read().use { msg ->
-                                logger.info("Income message!")
-                                val id = msg.readInt(buffer)
-                                when (msg.readByte(buffer)) {
-                                    Codes.CONNECT -> connectProcessing(
-                                            id = id,
-                                            buffer = buffer,
-                                            msg = msg,
-                                            connection = connection,
-                                    )
+                while (true) {
+                    connection.read().use { msg ->
+                        logger.info("Income message!")
+                        val id = msg.readInt(buffer)
+                        when (msg.readByte(buffer)) {
+                            Codes.CONNECT -> connectProcessing(
+                                    id = id,
+                                    buffer = buffer,
+                                    msg = msg,
+                                    connection = connection,
+                            )
 
-                                    else -> TODO()
-                                }
-                            }
-                            logger.info("Message processed! Wait new message...")
+                            else -> TODO()
                         }
-                    } catch (e: WebSocketClosedException) {
-                        logger.severe(text = "Ws Connection closed. isControlWs=${e.connection === connection}", exception = e)
-                    } catch (e: Throwable) {
-                        logger.severe(text = "Error on package reading", exception = e)
-                    } finally {
-                        logger.warn("Control finished!")
-                        connection.asyncCloseAnyway()
                     }
+                    logger.info("Message processed! Wait new message...")
                 }
+            } catch (e: WebSocketClosedException) {
+                logger.severe(text = "Ws Connection closed. isControlWs=${e.connection === connection}", exception = e)
             } catch (e: Throwable) {
-                logger.severe(text = "Error on ControlService", exception = e)
+                logger.severe(text = "Error on package reading", exception = e)
+            } finally {
+                logger.warn("Control finished!")
+                connection.asyncCloseAnyway()
             }
         }
+    }
+
+    override suspend fun link(strong: Strong) {
+        clientProcess = GlobalScope.launch(coroutineContext) {
+            while (true) {
+                try {
+                    createConnection()
+                } catch (e: SocketConnectException) {
+                    logger.warn("Can't connect to server")
+                    delay(10.seconds)
+                } catch (e: WebSocketClosedException) {
+                    logger.warn("Connection lost")
+                    delay(5.seconds)
+                } catch (e: Throwable) {
+                    logger.warn("Error connection", exception = e)
+                    delay(10.seconds)
+                }
+            }
+        }
+    }
+
+    override suspend fun destroy(strong: Strong) {
+        clientProcess?.cancel()
+        clientProcess = null
     }
 }
