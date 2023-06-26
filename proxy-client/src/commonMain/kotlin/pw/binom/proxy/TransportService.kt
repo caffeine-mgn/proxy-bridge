@@ -26,21 +26,22 @@ class TransportService : Strong.DestroyableBean {
     private val logger by Logger.ofThisOrGlobal
     suspend fun connectTcp(id: Int, address: NetworkAddress) {
         require(!closing) { "Service is closing" }
-        val socket = if (runtimeProperties.proxy != null) {
-            val auth = runtimeProperties.proxy?.proxyAuth?.basicAuth?.let {
-                BasicAuth(login = it.user, password = it.password)
-            } ?: runtimeProperties.proxy?.proxyAuth?.bearerAuth?.let {
-                BearerAuth(token = it.token)
-            }
-            networkManager.tcpConnectViaHttpProxy(
-                    proxy = runtimeProperties.proxy!!.address.resolve(),
-                    address = address,
-                    auth = auth,
-                    readBufferSize = runtimeProperties.bufferSize,
-            )
-        } else {
-            networkManager.tcpConnect(address = address.resolve())
-        }
+//        val socket = if (runtimeProperties.proxy != null) {
+//            val auth = runtimeProperties.proxy?.proxyAuth?.basicAuth?.let {
+//                BasicAuth(login = it.user, password = it.password)
+//            } ?: runtimeProperties.proxy?.proxyAuth?.bearerAuth?.let {
+//                BearerAuth(token = it.token)
+//            }
+//            networkManager.tcpConnectViaHttpProxy(
+//                    proxy = runtimeProperties.proxy!!.address.resolve(),
+//                    address = address,
+//                    auth = auth,
+//                    readBufferSize = runtimeProperties.bufferSize,
+//            )
+//        } else {
+//            networkManager.tcpConnect(address = address.resolve())
+//        }
+        val socket = networkManager.tcpConnect(address = address.resolve())
         val transportConnection = try {
             val transportUrl = runtimeProperties.url.addPath(Urls.TRANSPORT.toPath).appendQuery("id", id.toString())
             logger.info("TransportUrl: $transportUrl")
