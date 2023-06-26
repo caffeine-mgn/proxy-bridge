@@ -10,10 +10,7 @@ import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.create
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
-import pw.binom.proxy.handlers.ClientControlHandler
-import pw.binom.proxy.handlers.ClientTransportHandler
-import pw.binom.proxy.handlers.ExternalHandler
-import pw.binom.proxy.handlers.ProxyHandler
+import pw.binom.proxy.handlers.*
 import pw.binom.signal.Signal
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
@@ -35,6 +32,7 @@ fun main(args: Array<String>) {
             it.bean { ClientTransportHandler() }
             it.bean { ClientService() }
             it.bean { ProxyHandler() }
+            it.bean { InternalHandler() }
             it.bean { InternalWebServerService() }
             it.bean { ExternalWebServerService() }
         }
