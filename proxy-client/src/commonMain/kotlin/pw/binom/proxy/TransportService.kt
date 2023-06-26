@@ -36,6 +36,7 @@ class TransportService : Strong.DestroyableBean {
                     proxy = runtimeProperties.proxy!!.address.resolve(),
                     address = address,
                     auth = auth,
+                    readBufferSize = runtimeProperties.bufferSize,
             )
         } else {
             networkManager.tcpConnect(address = address.resolve())
@@ -52,7 +53,12 @@ class TransportService : Strong.DestroyableBean {
             throw e
         }
 
-        val transportClient = TransportTcpClient.start(socket = socket, transportConnection = transportConnection, logger = Logger.getLogger("Transport #$id $address")) {
+        val transportClient = TransportTcpClient.start(
+                socket = socket,
+                transportConnection = transportConnection,
+                logger = Logger.getLogger("Transport #$id $address"),
+                bufferSize = runtimeProperties.bufferSize,
+        ) {
             removeClient(it)
         }
         lock.synchronize {

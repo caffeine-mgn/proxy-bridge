@@ -19,9 +19,6 @@ class ExternalHandler : HttpHandler {
             path.isMatch(Urls.CONTROL) -> clientControlHandler.handle(exchange)
             path.isMatch(Urls.TRANSPORT) -> clientTransportHandler.handle(exchange)
         }
-        logger.info("path.isMatch(Urls.TRANSPORT) -> ${path.isMatch(Urls.TRANSPORT)}")
-        logger.info("path=$path")
-        logger.info("Urls.TRANSPORT=${Urls.TRANSPORT}")
         if (!exchange.responseStarted) {
             exchange.startResponse(404)
         }

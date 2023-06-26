@@ -6,6 +6,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import pw.binom.DEFAULT_BUFFER_SIZE
 import pw.binom.io.socket.NetworkAddress
 import pw.binom.proxy.serialization.NetworkAddressSerializer
 import pw.binom.url.URL
@@ -28,6 +29,7 @@ data class RuntimeProperties(
         @Serializable(URLSerializer::class)
         val url: URL,
         val proxy: Proxy? = null,
+        val bufferSize: Int = DEFAULT_BUFFER_SIZE,
 ) {
     @Serializable
     data class Proxy(

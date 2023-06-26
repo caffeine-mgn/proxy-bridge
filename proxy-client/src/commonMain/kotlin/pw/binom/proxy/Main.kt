@@ -18,18 +18,19 @@ import pw.binom.strong.ServiceProvider
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 import pw.binom.strong.inject
+import pw.binom.url.toURL
 import kotlin.coroutines.CoroutineContext
 
 fun ServiceProvider<NetworkManager>.asInstance() = object : NetworkManager {
     override fun attach(channel: TcpClientSocket, mode: Int): TcpConnection =
-        service.attach(channel = channel, mode = mode)
+            service.attach(channel = channel, mode = mode)
 
     override fun attach(channel: TcpNetServerSocket): TcpServerConnection = service.attach(channel)
 
     override fun attach(channel: UdpNetSocket): UdpConnection = service.attach(channel)
 
     override fun <R> fold(initial: R, operation: (R, CoroutineContext.Element) -> R): R =
-        service.fold(initial = initial, operation = operation)
+            service.fold(initial = initial, operation = operation)
 
     override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? = service.get(key)
 
@@ -50,8 +51,9 @@ fun main(args: Array<String>) {
         val baseConfig = Strong.config {
             it.bean { MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors) }
             it.bean {
+                val proxyUrl = properties.proxy?.address?.let { "http://${it.host}:${it.port}/".toURL() }
                 val nm = inject<NetworkManager>()
-                HttpClient.create(networkDispatcher = nm.asInstance())
+                HttpClient.create(networkDispatcher = nm.asInstance(), proxyURL = proxyUrl)
             }
             it.bean { ControlService() }
             it.bean { TransportService() }

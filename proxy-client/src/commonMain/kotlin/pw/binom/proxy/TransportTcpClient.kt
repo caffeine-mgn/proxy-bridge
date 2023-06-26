@@ -8,6 +8,7 @@ import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.use
 import pw.binom.logger.Logger
+import pw.binom.logger.debug
 import pw.binom.logger.info
 import pw.binom.logger.warn
 import pw.binom.network.SocketClosedException
@@ -19,7 +20,8 @@ class TransportTcpClient private constructor(
         val socket: AsyncChannel,
         val connection: AsyncChannel,
         val onClose: (TransportTcpClient) -> Unit,
-        val logger: Logger
+        val logger: Logger,
+        val bufferSize: Int,
 ) : AsyncCloseable {
     private var wsToTcp: Job? = null
     private var tcpToWs: Job? = null
@@ -27,8 +29,8 @@ class TransportTcpClient private constructor(
     private suspend fun start() {
         wsToTcp = GlobalScope.launch(coroutineContext) {
             try {
-                connection.copyTo(socket) {
-                    logger.info("ws->tcp $it")
+                connection.copyTo(socket, bufferSize = bufferSize) {
+                    logger.debug("ws->tcp $it")
                 }
             } catch (e: SocketClosedException) {
                 // Do nothing
@@ -43,8 +45,8 @@ class TransportTcpClient private constructor(
         }
         tcpToWs = GlobalScope.launch(coroutineContext) {
             try {
-                socket.copyTo(connection) {
-                    logger.info("tcp->ws $it")
+                socket.copyTo(connection, bufferSize = bufferSize) {
+                    logger.debug("tcp->ws $it")
                 }
             } catch (e: SocketClosedException) {
                 // Do nothing
@@ -65,6 +67,7 @@ class TransportTcpClient private constructor(
                 socket: AsyncChannel,
                 transportConnection: AsyncChannel,
                 logger: Logger,
+                bufferSize: Int,
                 onClose: (TransportTcpClient) -> Unit
         ): TransportTcpClient {
 
@@ -73,6 +76,7 @@ class TransportTcpClient private constructor(
                     connection = transportConnection,
                     onClose = onClose,
                     logger = logger,
+                    bufferSize = bufferSize,
             )
             client.start()
             return client

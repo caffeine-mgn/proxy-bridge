@@ -7,13 +7,17 @@ import pw.binom.io.ByteBuffer
 import pw.binom.io.use
 
 suspend fun AsyncInput.copyTo(
-    dest: AsyncOutput,
-    bufferSize: Int = DEFAULT_BUFFER_SIZE,
-    progress: suspend (Int) -> Unit
+        dest: AsyncOutput,
+        bufferSize: Int = DEFAULT_BUFFER_SIZE,
+        progress: suspend (Int) -> Unit
 ): Long =
-    ByteBuffer(bufferSize).use { buffer ->
-        copyTo(dest = dest, buffer = buffer, progress = progress)
-    }
+        ByteBuffer(bufferSize).use { buffer ->
+            copyTo(
+                    dest = dest,
+                    buffer = buffer,
+                    progress = progress,
+            )
+        }
 
 suspend fun AsyncInput.copyTo(dest: AsyncOutput, buffer: ByteBuffer, progress: suspend (Int) -> Unit): Long {
     var totalLength = 0L
