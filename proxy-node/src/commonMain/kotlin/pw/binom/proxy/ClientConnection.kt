@@ -58,7 +58,6 @@ class ClientConnection(
                 msg.writeInt(channelId, buffer = buffer)
             }
         }
-        println("Wrote success")
         suspendCancellableCoroutine {
             it.invokeOnCancellation {
                 waiters.remove(id)

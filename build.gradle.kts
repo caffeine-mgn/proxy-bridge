@@ -3,8 +3,8 @@ plugins {
 }
 allprojects {
     repositories {
+        mavenLocal()
         maven(url = "https://repo.binom.pw")
         mavenCentral()
-        mavenLocal()
     }
 }

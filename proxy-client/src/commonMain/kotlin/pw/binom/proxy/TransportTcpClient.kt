@@ -10,15 +10,16 @@ import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.warn
+import pw.binom.network.SocketClosedException
 import pw.binom.network.TcpConnection
 import pw.binom.proxy.io.*
 import kotlin.coroutines.coroutineContext
 
 class TransportTcpClient private constructor(
-    val socket: TcpConnection,
-    val connection: AsyncChannel,
-    val onClose: (TransportTcpClient) -> Unit,
-    val logger: Logger
+        val socket: AsyncChannel,
+        val connection: AsyncChannel,
+        val onClose: (TransportTcpClient) -> Unit,
+        val logger: Logger
 ) : AsyncCloseable {
     private var wsToTcp: Job? = null
     private var tcpToWs: Job? = null
@@ -29,6 +30,8 @@ class TransportTcpClient private constructor(
                 connection.copyTo(socket) {
                     logger.info("ws->tcp $it")
                 }
+            } catch (e: SocketClosedException) {
+                // Do nothing
             } catch (e: Throwable) {
                 logger.warn("Error on ws->tcp", exception = e)
             } finally {
@@ -43,6 +46,8 @@ class TransportTcpClient private constructor(
                 socket.copyTo(connection) {
                     logger.info("tcp->ws $it")
                 }
+            } catch (e: SocketClosedException) {
+                // Do nothing
             } catch (e: Throwable) {
                 logger.warn("Error on tcp->ws", exception = e)
             }
@@ -51,25 +56,23 @@ class TransportTcpClient private constructor(
 
     override suspend fun asyncClose() {
         logger.info("Closing connection")
-//        tcpToWs?.cancel(kotlinx.coroutines.CancellationException("Closing Transport. tcp->ws"))
-//        wsToTcp?.cancel(kotlinx.coroutines.CancellationException("Closing Transport. ws->tcp"))
         socket.asyncCloseAnyway()
         connection.asyncCloseAnyway()
     }
 
     companion object {
         suspend fun start(
-            socket: TcpConnection,
-            transportConnection: AsyncChannel,
-            logger: Logger,
-            onClose: (TransportTcpClient) -> Unit
+                socket: AsyncChannel,
+                transportConnection: AsyncChannel,
+                logger: Logger,
+                onClose: (TransportTcpClient) -> Unit
         ): TransportTcpClient {
 
             val client = TransportTcpClient(
-                socket = socket,
-                connection = transportConnection,
-                onClose = onClose,
-                logger = logger,
+                    socket = socket,
+                    connection = transportConnection,
+                    onClose = onClose,
+                    logger = logger,
             )
             client.start()
             return client

@@ -12,6 +12,7 @@ import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.connectWebSocket
+import pw.binom.io.socket.NetworkAddress
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -34,7 +35,11 @@ class ControlService : Strong.LinkingBean {
         val channelId = msg.readInt(buffer)
         try {
             transportService.connectTcp(
-                id = channelId, host = host, port = port
+                    id = channelId,
+                    address = NetworkAddress.create(
+                            host = host,
+                            port = port,
+                    )
             )
             connection.write(MessageType.BINARY).use { msg ->
                 msg.writeInt(id, buffer = buffer)
@@ -59,7 +64,7 @@ class ControlService : Strong.LinkingBean {
                 val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
                 logger.info("Connection to $url")
                 val connection = httpClient.connectWebSocket(
-                    uri = url,
+                        uri = url,
                 ).start()
                 logger.info("Connected to $url")
                 ByteBuffer(100).use { buffer ->
@@ -70,10 +75,10 @@ class ControlService : Strong.LinkingBean {
                                 val id = msg.readInt(buffer)
                                 when (msg.readByte(buffer)) {
                                     Codes.CONNECT -> connectProcessing(
-                                        id = id,
-                                        buffer = buffer,
-                                        msg = msg,
-                                        connection = connection,
+                                            id = id,
+                                            buffer = buffer,
+                                            msg = msg,
+                                            connection = connection,
                                     )
 
                                     else -> TODO()
@@ -81,9 +86,9 @@ class ControlService : Strong.LinkingBean {
                             }
                             logger.info("Message processed! Wait new message...")
                         }
-                    } catch (e:WebSocketClosedException){
-                        logger.severe(text = "Ws Connection closed. isControlWs=${e.connection===connection}", exception = e)
-                    }catch (e: Throwable) {
+                    } catch (e: WebSocketClosedException) {
+                        logger.severe(text = "Ws Connection closed. isControlWs=${e.connection === connection}", exception = e)
+                    } catch (e: Throwable) {
                         logger.severe(text = "Error on package reading", exception = e)
                     } finally {
                         logger.warn("Control finished!")
