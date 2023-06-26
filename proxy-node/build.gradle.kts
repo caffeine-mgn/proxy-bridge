@@ -4,6 +4,7 @@ plugins {
     id("com.github.johnrengelman.shadow")
 }
 val nativeEntryPoint = "pw.binom.proxy.main"
+description = "proxy-node"
 kotlin {
     linuxX64 {
         binaries {
@@ -56,3 +57,8 @@ tasks {
         }
     }
 }
+
+apply {
+    plugin(pw.binom.DockerPackNative::class.java)
+}
+

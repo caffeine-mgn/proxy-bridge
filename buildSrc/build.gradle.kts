@@ -30,4 +30,5 @@ dependencies {
     api("org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlinVersion")
     api("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     api("org.jetbrains.kotlin:kotlin-serialization:$kotlinVersion")
+    api("com.bmuschko:gradle-docker-plugin:6.4.0")
 }
