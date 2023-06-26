@@ -1,13 +1,10 @@
 package pw.binom.proxy.handlers
 
-import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptWebsocket
-import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.proxy.BridgeService
 import pw.binom.proxy.ClientConnection
 import pw.binom.proxy.ClientService
 import pw.binom.strong.inject
