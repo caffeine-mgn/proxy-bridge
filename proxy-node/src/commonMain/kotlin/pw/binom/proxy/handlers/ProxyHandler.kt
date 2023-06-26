@@ -12,9 +12,11 @@ import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.use
 import pw.binom.proxy.io.*
 import pw.binom.logger.Logger
+import pw.binom.logger.debug
 import pw.binom.logger.info
 import pw.binom.logger.warn
 import pw.binom.network.NetworkManager
+import pw.binom.network.SocketClosedException
 import pw.binom.proxy.ClientService
 import pw.binom.proxy.ProxedFactory
 import pw.binom.proxy.SingleProtocolSelector
@@ -110,19 +112,20 @@ class ProxyHandler : HttpHandler {
         val reversJob = GlobalScope.launch(coroutineContext) {
             while (true) {
                 connectionInfo.copyTo(output, bufferSize = DEFAULT_BUFFER_SIZE) {
-                    logger.info("ws->tcp $it")
+                    logger.debug("ws->tcp $it")
                 }
             }
         }
         try {
             while (true) {
                 input.copyTo(connectionInfo, bufferSize = DEFAULT_BUFFER_SIZE) {
-                    logger.info("tcp->ws $it")
+                    logger.debug("tcp->ws $it")
                 }
             }
+        } catch (e: SocketClosedException) {
+            // Do nothing
         } catch (e: Throwable) {
             logger.warn(text = "Error on passing data from input to output", exception = e)
-            e.printStackTrace()
         } finally {
             logger.info("request finished!!!")
             reversJob.cancel(kotlinx.coroutines.CancellationException("Can't copy tcp->client"))
