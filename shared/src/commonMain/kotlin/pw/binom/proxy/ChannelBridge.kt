@@ -16,22 +16,38 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
 
 class ChannelBridge(
+    val id: Int,
     private val local: AsyncChannel,
     private val remote: AsyncChannel,
     private val bufferSize: Int,
     private val logger: Logger?,
     private val localName: String,
     private val remoteName: String,
+    private val controller: Controller?,
 ) : AsyncCloseable {
+
+    interface Controller {
+        suspend fun created(channelBridge: ChannelBridge) {}
+        suspend fun closed(channelBridge: ChannelBridge) {}
+        suspend fun localClosed(channelBridge: ChannelBridge) {
+            channelBridge.asyncClose()
+        }
+
+        suspend fun removeClosed(channelBridge: ChannelBridge) {
+            channelBridge.asyncClose()
+        }
+    }
 
     companion object {
         suspend fun create(
+            id: Int,
             local: AsyncChannel,
             remote: AsyncChannel,
             bufferSize: Int = DEFAULT_BUFFER_SIZE,
             logger: Logger? = null,
             localName: String = "local",
             remoteName: String = "remote",
+            controller: Controller? = null,
         ): ChannelBridge {
             val bridge = ChannelBridge(
                 local = local,
@@ -40,6 +56,8 @@ class ChannelBridge(
                 logger = logger,
                 localName = localName,
                 remoteName = remoteName,
+                controller = controller,
+                id = id,
             )
             bridge.start()
             return bridge

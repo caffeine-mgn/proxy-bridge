@@ -10,6 +10,7 @@ import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.connectWebSocket
 import pw.binom.io.socket.NetworkAddress
+import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -17,6 +18,7 @@ import pw.binom.logger.severe
 import pw.binom.logger.warn
 import pw.binom.network.SocketConnectException
 import pw.binom.proxy.Codes
+import pw.binom.proxy.ControlResponseCodes
 import pw.binom.proxy.Urls
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
@@ -35,7 +37,7 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
         val host = msg.readUTF8String(buffer)
         val port = msg.readShort(buffer).toInt()
         val channelId = msg.readInt(buffer)
-        try {
+        val connectResult = runCatching {
             transportService.connect(
                 id = channelId,
                 transportType = runtimeProperties.transportType,
@@ -44,18 +46,35 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
                     port = port,
                 ),
             )
-            connection.write(MessageType.BINARY).use { msg ->
-                msg.writeInt(id, buffer = buffer)
-                msg.writeByte(1, buffer = buffer)
+        }
+        when {
+            connectResult.isSuccess -> {
+                connection.write(MessageType.BINARY).use { msg ->
+                    msg.writeInt(id, buffer = buffer)
+                    msg.writeByte(ControlResponseCodes.OK.code, buffer = buffer)
+                }
+                logger.info("Sent success response")
             }
-            logger.info("Sent success response")
-        } catch (e: Throwable) {
-            connection.write(MessageType.BINARY).use { msg ->
-                msg.writeInt(id, buffer = buffer)
-                msg.writeByte(0, buffer = buffer)
+
+            connectResult.isFailure -> {
+                when (val e = connectResult.exceptionOrNull()) {
+                    is UnknownHostException -> {
+                        connection.write(MessageType.BINARY).use { msg ->
+                            msg.writeInt(id, buffer = buffer)
+                            msg.writeByte(ControlResponseCodes.UNKNOWN_HOST.code, buffer = buffer)
+                        }
+                        logger.info(text = "Unknown host $host:$port")
+                    }
+
+                    else -> {
+                        connection.write(MessageType.BINARY).use { msg ->
+                            msg.writeInt(id, buffer = buffer)
+                            msg.writeByte(ControlResponseCodes.UNKNOWN_ERROR.code, buffer = buffer)
+                        }
+                        logger.info(text = "Can't connect to $host:$port", exception = e)
+                    }
+                }
             }
-            logger.info(text = "Can't connect to $host:$port", exception = e)
-            throw e
         }
     }
 

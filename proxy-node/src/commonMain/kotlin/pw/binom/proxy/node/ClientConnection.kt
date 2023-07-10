@@ -9,10 +9,12 @@ import pw.binom.io.ByteBuffer
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
+import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.warn
 import pw.binom.proxy.Codes
+import pw.binom.proxy.ControlResponseCodes
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -28,10 +30,11 @@ class ClientConnection(
                         val id = msg.readInt(buffer)
                         val success = msg.readByte(buffer)
                         val water = waiters.remove(id)
-                        if (success > 0) {
-                            water?.resume(Unit)
-                        } else {
-                            water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
+                        when (success) {
+                            ControlResponseCodes.OK.code -> water?.resume(Unit)
+                            ControlResponseCodes.UNKNOWN_HOST.code -> water?.resumeWithException(UnknownHostException())
+                            ControlResponseCodes.UNKNOWN_ERROR.code -> water?.resumeWithException(RuntimeException("Unknown error $success. Operation $id"))
+                            else -> water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
                         }
                     }
                 }

@@ -100,7 +100,7 @@ class ClientService {
         )
     }
 
-    suspend fun connectTo(host: String, port: Int): AsyncChannel {
+    suspend fun connectTo(host: String, port: Int): Pair<Int, AsyncChannel> {
         val connectionId = channelCounter++
 //        val scope = coroutineContext
         val client = waitClient()
@@ -112,9 +112,9 @@ class ClientService {
             channelId = connectionId,
         )
         logger.info("Waiting $connectionId transport channel")
-        val c = compositeChannelManager.getChannel(connectionId)
+        val channel = compositeChannelManager.getChannel(connectionId)
         logger.info("Transport $connectionId channel connected")
-        return c
+        return connectionId to channel
         /*
         val l = suspendCancellableCoroutine {
             logger.infoSync("wait connection with id=$connectionId")

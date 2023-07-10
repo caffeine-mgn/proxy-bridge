@@ -66,6 +66,7 @@ class TransportService : Strong.DestroyableBean {
             ),
             logger = Logger.getLogger("Client Transport #$id $address"),
             localName = "client",
+            id = id,
         )
 //        val transportClient = TransportTcpClient.start(
 //            socket = socket,
@@ -94,7 +95,7 @@ class TransportService : Strong.DestroyableBean {
             logger.info("TransportUrl: $transportUrl")
             httpClient.connectWebSocket(
                 uri = transportUrl,
-                masking = false,
+                masking = runtimeProperties.wsMasking,
             ).start()
         } catch (e: Throwable) {
             socket.asyncCloseAnyway()
@@ -107,6 +108,7 @@ class TransportService : Strong.DestroyableBean {
             logger = Logger.getLogger("Transport #$id $address"),
             bufferSize = runtimeProperties.bufferSize,
             localName = "client",
+            id = id,
         )
 
 //        val transportClient = TransportTcpClient.start(
@@ -144,6 +146,7 @@ class TransportService : Strong.DestroyableBean {
             logger = Logger.getLogger("Transport #$id $address"),
             bufferSize = runtimeProperties.bufferSize,
             localName = "client",
+            id = id,
         )
 //        val transportClient = TransportTcpClient.start(
 //            socket = socket,

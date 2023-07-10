@@ -11,6 +11,7 @@ import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
+import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.debug
@@ -49,7 +50,7 @@ class ProxyHandler : HttpHandler {
                 clientService.connectTo(
                     host = url.host,
                     port = url.port ?: 80,
-                )
+                ).second
             }))
 
         BaseHttpClient(
@@ -102,25 +103,31 @@ class ProxyHandler : HttpHandler {
         val host = items[0]
         val port = items[1].toInt()
         logger.info("Address: $host:$port")
+
+        val connectionInfo = try {
+            clientService.connectTo(
+                host = host,
+                port = port,
+            )
+        } catch (e: UnknownHostException) {
+            exchange.startResponse(404)
+            return
+        }
         val input = exchange.input
         exchange.startResponse(200, emptyHeaders())
         val output = exchange.output
         logger.info("Try init connect on remote client!")
-
-        val connectionInfo = clientService.connectTo(
-            host = host,
-            port = port,
-        )
         val localChannel = AsyncChannel.create(
             input = input,
             output = output,
         )
         val bridge = ChannelBridge.create(
             local = localChannel,
-            remote = connectionInfo,
+            remote = connectionInfo.second,
             bufferSize = runtimeProperties.bufferSize,
-            logger = Logger.getLogger("Node Transport"),
-            localName = "node"
+            logger = Logger.getLogger("Node Transport #${connectionInfo.first}"),
+            localName = "node",
+            id = connectionInfo.first,
         )
         bridge.join()
 //        val reversJob = GlobalScope.launch(coroutineContext) {
