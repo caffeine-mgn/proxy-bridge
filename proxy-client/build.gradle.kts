@@ -3,7 +3,7 @@ plugins {
     id("kotlinx-serialization")
     id("com.github.johnrengelman.shadow")
 }
-val nativeEntryPoint = "pw.binom.proxy.main"
+val nativeEntryPoint = "pw.binom.proxy.client.main"
 kotlin {
     linuxX64 {
         binaries {
@@ -53,5 +53,14 @@ tasks {
         manifest {
             attributes("Main-Class" to "pw.binom.proxy.JvmMain")
         }
+    }
+}
+
+tasks {
+    val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
+    register("deploy", Copy::class.java) {
+        dependsOn(linkMingw)
+        from(file("/home/subochev/WORK/proxy-bridge/proxy-client/build/bin/mingwX64/releaseExecutable"))
+        into(file("/media/subochev/BIG/Nextcloud/tmp/dddd"))
     }
 }

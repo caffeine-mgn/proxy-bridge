@@ -1,13 +1,14 @@
 pluginManagement {
-  plugins {
-  }
-  repositories {
-    mavenCentral()
-    gradlePluginPortal()
-  }
+    plugins {
+    }
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
-rootProject.name="proxy-bridge"
+rootProject.name = "proxy-bridge"
 include(":proxy-node")
 include(":proxy-client")
-//include(":proxy-server")
+include(":testing")
 include(":shared")
