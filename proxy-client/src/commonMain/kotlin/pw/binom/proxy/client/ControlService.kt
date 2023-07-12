@@ -90,6 +90,7 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
         ByteBuffer(1024 * 1024).use { buffer ->
             try {
                 while (true) {
+                    logger.info("Try read message")
                     connection.read().use { msg ->
                         logger.info("Income message!")
                         val id = msg.readInt(buffer)

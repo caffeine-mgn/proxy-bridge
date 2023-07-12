@@ -68,23 +68,6 @@ class TransportService : Strong.DestroyableBean {
             localName = "client",
             id = id,
         )
-//        val transportClient = TransportTcpClient.start(
-//            socket = socket,
-//            transportConnection = AsyncChannel.create(
-//                input = resp.readData(),
-//                output = writeReqeust.writeData(),
-//            ) {
-//                writeReqeust.asyncCloseAnyway()
-//                resp.asyncCloseAnyway()
-//            },
-//            logger = Logger.getLogger("Transport #$id $address"),
-//            bufferSize = runtimeProperties.bufferSize,
-//        ) {
-//            removeClient(it)
-//        }
-//        lock.synchronize {
-//            connections += transportClient
-//        }
     }
 
     suspend fun connectWs(id: Int, address: NetworkAddress) {
@@ -110,18 +93,6 @@ class TransportService : Strong.DestroyableBean {
             localName = "client",
             id = id,
         )
-
-//        val transportClient = TransportTcpClient.start(
-//            socket = socket,
-//            transportConnection = transportConnection,
-//            logger = Logger.getLogger("Transport #$id $address"),
-//            bufferSize = runtimeProperties.bufferSize,
-//        ) {
-//            removeClient(it)
-//        }
-//        lock.synchronize {
-//            connections += transportClient
-//        }
     }
 
     suspend fun connectTcp(id: Int, address: NetworkAddress) {
