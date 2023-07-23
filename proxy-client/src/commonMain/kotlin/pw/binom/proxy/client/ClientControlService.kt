@@ -26,7 +26,7 @@ import pw.binom.url.toURL
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.seconds
 
-class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
+class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     val httpClient by inject<HttpClient>()
     val transportService by inject<TransportService>()
     val runtimeProperties by inject<RuntimeProperties>()
@@ -40,7 +40,6 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
         val connectResult = runCatching {
             transportService.connect(
                 id = channelId,
-                transportType = runtimeProperties.transportType,
                 address = NetworkAddress.create(
                     host = host,
                     port = port,
@@ -53,7 +52,6 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
                     msg.writeInt(id, buffer = buffer)
                     msg.writeByte(ControlResponseCodes.OK.code, buffer = buffer)
                 }
-                logger.info("Sent success response")
             }
 
             connectResult.isFailure -> {
@@ -82,7 +80,7 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
 
     private suspend fun createConnection() {
         val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
-        logger.info("Connection to $url")
+        logger.info("Connection to $url...")
         val connection = httpClient.connectWebSocket(
             uri = url,
         ).start()
@@ -90,43 +88,57 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
         ByteBuffer(1024 * 1024).use { buffer ->
             try {
                 while (true) {
-                    logger.info("Try read message")
-                    connection.read().use { msg ->
-                        logger.info("Income message!")
-                        val id = msg.readInt(buffer)
-                        when (msg.readByte(buffer)) {
-                            Codes.CONNECT -> connectProcessing(
-                                id = id,
-                                buffer = buffer,
-                                msg = msg,
-                                connection = connection,
-                            )
+                    try {
+                        connection.read().use { msg ->
+                            try {
+                                logger.info("Income message!")
+                                val id = msg.readInt(buffer)
+                                when (val byte = msg.readByte(buffer)) {
+                                    Codes.CONNECT -> {
+                                            connectProcessing(
+                                                id = id,
+                                                buffer = buffer,
+                                                msg = msg,
+                                                connection = connection,
+                                            )
+                                    }
 
-                            Codes.PUT_FILE -> {
-                                val fileStr = msg.readUTF8String(buffer)
-                                try {
-                                    selfReplaceService.putFile(fileDest = fileStr, input = msg, buffer = buffer)
-                                    connection.write(MessageType.BINARY).use { msg ->
-                                        msg.writeInt(id, buffer = buffer)
-                                        msg.writeByte(1, buffer = buffer)
+                                    Codes.PUT_FILE -> {
+                                        val fileStr = msg.readUTF8String(buffer)
+                                        try {
+                                            selfReplaceService.putFile(fileDest = fileStr, input = msg, buffer = buffer)
+                                            connection.write(MessageType.BINARY).use { msg ->
+                                                msg.writeInt(id, buffer = buffer)
+                                                msg.writeByte(1, buffer = buffer)
+                                            }
+                                        } catch (e: Throwable) {
+                                            connection.write(MessageType.BINARY).use { msg ->
+                                                msg.writeInt(id, buffer = buffer)
+                                                msg.writeByte(0, buffer = buffer)
+                                            }
+                                        }
                                     }
-                                } catch (e: Throwable) {
-                                    connection.write(MessageType.BINARY).use { msg ->
-                                        msg.writeInt(id, buffer = buffer)
-                                        msg.writeByte(0, buffer = buffer)
-                                    }
+
+                                    else -> TODO("Unknown cmd $byte")
                                 }
+                            } catch (e: Throwable) {
+                                logger.info(text = "Error during message reading...", exception = e)
+                                throw e
+                            } finally {
+                                logger.info("Message processed!")
                             }
-
-                            else -> TODO()
                         }
+                    } finally {
+                        logger.info("Message processed! Wait new message...")
                     }
-                    logger.info("Message processed! Wait new message...")
                 }
             } catch (e: WebSocketClosedException) {
                 logger.severe(text = "Ws Connection closed. isControlWs=${e.connection === connection}", exception = e)
             } catch (e: DestroyingException) {
                 // Do nothing
+            } catch (e: TimeoutCancellationException) {
+                logger.warn("Message reading timeout!!! Closing!!!!")
+                connection.asyncCloseAnyway()
             } catch (e: CancellationException) {
                 logger.severe(text = "Control cancelled", exception = e)
                 // Do nothing
@@ -141,28 +153,31 @@ class ControlService : Strong.LinkingBean, Strong.DestroyableBean {
 
     override suspend fun link(strong: Strong) {
         clientProcess = GlobalScope.launch(coroutineContext) {
-            while (isActive) {
-                try {
-                    createConnection()
-                } catch (e: DestroyingException) {
-                    break
-                } catch (e: SocketConnectException) {
-                    logger.warn("Can't connect to server")
-                    delay(10.seconds)
-                } catch (e: WebSocketClosedException) {
-                    logger.warn("Connection lost")
-                    delay(5.seconds)
-                } catch (e: CancellationException) {
-                    break
-                } catch (e: Throwable) {
-                    logger.warn("Error connection", exception = e)
-                    delay(10.seconds)
+            supervisorScope {
+                while (isActive) {
+                    try {
+                        createConnection()
+                    } catch (e: DestroyingException) {
+                        break
+                    } catch (e: SocketConnectException) {
+                        logger.warn("Can't connect to server")
+                        delay(10.seconds)
+                    } catch (e: WebSocketClosedException) {
+                        logger.warn("Connection lost")
+                        delay(5.seconds)
+                    } catch (e: CancellationException) {
+                        break
+                    } catch (e: Throwable) {
+                        logger.warn("Error connection", exception = e)
+                        delay(10.seconds)
+                    }
                 }
             }
         }
     }
 
     override suspend fun destroy(strong: Strong) {
+        println("ClientControlService:: Closing ClientConnection")
         clientProcess?.cancel(DestroyingException())
         clientProcess = null
     }

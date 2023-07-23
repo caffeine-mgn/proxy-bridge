@@ -12,6 +12,7 @@ import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
 import pw.binom.logger.Logger
+import pw.binom.logger.info
 import pw.binom.logger.warn
 import pw.binom.proxy.Codes
 import pw.binom.proxy.ControlResponseCodes
@@ -27,14 +28,22 @@ class ClientConnection(
             ByteBuffer(100).use { buffer ->
                 while (true) {
                     connection.read().use { msg ->
-                        val id = msg.readInt(buffer)
-                        val success = msg.readByte(buffer)
-                        val water = waiters.remove(id)
-                        when (success) {
-                            ControlResponseCodes.OK.code -> water?.resume(Unit)
-                            ControlResponseCodes.UNKNOWN_HOST.code -> water?.resumeWithException(UnknownHostException())
-                            ControlResponseCodes.UNKNOWN_ERROR.code -> water?.resumeWithException(RuntimeException("Unknown error $success. Operation $id"))
-                            else -> water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
+                        logger.info("Reading message ${msg.hashCode()}")
+                        try {
+                            val id = msg.readInt(buffer)
+                            val success = msg.readByte(buffer)
+                            val water = waiters.remove(id)
+                            when (success) {
+                                ControlResponseCodes.OK.code -> water?.resume(Unit)
+                                ControlResponseCodes.UNKNOWN_HOST.code -> water?.resumeWithException(
+                                    UnknownHostException()
+                                )
+
+                                ControlResponseCodes.UNKNOWN_ERROR.code -> water?.resumeWithException(RuntimeException("Unknown error $success. Operation $id"))
+                                else -> water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
+                            }
+                        } catch (e: Throwable) {
+
                         }
                     }
                 }
@@ -44,7 +53,9 @@ class ClientConnection(
                 logger.warn(exception = e)
             }
         } catch (e: Throwable) {
-            logger.warn(exception = e)
+            logger.warn(exception = e, text = "Error on processing")
+        } finally {
+            logger.info("Connection finished!")
         }
     }
 
@@ -72,6 +83,7 @@ class ClientConnection(
     suspend fun connect(host: String, port: Int, channelId: Int): Int {
         val id = idCounter++
         connection.write(MessageType.BINARY).use { msg ->
+            logger.info("Start send connect message")
             ByteBuffer(100).use { buffer ->
                 msg.writeInt(id, buffer = buffer)
                 msg.writeByte(Codes.CONNECT, buffer = buffer)
@@ -79,6 +91,7 @@ class ClientConnection(
                 msg.writeShort(port.toShort(), buffer = buffer)
                 msg.writeInt(channelId, buffer = buffer)
             }
+            logger.info("Connect message sent!")
         }
         suspendCancellableCoroutine {
             it.invokeOnCancellation {
@@ -91,6 +104,7 @@ class ClientConnection(
 
     override suspend fun asyncClose() {
         this.waiters.values.forEach {
+            println("ClientConnection:: Closing ClientConnection")
             it.cancel(kotlinx.coroutines.CancellationException("Closing ClientConnection"))
         }
         this.waiters.clear()

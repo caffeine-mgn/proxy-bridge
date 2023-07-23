@@ -1,6 +1,7 @@
 package pw.binom.proxy
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.supervisorScope
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
@@ -43,19 +44,17 @@ suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType,
         )
     )
     val nodeConfig = NodeRuntimeProperties(
-        externalBinds = listOf(InetNetworkAddress.create(host = "0.0.0.0", port = externalPort)),
-        internalBinds = listOf(InetNetworkAddress.create(host = "0.0.0.0", port = internalPort)),
+        externalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = externalPort)),
+        internalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = internalPort)),
     )
-
     println("Node external: $externalPort")
     println("Node internal: $internalPort")
-
-    val server = startProxyNode(nodeConfig)
-    delay(2.seconds)
-    try {
-        val client = startProxyClient(clientConfig)
+    MultiFixedSizeThreadNetworkDispatcher(2).use { nd ->
+        val server = startProxyNode(properties = nodeConfig, networkManager = nd)
+        delay(1.seconds)
         try {
-            MultiFixedSizeThreadNetworkDispatcher(2).use { nd ->
+            val client = startProxyClient(properties = clientConfig, networkManager = nd)
+            try {
                 HttpClient.create(
                     networkDispatcher = nd,
                     proxy = HttpProxyConfig(
@@ -65,13 +64,15 @@ suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType,
                         )
                     )
                 ).use { httpClient ->
-                    func(httpClient)
+                    supervisorScope {
+                        func(httpClient)
+                    }
                 }
+            } finally {
+                client.destroy()
             }
         } finally {
-            client.destroy()
+            server.destroy()
         }
-    } finally {
-        server.destroy()
     }
 }

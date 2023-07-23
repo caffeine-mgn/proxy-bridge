@@ -5,15 +5,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.properties.Properties
 import pw.binom.*
+import pw.binom.io.use
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
+import pw.binom.network.NetworkManager
 import pw.binom.proxy.node.handlers.*
 import pw.binom.signal.Signal
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 
-suspend fun startProxyNode(properties: RuntimeProperties): Strong {
+suspend fun startProxyNode(properties: RuntimeProperties, networkManager: NetworkManager): Strong {
     val baseConfig = Strong.config {
-        it.bean { MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors) }
+        it.bean { networkManager }
         it.bean { ExternalHandler() }
         it.bean { properties }
         it.bean { ClientControlHandler() }
@@ -39,17 +41,19 @@ fun main(args: Array<String>) {
     val properties = Properties.decodeFromStringMap(RuntimeProperties.serializer(), params)
 
     runBlocking {
-        val strong = startProxyNode(properties)
-        val mainCoroutineContext = coroutineContext
-        Signal.handler {
-            if (it.isInterrupted) {
-                if (!strong.isDestroying && !strong.isDestroyed) {
-                    GlobalScope.launch(mainCoroutineContext) {
-                        strong.destroy()
+        MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
+            val strong = startProxyNode(properties = properties, networkManager = networkManager)
+            val mainCoroutineContext = coroutineContext
+            Signal.handler {
+                if (it.isInterrupted) {
+                    if (!strong.isDestroying && !strong.isDestroyed) {
+                        GlobalScope.launch(mainCoroutineContext) {
+                            strong.destroy()
+                        }
                     }
                 }
             }
-        }
         strong.awaitDestroy()
+        }
     }
 }

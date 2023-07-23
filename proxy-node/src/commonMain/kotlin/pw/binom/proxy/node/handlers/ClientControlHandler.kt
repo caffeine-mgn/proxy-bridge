@@ -17,13 +17,16 @@ class ClientControlHandler : HttpHandler {
         val connection = exchange.acceptWebsocket()
         val client = ClientConnection(
             connection = connection,
-            Logger.getLogger("Client #${++clientCounter}")
+            Logger.getLogger("Proxy::Client #${++clientCounter}")
         )
         try {
             clientService.clientConnected(client)
             logger.info("Client connected!")
             client.processing()
+        } catch (e: Throwable) {
+            logger.info(text = "Client disconnected with error", exception = e)
         } finally {
+            logger.info("Client disconnected!")
             clientService.clientDisconnected(client)
             client.asyncCloseAnyway()
         }

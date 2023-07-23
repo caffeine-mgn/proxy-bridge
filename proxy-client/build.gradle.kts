@@ -50,17 +50,21 @@ tasks {
         from(jvmJar.archiveFile)
         group = "build"
         configurations = listOf(project.configurations["jvmRuntimeClasspath"])
+        exclude {
+            it.name.endsWith(".DSA") || it.name.endsWith(".SF") || it.name.endsWith(".kotlin_module")
+        }
         manifest {
-            attributes("Main-Class" to "pw.binom.proxy.JvmMain")
+            attributes("Main-Class" to "pw.binom.proxy.client.MainJvm")
         }
     }
-}
-
-tasks {
     val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
     register("deploy", Copy::class.java) {
         dependsOn(linkMingw)
-        from(file("/home/subochev/WORK/proxy-bridge/proxy-client/build/bin/mingwX64/releaseExecutable"))
+        dependsOn(shadowJar)
+        from(
+            file("build/bin/mingwX64/releaseExecutable"),
+            file("build/libs/proxy-client.jar")
+        )
         into(file("/media/subochev/BIG/Nextcloud/tmp/dddd"))
     }
 }

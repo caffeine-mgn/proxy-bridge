@@ -16,6 +16,7 @@ import pw.binom.io.httpClient.create
 import pw.binom.io.socket.TcpClientSocket
 import pw.binom.io.socket.TcpNetServerSocket
 import pw.binom.io.socket.UdpNetSocket
+import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
 import pw.binom.signal.Signal
@@ -45,9 +46,9 @@ fun ServiceProvider<NetworkManager>.asInstance() = object : NetworkManager {
     }
 }
 
-suspend fun startProxyClient(properties: RuntimeProperties): Strong {
+suspend fun startProxyClient(properties: RuntimeProperties, networkManager: NetworkManager): Strong {
     val baseConfig = Strong.config {
-        it.bean { MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors) }
+        it.bean { networkManager }
         it.bean {
             LocalFileSystem(
                 root = Environment.workDirectoryFile,
@@ -74,7 +75,8 @@ suspend fun startProxyClient(properties: RuntimeProperties): Strong {
             val nm = inject<NetworkManager>()
             HttpClient.create(networkDispatcher = nm.asInstance(), proxy = proxyConfig)
         }
-        it.bean { ControlService() }
+        it.bean { ConnectionFactory(inject(), inject()) }
+        it.bean { ClientControlService() }
         it.bean { TransportService() }
         it.bean { FileService() }
         it.bean { properties }
@@ -89,20 +91,22 @@ fun main(args: Array<String>) {
     }
     val properties = Properties.decodeFromStringMap(RuntimeProperties.serializer(), params)
     runBlocking {
-        val strong = startProxyClient(properties)
-        val mainCoroutineContext = coroutineContext
-        Signal.handler {
-            if (it.isInterrupted) {
-                if (!strong.isDestroying && !strong.isDestroyed) {
-                    GlobalScope.launch(mainCoroutineContext) {
-                        println("destroying...")
-                        strong.destroy()
-                        println("destroyed!!!")
+        MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
+            val strong = startProxyClient(properties = properties, networkManager = networkManager)
+            val mainCoroutineContext = coroutineContext
+            Signal.handler {
+                if (it.isInterrupted) {
+                    if (!strong.isDestroying && !strong.isDestroyed) {
+                        GlobalScope.launch(mainCoroutineContext) {
+                            println("destroying...")
+                            strong.destroy()
+                            println("destroyed!!!")
+                        }
                     }
                 }
             }
+            strong.awaitDestroy()
+            println("Main finished!")
         }
-        strong.awaitDestroy()
-        println("Main finished!")
     }
 }
