@@ -49,8 +49,8 @@ class ConnectionFactory(
         ).addHeader(Headers.TRANSFER_ENCODING, Encoding.CHUNKED)
 
         return AsyncChannel.create(
-            input = resp.readData(),
-            output = writeRequest.writeData(),
+            input = resp.readBinary(),
+            output = writeRequest.writeBinary(),
         )
     }
 

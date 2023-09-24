@@ -2,6 +2,8 @@ package pw.binom.proxy
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.supervisorScope
+import pw.binom.io.AsyncCloseable
+import pw.binom.io.Closeable
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
@@ -11,13 +13,25 @@ import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
+import pw.binom.network.NetworkManager
 import pw.binom.network.TcpServerConnection
 import pw.binom.proxy.client.startProxyClient
 import pw.binom.proxy.node.startProxyNode
+import pw.binom.strong.Strong
 import pw.binom.url.toURL
 import kotlin.time.Duration.Companion.seconds
 import pw.binom.proxy.client.RuntimeProperties as ClientRuntimeProperties
 import pw.binom.proxy.node.RuntimeProperties as NodeRuntimeProperties
+
+suspend fun HttpClient.checkIsOk(){
+    supervisorScope {
+        connect(method = "GET", uri = "https://www.google.com/".toURL())
+            .getResponse()
+            .readText {
+                it.readText()
+            }
+    }
+}
 
 suspend fun prepareNetwork(func: suspend (HttpClient) -> Unit) {
     ClientRuntimeProperties.TransportType.values().forEach {
@@ -32,38 +46,98 @@ suspend fun prepareNetwork(func: suspend (HttpClient) -> Unit) {
     }
 }
 
-suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType, func: suspend (HttpClient) -> Unit) {
-    Logger.getLogger("Strong.Starter").level = Logger.WARNING
+class Ports {
     val externalPort = TcpServerConnection.randomPort()
     val internalPort = TcpServerConnection.randomPort()
-    val clientConfig = ClientRuntimeProperties(
-        url = "http://localhost:$externalPort".toURL(),
+
+    val nodeConfig
+        get() = NodeRuntimeProperties(
+            externalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = externalPort)),
+            internalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = internalPort)),
+        )
+
+    fun clientConfig(transportType: ClientRuntimeProperties.TransportType) = ClientRuntimeProperties(
+        url = "http://localhost:${externalPort}".toURL(),
         transportType = transportType,
         proxy = ClientRuntimeProperties.Proxy(
             address = NetworkAddress.create(host = "127.0.0.1", port = 8888),
         )
     )
-    val nodeConfig = NodeRuntimeProperties(
-        externalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = externalPort)),
-        internalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = internalPort)),
+
+    fun createHttpClient(nd: NetworkManager) = HttpClient.create(
+        networkDispatcher = nd,
+        proxy = HttpProxyConfig(
+            address = NetworkAddress.create(
+                host = "127.0.0.1",
+                port = internalPort
+            )
+        )
     )
-    println("Node external: $externalPort")
-    println("Node internal: $internalPort")
+
+    suspend fun createNode(nd: NetworkManager, transportType: ClientRuntimeProperties.TransportType) =
+        startProxyClient(properties = clientConfig(transportType), networkManager = nd)
+
+    suspend fun createServer(nd: NetworkManager) = startProxyNode(properties = nodeConfig, networkManager = nd)
+    suspend fun instance(transportType: ClientRuntimeProperties.TransportType, nd: NetworkManager): Instance {
+        val server = createServer(nd)
+        delay(1.seconds)
+        val node = createNode(nd = nd, transportType = transportType)
+        val client = createHttpClient(nd)
+        return Instance(
+            server = server,
+            node = node,
+            client = client,
+            nd = null
+        )
+    }
+
+    suspend fun instance(transportType: ClientRuntimeProperties.TransportType): Instance {
+        val nd = prepareNetworkDispatcher()
+        val server = createServer(nd)
+        delay(1.seconds)
+        val node = createNode(nd = nd, transportType = transportType)
+        val client = createHttpClient(nd)
+        return Instance(
+            server = server,
+            node = node,
+            client = client,
+            nd = nd
+        )
+    }
+
+    fun prepareNetworkDispatcher() = MultiFixedSizeThreadNetworkDispatcher(2)
+}
+
+class Instance(val server: Strong, val node: Strong, val client: HttpClient, private val nd: Closeable?) :
+    AsyncCloseable {
+    override suspend fun asyncClose() {
+        client.closeAnyway()
+        node.destroy()
+        server.destroy()
+        nd?.close()
+    }
+
+}
+
+suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType, func: suspend (HttpClient) -> Unit) {
+    Logger.getLogger("Strong.Starter").level = Logger.WARNING
+    val ports = Ports()
+    ports.instance(transportType = transportType).use {
+        supervisorScope {
+            func(it.client)
+        }
+    }
+    return
+
+    println("Node external: ${ports.externalPort}")
+    println("Node internal: ${ports.internalPort}")
     MultiFixedSizeThreadNetworkDispatcher(2).use { nd ->
-        val server = startProxyNode(properties = nodeConfig, networkManager = nd)
+        val server = ports.createServer(nd)
         delay(1.seconds)
         try {
-            val client = startProxyClient(properties = clientConfig, networkManager = nd)
+            val client = ports.createNode(nd = nd, transportType = transportType)
             try {
-                HttpClient.create(
-                    networkDispatcher = nd,
-                    proxy = HttpProxyConfig(
-                        address = NetworkAddress.create(
-                            host = "127.0.0.1",
-                            port = internalPort
-                        )
-                    )
-                ).use { httpClient ->
+                ports.createHttpClient(nd).use { httpClient ->
                     supervisorScope {
                         func(httpClient)
                     }

@@ -1,7 +1,6 @@
 package pw.binom.proxy.node
 
-import pw.binom.ByteBufferPool
-import pw.binom.DEFAULT_BUFFER_SIZE
+import pw.binom.*
 import pw.binom.io.ByteBufferFactory
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServer2
@@ -14,9 +13,11 @@ abstract class AbstractWebServerService : Strong.InitializingBean, Strong.Destro
     protected abstract val handler: HttpHandler
     private val networkDispatcher by inject<NetworkManager>()
     private var buffer: ByteBufferPool? = null
+    private var server: HttpServer2? = null
     protected abstract fun bind(server: HttpServer2)
     override suspend fun destroy(strong: Strong) {
         buffer?.close()
+        server!!.asyncClose()
     }
 
     private var httpServer: HttpServer2? = null
@@ -36,5 +37,6 @@ abstract class AbstractWebServerService : Strong.InitializingBean, Strong.Destro
             server.asyncCloseAnyway()
             throw e
         }
+        this.server = server
     }
 }

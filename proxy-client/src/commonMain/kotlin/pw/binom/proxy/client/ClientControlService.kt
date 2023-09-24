@@ -112,6 +112,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                                                 msg.writeByte(1, buffer = buffer)
                                             }
                                         } catch (e: Throwable) {
+                                            logger.info("ERROR: ", e)
                                             connection.write(MessageType.BINARY).use { msg ->
                                                 msg.writeInt(id, buffer = buffer)
                                                 msg.writeByte(0, buffer = buffer)
@@ -128,6 +129,9 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                                 logger.info("Message processed!")
                             }
                         }
+                    } catch (e: Throwable) {
+                        logger.info("Message processed! Wait new message...", e)
+                        throw e
                     } finally {
                         logger.info("Message processed! Wait new message...")
                     }

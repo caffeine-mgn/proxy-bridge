@@ -1,6 +1,7 @@
 package pw.binom.proxy
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import pw.binom.io.httpClient.HttpClient
 import pw.binom.url.toURL
 import kotlin.test.Ignore
 import kotlin.test.Test

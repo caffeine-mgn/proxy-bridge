@@ -80,11 +80,11 @@ class ProxyHandler : HttpHandler {
         val resp = req.flush()
         exchange.startResponse(
             statusCode = resp.responseCode,
-            headers = resp.headers + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE),
+            headers = resp.inputHeaders + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE),
         )
-        if (resp.headers.bodyExist) {
+        if (resp.inputHeaders.bodyExist) {
             logger.info("Copping ws->http")
-            resp.readData().use { input ->
+            resp.readBinary().use { input ->
                 logger.info("Input type: $input. available: ${input.available}")
                 exchange.output.use { output ->
                     input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
@@ -113,6 +113,7 @@ class ProxyHandler : HttpHandler {
             exchange.startResponse(404)
             return
         }
+        logger.info("Connected!")
         val input = exchange.input
         exchange.startResponse(200, emptyHeaders())
         val output = exchange.output

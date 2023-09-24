@@ -103,6 +103,7 @@ class ClientService {
     suspend fun connectTo(host: String, port: Int): Pair<Int, AsyncChannel> {
         val connectionId = channelCounter++
 //        val scope = coroutineContext
+        logger.info("Wait a client...")
         val client = waitClient()
 
         logger.info("Send to client trying to connect $host:$port")
