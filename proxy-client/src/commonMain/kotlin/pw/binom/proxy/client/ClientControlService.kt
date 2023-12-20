@@ -16,6 +16,7 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.severe
 import pw.binom.logger.warn
+import pw.binom.network.NetworkManager
 import pw.binom.network.SocketConnectException
 import pw.binom.proxy.Codes
 import pw.binom.proxy.ControlResponseCodes
@@ -23,7 +24,6 @@ import pw.binom.proxy.Urls
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import pw.binom.url.toURL
-import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.seconds
 
 class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
@@ -31,6 +31,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     val transportService by inject<TransportService>()
     val runtimeProperties by inject<RuntimeProperties>()
     val selfReplaceService by inject<FileService>()
+    val networkManager by inject<NetworkManager>()
     val logger by Logger.ofThisOrGlobal
 
     private suspend fun connectProcessing(id: Int, buffer: ByteBuffer, msg: Message, connection: WebSocketConnection) {
@@ -95,12 +96,12 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                                 val id = msg.readInt(buffer)
                                 when (val byte = msg.readByte(buffer)) {
                                     Codes.CONNECT -> {
-                                            connectProcessing(
-                                                id = id,
-                                                buffer = buffer,
-                                                msg = msg,
-                                                connection = connection,
-                                            )
+                                        connectProcessing(
+                                            id = id,
+                                            buffer = buffer,
+                                            msg = msg,
+                                            connection = connection,
+                                        )
                                     }
 
                                     Codes.PUT_FILE -> {
@@ -156,7 +157,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     }
 
     override suspend fun link(strong: Strong) {
-        clientProcess = GlobalScope.launch(coroutineContext) {
+        clientProcess = GlobalScope.launch(networkManager) {
             supervisorScope {
                 while (isActive) {
                     try {
@@ -164,8 +165,8 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                     } catch (e: DestroyingException) {
                         break
                     } catch (e: SocketConnectException) {
-                        logger.warn("Can't connect to server")
-                        delay(10.seconds)
+                        logger.warn(text = "Can't connect to server: ${e.message}")
+                        delay(1.seconds)
                     } catch (e: WebSocketClosedException) {
                         logger.warn("Connection lost")
                         delay(5.seconds)

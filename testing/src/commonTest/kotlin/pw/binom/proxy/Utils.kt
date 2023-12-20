@@ -2,6 +2,7 @@ package pw.binom.proxy
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.Closeable
 import pw.binom.io.httpClient.HttpClient
@@ -23,7 +24,7 @@ import kotlin.time.Duration.Companion.seconds
 import pw.binom.proxy.client.RuntimeProperties as ClientRuntimeProperties
 import pw.binom.proxy.node.RuntimeProperties as NodeRuntimeProperties
 
-suspend fun HttpClient.checkIsOk(){
+suspend fun HttpClient.checkIsOk() {
     supervisorScope {
         connect(method = "GET", uri = "https://www.google.com/".toURL())
             .getResponse()
@@ -87,28 +88,40 @@ class Ports {
             server = server,
             node = node,
             client = client,
-            nd = null
+            nd = null,
+            networkManager = nd,
         )
     }
 
     suspend fun instance(transportType: ClientRuntimeProperties.TransportType): Instance {
+
         val nd = prepareNetworkDispatcher()
-        val server = createServer(nd)
-        delay(1.seconds)
-        val node = createNode(nd = nd, transportType = transportType)
-        val client = createHttpClient(nd)
-        return Instance(
-            server = server,
-            node = node,
-            client = client,
-            nd = nd
-        )
+        return withContext(nd) {
+            val server = createServer(nd)
+            delay(1.seconds)
+
+            val node = createNode(nd = nd, transportType = transportType)
+            val client = createHttpClient(nd)
+            Instance(
+                server = server,
+                node = node,
+                client = client,
+                nd = nd,
+                networkManager = nd,
+            )
+        }
     }
 
     fun prepareNetworkDispatcher() = MultiFixedSizeThreadNetworkDispatcher(2)
 }
 
-class Instance(val server: Strong, val node: Strong, val client: HttpClient, private val nd: Closeable?) :
+class Instance(
+    val server: Strong,
+    val node: Strong,
+    val client: HttpClient,
+    val nd: Closeable?,
+    val networkManager: NetworkManager
+) :
     AsyncCloseable {
     override suspend fun asyncClose() {
         client.closeAnyway()
@@ -124,7 +137,9 @@ suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType,
     val ports = Ports()
     ports.instance(transportType = transportType).use {
         supervisorScope {
-            func(it.client)
+            withContext(it.networkManager) {
+                func(it.client)
+            }
         }
     }
     return

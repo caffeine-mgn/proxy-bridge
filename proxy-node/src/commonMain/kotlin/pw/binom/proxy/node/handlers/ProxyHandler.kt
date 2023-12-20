@@ -5,6 +5,7 @@ import pw.binom.io.http.Headers
 import pw.binom.io.http.emptyHeaders
 import pw.binom.io.http.headersOf
 import pw.binom.io.httpClient.BaseHttpClient
+import pw.binom.io.httpClient.ConnectionFactory
 import pw.binom.io.httpClient.OutputLength
 import pw.binom.io.httpClient.RequestHook
 import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
@@ -39,7 +40,7 @@ class ProxyHandler : HttpHandler {
 
     val httpClient by lazy {
         val baseProtocolSelector = ProtocolSelectorBySchema()
-        val http = Http11ConnectFactory2(networkManager = networkManager)
+        val http = Http11ConnectFactory2(networkManager = networkManager, connectFactory = ConnectionFactory.DEFAULT)
         baseProtocolSelector.set(
             http,
             "http",
