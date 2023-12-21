@@ -22,7 +22,7 @@ import pw.binom.strong.Strong
 import pw.binom.url.toURL
 import kotlin.time.Duration.Companion.seconds
 import pw.binom.proxy.client.RuntimeProperties as ClientRuntimeProperties
-import pw.binom.proxy.node.RuntimeProperties as NodeRuntimeProperties
+import pw.binom.proxy.node.RuntimeClientProperties as NodeRuntimeProperties
 
 suspend fun HttpClient.checkIsOk() {
     supervisorScope {
@@ -125,8 +125,12 @@ class Instance(
     AsyncCloseable {
     override suspend fun asyncClose() {
         client.closeAnyway()
-        node.destroy()
-        server.destroy()
+        if (!node.isDestroying && !node.isDestroyed) {
+            node.destroy()
+        }
+        if (!node.isDestroying && !node.isDestroyed) {
+            node.destroy()
+        }
         nd?.close()
     }
 

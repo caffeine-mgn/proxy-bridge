@@ -55,7 +55,7 @@ suspend fun AsyncChannel.tcpConnectViaHttpProxy(
     if (resp.responseCode != 200) {
         reader.asyncClose()
         asyncClose()
-        throw IOException("Can't connect via http proxy: invalid reponse ${resp.responseCode}")
+        throw IOException("Can't connect via http proxy: invalid response ${resp.responseCode}")
     }
     return AsyncChannel.create(
         input = reader,

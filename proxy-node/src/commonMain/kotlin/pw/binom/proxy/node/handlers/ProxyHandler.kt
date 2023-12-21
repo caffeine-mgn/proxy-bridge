@@ -22,14 +22,15 @@ import pw.binom.proxy.ChannelBridge
 import pw.binom.proxy.io.copyTo
 import pw.binom.proxy.node.ClientService
 import pw.binom.proxy.node.ProxedFactory
-import pw.binom.proxy.node.RuntimeProperties
+import pw.binom.proxy.node.RuntimeClientProperties
 import pw.binom.proxy.node.SingleProtocolSelector
+import pw.binom.proxy.node.exceptions.ClientMissingException
 import pw.binom.strong.inject
 
 class ProxyHandler : HttpHandler {
     private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
-    private val runtimeProperties by inject<RuntimeProperties>()
+    private val runtimeProperties by inject<RuntimeClientProperties>()
     private val logger by Logger.ofThisOrGlobal
     override suspend fun handle(exchange: HttpServerExchange) {
         when (exchange.requestMethod) {
@@ -62,12 +63,17 @@ class ProxyHandler : HttpHandler {
     }
 
     private suspend fun httpRequest(exchange: HttpServerExchange) {
-        val req = httpClient.startConnect(
-            method = exchange.requestMethod,
-            uri = exchange.requestURI.toURL(),
-            headers = exchange.requestHeaders,
-            requestLength = OutputLength.None,
-        )
+        val req = try {
+            httpClient.startConnect(
+                method = exchange.requestMethod,
+                uri = exchange.requestURI.toURL(),
+                headers = exchange.requestHeaders,
+                requestLength = OutputLength.None,
+            )
+        } catch (e: ClientMissingException) {
+            exchange.startResponse(503)
+            return
+        }
         if (exchange.requestHeaders.bodyExist) {
             logger.info("Copping http->ws")
             req.startWriteBinary().use { output ->
@@ -112,6 +118,9 @@ class ProxyHandler : HttpHandler {
             )
         } catch (e: UnknownHostException) {
             exchange.startResponse(404)
+            return
+        } catch (e: ClientMissingException) {
+            exchange.startResponse(503)
             return
         }
         logger.info("Connected!")

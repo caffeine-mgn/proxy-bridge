@@ -13,7 +13,7 @@ import pw.binom.signal.Signal
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 
-suspend fun startProxyNode(properties: RuntimeProperties, networkManager: NetworkManager): Strong {
+suspend fun startProxyNode(properties: RuntimeClientProperties, networkManager: NetworkManager): Strong {
     val baseConfig = Strong.config {
         it.bean { networkManager }
         it.bean { ExternalHandler() }
@@ -38,7 +38,7 @@ fun main(args: Array<String>) {
         val items = it.removePrefix("-D").split('=', limit = 2)
         items[0] to items[1]
     }
-    val properties = Properties.decodeFromStringMap(RuntimeProperties.serializer(), params)
+    val properties = Properties.decodeFromStringMap(RuntimeClientProperties.serializer(), params)
 
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->

@@ -8,7 +8,7 @@ import pw.binom.proxy.node.handlers.InternalHandler
 import pw.binom.strong.inject
 
 class InternalWebServerService : AbstractWebServerService() {
-    private val properties by inject<RuntimeProperties>()
+    private val properties by inject<RuntimeClientProperties>()
     private val internalHandler by inject<InternalHandler>()
     private val logger by Logger.ofThisOrGlobal
     override val handler: HttpHandler

@@ -1,13 +1,16 @@
 package pw.binom.proxy.node
 
 import kotlinx.serialization.Serializable
-import pw.binom.DEFAULT_BUFFER_SIZE
+import pw.binom.*
 import pw.binom.io.socket.InetNetworkAddress
 import pw.binom.proxy.serialization.InetNetworkAddressSerializer
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 @Serializable
-data class RuntimeProperties(
+data class RuntimeClientProperties(
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    val remoteClientAwaitTimeout: Duration = 5.seconds,
     val externalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetNetworkAddress> = listOf(
         InetNetworkAddress.create(
             host = "0.0.0.0",

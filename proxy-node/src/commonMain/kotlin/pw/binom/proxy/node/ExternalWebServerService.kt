@@ -10,7 +10,7 @@ import pw.binom.strong.inject
 class ExternalWebServerService : AbstractWebServerService() {
     private val logger by Logger.ofThisOrGlobal
 
-    private val properties by inject<RuntimeProperties>()
+    private val properties by inject<RuntimeClientProperties>()
 
     override val handler: HttpHandler
         get() = externalHandler

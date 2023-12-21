@@ -1,21 +1,35 @@
 package pw.binom.proxy.node
 
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.*
+import pw.binom.concurrency.SpinLock
+import pw.binom.concurrency.synchronize
+import pw.binom.date.DateTime
 import pw.binom.io.AsyncChannel
 import pw.binom.io.AsyncInput
 import pw.binom.io.AsyncOutput
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.CompositeChannelManager
+import pw.binom.proxy.extract
+import pw.binom.proxy.node.exceptions.ClientMissingException
+import pw.binom.strong.Strong
+import pw.binom.strong.inject
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
-class ClientService {
+class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
     private var existClient: ClientConnection? = null
-    private val waters = HashSet<CancellableContinuation<ClientConnection>>()
+    private val waters = HashSet<Water>()
+    private val waterLock = SpinLock()
+    private val properties by inject<RuntimeClientProperties>()
     private val logger by Logger.ofThisOrGlobal
     private val connectionWater =
         HashMap<Int, CancellableContinuation<Pair<AsyncChannel, CancellableContinuation<Unit>>>>()
+
+    private class Water(
+        val water: CancellableContinuation<ClientConnection>,
+        val created: DateTime
+    )
 
     suspend fun webSocketConnected(id: Int, connection: suspend () -> AsyncChannel) {
         compositeChannelManager.useChannel(
@@ -68,10 +82,15 @@ class ClientService {
             false
         } else {
             this.existClient = connection
-            val waters = HashSet(waters)
-            this.waters.clear()
+            val waters = waterLock.synchronize {
+                val h = HashSet(waters)
+                this.waters.clear()
+                h
+            }
+
+
             waters.forEach {
-                it.resume(connection)
+                it.water.resume(connection)
             }
             true
         }
@@ -83,10 +102,15 @@ class ClientService {
             return existClient
         }
         return suspendCancellableCoroutine {
+            val water = Water(water = it, created = DateTime.now)
             it.invokeOnCancellation { _ ->
-                waters -= it
+                waterLock.synchronize {
+                    waters -= water
+                }
             }
-            waters += it
+            waterLock.synchronize {
+                waters += water
+            }
         }
     }
 
@@ -140,5 +164,30 @@ class ClientService {
             continuation = l.second,
         )
         */
+    }
+
+    private var cleanupJob: Job? = null
+
+    override suspend fun link(strong: Strong) {
+        cleanupJob = GlobalScope.launch {
+            while (isActive) {
+                try {
+                    delay(properties.remoteClientAwaitTimeout)
+                    val exp = DateTime.now
+                    val exparedWaters = waterLock.synchronize {
+                        waters.extract { exp - it.created > properties.remoteClientAwaitTimeout }
+                    }
+                    exparedWaters.forEach {
+                        it.water.resumeWithException(ClientMissingException())
+                    }
+                } catch (e: CancellationException) {
+                    break
+                }
+            }
+        }
+    }
+
+    override suspend fun destroy(strong: Strong) {
+        cleanupJob?.cancel()
     }
 }
