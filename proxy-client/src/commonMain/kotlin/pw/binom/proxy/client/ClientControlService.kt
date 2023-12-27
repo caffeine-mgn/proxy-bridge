@@ -24,7 +24,6 @@ import pw.binom.proxy.Urls
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import pw.binom.url.toURL
-import kotlin.time.Duration.Companion.seconds
 
 class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     val httpClient by inject<HttpClient>()
@@ -109,18 +108,23 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             uri = url,
         ).start(bufferSize = runtimeProperties.bufferSize)
         logger.info("Connected!")
-        try {
-            NodeClient.runClient(
-                connection = connection,
-                handler = handler
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            logger.severe(text = "Error on package reading", exception = e)
-        } finally {
-            logger.warn("Control finished!")
-            connection.asyncCloseAnyway()
+        NodeClient(
+            connection = connection,
+            networkManager = networkManager,
+            pingInterval = runtimeProperties.pingInterval
+        ).use { client ->
+            try {
+                client.runClient(
+                    handler = handler
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                logger.severe(text = "Error on package reading", exception = e)
+            } finally {
+                logger.warn("Control finished!")
+                connection.asyncCloseAnyway()
+            }
         }
         return
 
@@ -234,6 +238,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     override suspend fun destroy(strong: Strong) {
         println("ClientControlService:: Closing ClientConnection")
         clientProcess?.cancel(DestroyingException())
+        clientProcess?.join()
         clientProcess = null
     }
 

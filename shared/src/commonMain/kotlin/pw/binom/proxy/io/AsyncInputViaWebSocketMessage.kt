@@ -14,6 +14,8 @@ import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.use
 import kotlin.coroutines.resume
+import kotlin.time.Duration
+import kotlin.time.TimeSource
 
 class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection) : AsyncChannel {
 
@@ -40,7 +42,8 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
     private val pingWaiters = HashMap<Long, CancellableContinuation<Unit>>()
     private var pingCounter = AtomicLong(0)
 
-    suspend fun ping() {
+    suspend fun ping(): Duration {
+        val now = TimeSource.Monotonic.markNow()
         val pingId = pingCounter.addAndGet(1)
         connection.write(MessageType.PING).use { out ->
             ByteBuffer(MAX_PING_BYTES).use { buffer ->
@@ -59,6 +62,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                 pingWaiters[pingId] = con
             }
         }
+        return now.elapsedNow()
     }
 
     override suspend fun read(dest: ByteBuffer): Int {
@@ -77,7 +81,8 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                 if (msg.type == MessageType.PING) {
                     connection.write(MessageType.PONG).use { out ->
                         ByteBuffer(MAX_PING_BYTES).use { buffer ->
-                            msg.read(buffer)
+                            buffer.reset(position = 0, length = MAX_PING_BYTES)
+                            msg.readFully(buffer)
                             buffer.flip()
                             out.writeFully(buffer)
                         }
@@ -86,7 +91,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                 }
                 if (msg.type == MessageType.PONG) {
                     ByteBuffer(MAX_PING_BYTES).use { buffer ->
-                        msg.read(buffer)
+                        msg.readFully(buffer)
                         buffer.flip()
                         if (buffer.remaining != MAX_PING_BYTES) {
                             val pingId = buffer.readLong()

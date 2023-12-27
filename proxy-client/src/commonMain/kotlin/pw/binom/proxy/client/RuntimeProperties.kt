@@ -34,7 +34,9 @@ data class RuntimeProperties(
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
     val wsMasking: Boolean = true,
     val reconnectTimeout: Duration = 30.seconds,
+    val pingInterval: Duration = 50.seconds
 ) {
+
 
     enum class TransportType {
         TCP_OVER_HTTP,
