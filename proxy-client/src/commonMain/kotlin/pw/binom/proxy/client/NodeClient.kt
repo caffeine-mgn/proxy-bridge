@@ -23,6 +23,7 @@ class NodeClient private constructor(
 ) : AsyncCloseable {
     interface Handler {
         suspend fun connect(channelId: Int, host: String, port: Int): Boolean
+        suspend fun pong(id: Long)
 //        suspend fun closed()
     }
 
@@ -40,10 +41,29 @@ class NodeClient private constructor(
             ByteBuffer(1024).use { buffer ->
                 while (true) {
                     try {
-                        connection.read().use { msg ->
+                        connection.read().use MSG@{ msg ->
                             if (msg.type == MessageType.CLOSE) {
                                 logger.info("Received close message")
                                 return
+                            }
+                            if (msg.type == MessageType.PING) {
+                                buffer.clear()
+                                buffer.reset(position = 0, length = Long.SIZE_BYTES)
+                                msg.readFully(buffer)
+                                buffer.flip()
+                                connection.write(MessageType.PONG).use { out ->
+                                    out.writeFully(buffer)
+                                }
+                                return@MSG
+                            }
+                            if (msg.type == MessageType.PONG) {
+                                buffer.clear()
+                                buffer.reset(position = 0, length = Long.SIZE_BYTES)
+                                msg.readFully(buffer)
+                                buffer.flip()
+                                val id = buffer.readLong()
+                                handler.pong(id)
+                                return@MSG
                             }
                             try {
                                 logger.info("Income message! ${msg.type}, available=${msg.available}")
