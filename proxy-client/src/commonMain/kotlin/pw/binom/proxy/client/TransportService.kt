@@ -22,7 +22,6 @@ class TransportService : Strong.DestroyableBean {
     private var closing = false
     private val logger by Logger.ofThisOrGlobal
 
-
     suspend fun connectTcp(id: Int, address: NetworkAddress) {
         require(!closing) { "Service is closing" }
         val transportConnection = connectionFactory.connect(id)

@@ -18,21 +18,23 @@ class ClientControlHandler : HttpHandler, Strong.DestroyableBean {
     private val clients = HashSet<WebSocketConnection>()
     override suspend fun handle(exchange: HttpServerExchange) {
         val connection = exchange.acceptWebsocket()
+        val clientId = ++clientCounter
         val client = ClientConnection(
             connection = connection,
-            Logger.getLogger("Proxy::Client #${++clientCounter}")
+            logger = Logger.getLogger("Proxy::Client #$clientId"),
         )
         try {
             clientService.clientConnected(client)
-            logger.info("Client connected!")
+            logger.info("Client $clientId connected!")
             clients += connection
             client.processing()
-            client.connection.asyncCloseAnyway()
+//            client.asyncCloseAnyway()
+//            client.connection.asyncCloseAnyway()
         } catch (e: Throwable) {
-            logger.info(text = "Client disconnected with error", exception = e)
+            logger.info(text = "Client $clientId disconnected with error", exception = e)
         } finally {
             clients -= connection
-            logger.info("Client disconnected!")
+            logger.info("Client $clientId disconnected!")
             clientService.clientDisconnected(client)
             client.asyncCloseAnyway()
         }

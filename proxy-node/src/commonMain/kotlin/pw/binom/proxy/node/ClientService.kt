@@ -117,12 +117,12 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
     private var channelCounter = 0
     private val compositeChannelManager = CompositeChannelManager<Int>()
 
-    suspend fun putFile(path: String, input: AsyncInput) {
-        waitClient().putFile(
-            path = path,
-            file = input,
-        )
-    }
+//    suspend fun putFile(path: String, input: AsyncInput) {
+//        waitClient().putFile(
+//            path = path,
+//            file = input,
+//        )
+//    }
 
     suspend fun connectTo(host: String, port: Int): Pair<Int, AsyncChannel> {
         val connectionId = channelCounter++

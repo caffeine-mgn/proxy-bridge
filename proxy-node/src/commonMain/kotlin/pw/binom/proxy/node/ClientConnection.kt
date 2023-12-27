@@ -4,7 +4,6 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import pw.binom.*
 import pw.binom.io.AsyncCloseable
-import pw.binom.io.AsyncInput
 import pw.binom.io.ByteBuffer
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketClosedException
@@ -20,15 +19,15 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class ClientConnection(
-    val connection: WebSocketConnection,
-    val logger: Logger,
+    private val connection: WebSocketConnection,
+    private val logger: Logger,
 ) : AsyncCloseable {
     suspend fun processing() {
         try {
             ByteBuffer(100).use { buffer ->
                 while (true) {
                     connection.read().use { msg ->
-                        logger.info("Reading message ${msg.hashCode()}")
+                        logger.info("Reading message...")
                         try {
                             val id = msg.readInt(buffer)
                             val success = msg.readByte(buffer)
@@ -62,36 +61,59 @@ class ClientConnection(
     private var idCounter = 0
     private val waiters = HashMap<Int, CancellableContinuation<Unit>>()
 
-    suspend fun putFile(path: String, file: AsyncInput) {
+    /*
+        suspend fun putFile(path: String, file: AsyncInput) {
+            val id = idCounter++
+            connection.write(MessageType.BINARY).use { msg ->
+                ByteBuffer(100).use { buffer ->
+                    msg.writeInt(id, buffer = buffer)
+                    msg.writeByte(Codes.PUT_FILE, buffer = buffer)
+                    msg.writeUTF8String(path, buffer = buffer)
+                    file.copyTo(msg)
+                }
+            }
+            suspendCancellableCoroutine {
+                it.invokeOnCancellation {
+                    waiters.remove(id)
+                }
+                waiters[id] = it
+            }
+        }
+    */
+    suspend fun emmitChannel(): Int {
         val id = idCounter++
+        logger.info("Emmit Channel!")
         connection.write(MessageType.BINARY).use { msg ->
             ByteBuffer(100).use { buffer ->
+                msg.writeByte(Codes.EMMIT_CHANNEL, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)
-                msg.writeByte(Codes.PUT_FILE, buffer = buffer)
-                msg.writeUTF8String(path, buffer = buffer)
-                file.copyTo(msg)
             }
         }
-        suspendCancellableCoroutine {
-            it.invokeOnCancellation {
-                waiters.remove(id)
+        return id
+    }
+
+    suspend fun destroyChannel(id: Int): Int {
+        logger.info("Destroy Channel!")
+        connection.write(MessageType.BINARY).use { msg ->
+            ByteBuffer(100).use { buffer ->
+                msg.writeByte(Codes.DESTROY_CHANNEL, buffer = buffer)
+                msg.writeInt(id, buffer = buffer)
             }
-            waiters[id] = it
         }
+        return id
     }
 
     suspend fun connect(host: String, port: Int, channelId: Int): Int {
+        logger.info("Connect to $host:$port/$channelId")
         val id = idCounter++
         connection.write(MessageType.BINARY).use { msg ->
-            logger.info("Start send connect message")
             ByteBuffer(100).use { buffer ->
-                msg.writeInt(id, buffer = buffer)
                 msg.writeByte(Codes.CONNECT, buffer = buffer)
+                msg.writeInt(id, buffer = buffer)
                 msg.writeUTF8String(host, buffer = buffer)
                 msg.writeShort(port.toShort(), buffer = buffer)
                 msg.writeInt(channelId, buffer = buffer)
             }
-            logger.info("Connect message sent!")
         }
         suspendCancellableCoroutine {
             it.invokeOnCancellation {

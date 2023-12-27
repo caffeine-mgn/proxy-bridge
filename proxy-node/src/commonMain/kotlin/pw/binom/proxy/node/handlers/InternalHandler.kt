@@ -13,14 +13,14 @@ class InternalHandler : HttpHandler {
             proxyHandler.handle(exchange)
         }
 
-        if (exchange.requestURI.isMatch("/files/put")) {
-            val path = exchange.getQueryParams()["path"] ?: throw IllegalArgumentException("File path not passed")
-            clientService.putFile(
-                path = path,
-                input = exchange.input,
-            )
-
-            exchange.startResponse(200)
-        }
+//        if (exchange.requestURI.isMatch("/files/put")) {
+//            val path = exchange.getQueryParams()["path"] ?: throw IllegalArgumentException("File path not passed")
+//            clientService.putFile(
+//                path = path,
+//                input = exchange.input,
+//            )
+//
+//            exchange.startResponse(200)
+//        }
     }
 }

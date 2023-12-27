@@ -23,8 +23,11 @@ class ReconnectTest : BaseTest() {
         ports.prepareNetworkDispatcher().use { nd ->
             var server = ports.createServer(nd)
             delay(1.seconds)
-            val node = ports.createNode(nd = nd, transportType = RuntimeProperties.TransportType.WS)
-            delay(1.seconds)
+            val node = ports.createNode(
+                nd = nd,
+                transportType = RuntimeProperties.TransportType.WS,
+                config = { it.copy(reconnectTimeout = 1.seconds) })
+            delay(2.seconds)
             val http = ports.createHttpClient(nd)
             http.checkIsOk()
 

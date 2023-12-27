@@ -1,18 +1,17 @@
 package pw.binom.proxy.node.handlers
 
-import pw.binom.io.AsyncChannel
-import pw.binom.io.LazyAsyncInput
-import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptWebsocket
-import pw.binom.proxy.node.ClientService
 import pw.binom.proxy.Urls
 import pw.binom.proxy.io.AsyncInputViaWebSocketMessage
+import pw.binom.proxy.node.ClientService
+import pw.binom.proxy.node.RuntimeClientProperties
 import pw.binom.strong.inject
 
 class ClientTransportWsHandler : HttpHandler {
     private val clientService by inject<ClientService>()
+    private val runtimeClientProperties by inject<RuntimeClientProperties>()
     override suspend fun handle(exchange: HttpServerExchange) {
         val id = exchange.getPathVariables(Urls.TRANSPORT_WS)["id"]?.toIntOrNull()
 //        val id = exchange.requestURI.query?.find("id")?.toIntOrNull()
@@ -21,9 +20,9 @@ class ClientTransportWsHandler : HttpHandler {
             return
         }
         clientService.webSocketConnected(
-            id=id,
+            id = id,
             connection = {
-                AsyncInputViaWebSocketMessage(exchange.acceptWebsocket())
+                AsyncInputViaWebSocketMessage(exchange.acceptWebsocket(bufferSize = runtimeClientProperties.bufferSize))
             }
         )
 //        clientService.transportProcessing(id = id) {

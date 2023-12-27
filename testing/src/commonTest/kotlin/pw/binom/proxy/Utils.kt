@@ -16,6 +16,7 @@ import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
 import pw.binom.network.TcpServerConnection
+import pw.binom.proxy.client.RuntimeProperties
 import pw.binom.proxy.client.startProxyClient
 import pw.binom.proxy.node.startProxyNode
 import pw.binom.strong.Strong
@@ -55,6 +56,7 @@ class Ports {
         get() = NodeRuntimeProperties(
             externalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = externalPort)),
             internalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = internalPort)),
+            bufferSize = 1024 * 1024
         )
 
     fun clientConfig(transportType: ClientRuntimeProperties.TransportType) = ClientRuntimeProperties(
@@ -62,7 +64,8 @@ class Ports {
         transportType = transportType,
         proxy = ClientRuntimeProperties.Proxy(
             address = NetworkAddress.create(host = "127.0.0.1", port = 8888),
-        )
+        ),
+        bufferSize = 1024 * 1024
     )
 
     fun createHttpClient(nd: NetworkManager) = HttpClient.create(
@@ -72,13 +75,20 @@ class Ports {
                 host = "127.0.0.1",
                 port = internalPort
             )
-        )
+        ),
+        bufferSize = 1024 * 1024 * 10
     )
 
-    suspend fun createNode(nd: NetworkManager, transportType: ClientRuntimeProperties.TransportType) =
-        startProxyClient(properties = clientConfig(transportType), networkManager = nd)
+    suspend fun createNode(
+        nd: NetworkManager,
+        transportType: ClientRuntimeProperties.TransportType,
+        config: (RuntimeProperties) -> RuntimeProperties = { it }
+    ) =
+        startProxyClient(properties = config(clientConfig(transportType)), networkManager = nd)
 
-    suspend fun createServer(nd: NetworkManager) = startProxyNode(properties = nodeConfig, networkManager = nd)
+    suspend fun createServer(nd: NetworkManager, config: (NodeRuntimeProperties) -> NodeRuntimeProperties = { it }) =
+        startProxyNode(properties = config(nodeConfig), networkManager = nd)
+
     suspend fun instance(transportType: ClientRuntimeProperties.TransportType, nd: NetworkManager): Instance {
         val server = createServer(nd)
         delay(1.seconds)
@@ -140,10 +150,8 @@ suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType,
     Logger.getLogger("Strong.Starter").level = Logger.WARNING
     val ports = Ports()
     ports.instance(transportType = transportType).use {
-        supervisorScope {
-            withContext(it.networkManager) {
-                func(it.client)
-            }
+        withContext(it.networkManager) {
+            func(it.client)
         }
     }
     return

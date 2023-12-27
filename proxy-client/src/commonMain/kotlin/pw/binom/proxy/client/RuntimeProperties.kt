@@ -11,6 +11,8 @@ import pw.binom.io.socket.NetworkAddress
 import pw.binom.proxy.serialization.NetworkAddressSerializer
 import pw.binom.url.URL
 import pw.binom.url.toURL
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 object URLSerializer : KSerializer<URL> {
     override val descriptor: SerialDescriptor
@@ -30,8 +32,10 @@ data class RuntimeProperties(
     val proxy: Proxy? = null,
     val transportType: TransportType = TransportType.TCP_OVER_HTTP,
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
-    val wsMasking: Boolean = true
+    val wsMasking: Boolean = true,
+    val reconnectTimeout: Duration = 30.seconds,
 ) {
+
     enum class TransportType {
         TCP_OVER_HTTP,
         WS,
