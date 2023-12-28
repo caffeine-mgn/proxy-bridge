@@ -10,6 +10,7 @@ import pw.binom.io.ByteBuffer
 import pw.binom.io.ClosedException
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
+import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -19,6 +20,7 @@ import pw.binom.proxy.Codes
 import pw.binom.proxy.ControlResponseCodes
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
 
 class NodeClient constructor(
@@ -54,6 +56,8 @@ class NodeClient constructor(
 
     interface Handler {
         suspend fun connect(channelId: Int, host: String, port: Int): Boolean
+        suspend fun emmitChannel(channelId: Int)
+        suspend fun destroyChannel(channelId: Int)
     }
 
     companion object {
@@ -62,6 +66,7 @@ class NodeClient constructor(
 
         private suspend fun sendResponseCode(id: Int, code: Byte, buffer: ByteBuffer, connection: WebSocketConnection) {
             connection.write(MessageType.BINARY).use { output ->
+                output.writeByte(Codes.RESPONSE, buffer)
                 output.writeInt(id, buffer)
                 output.writeByte(code, buffer)
             }
@@ -69,8 +74,39 @@ class NodeClient constructor(
 
     }
 
+    suspend fun destroyChannel(channelId: Int) {
+
+    }
+
+    private val waiters = HashMap<Int, CancellableContinuation<Unit>>()
+    private val waitersLock = SpinLock()
+
+    private suspend fun wait(id: Int) {
+        suspendCancellableCoroutine {
+            it.invokeOnCancellation {
+                waitersLock.synchronize {
+                    waiters.remove(id)
+                }
+            }
+            waitersLock.synchronize {
+                waiters[id] = it
+            }
+        }
+    }
+
     suspend fun runClient(handler: Handler) {
+
         ByteBuffer(1024).use { buffer ->
+
+            suspend fun sendResponseCode(code: ControlResponseCodes, id: Int) {
+                sendResponseCode(
+                    id = id,
+                    code = code.code,
+                    buffer = buffer,
+                    connection = connection,
+                )
+            }
+
             while (true) {
                 try {
                     connection.read().use MSG@{ msg ->
@@ -103,6 +139,57 @@ class NodeClient constructor(
                         try {
                             logger.info("Income message! ${msg.type}, available=${msg.available}")
                             when (val byte = msg.readByte(buffer)) {
+                                Codes.RESPONSE -> {
+                                    val id = msg.readInt(buffer)
+                                    val code = msg.readByte(buffer).let { ControlResponseCodes.getByCode(it) }
+                                    val con = waitersLock.synchronize {
+                                        waiters.remove(id)
+                                    } ?: return@use
+                                    when (code) {
+                                        ControlResponseCodes.OK -> con.resume(Unit)
+                                        ControlResponseCodes.UNKNOWN_HOST -> con.resumeWithException(
+                                            UnknownHostException()
+                                        )
+
+                                        ControlResponseCodes.UNKNOWN_ERROR -> con.resumeWithException(RuntimeException())
+                                    }
+
+                                }
+
+                                Codes.EMMIT_CHANNEL -> {
+                                    val id = msg.readInt(buffer)
+                                    val channelId = msg.readInt(buffer)
+                                    try {
+                                        handler.emmitChannel(channelId = channelId)
+                                        sendResponseCode(
+                                            code = ControlResponseCodes.OK,
+                                            id = id,
+                                        )
+                                    } catch (e: Throwable) {
+                                        sendResponseCode(
+                                            code = ControlResponseCodes.UNKNOWN_ERROR,
+                                            id = id,
+                                        )
+                                    }
+                                }
+
+                                Codes.DESTROY_CHANNEL -> {
+                                    val id = msg.readInt(buffer)
+                                    val channelId = msg.readInt(buffer)
+                                    try {
+                                        handler.destroyChannel(channelId = channelId)
+                                        sendResponseCode(
+                                            code = ControlResponseCodes.OK,
+                                            id = id,
+                                        )
+                                    } catch (e: Throwable) {
+                                        sendResponseCode(
+                                            code = ControlResponseCodes.UNKNOWN_ERROR,
+                                            id = id,
+                                        )
+                                    }
+                                }
+
                                 Codes.CONNECT -> {
                                     val id = msg.readInt(buffer)
                                     val host = msg.readUTF8String(buffer)
@@ -116,26 +203,20 @@ class NodeClient constructor(
                                         )
                                         if (ok) {
                                             sendResponseCode(
+                                                code = ControlResponseCodes.OK,
                                                 id = id,
-                                                code = ControlResponseCodes.OK.code,
-                                                buffer = buffer,
-                                                connection = connection,
                                             )
                                         } else {
                                             sendResponseCode(
+                                                code = ControlResponseCodes.UNKNOWN_HOST,
                                                 id = id,
-                                                code = ControlResponseCodes.UNKNOWN_HOST.code,
-                                                buffer = buffer,
-                                                connection = connection,
                                             )
                                         }
                                     } catch (e: Throwable) {
                                         logger.warn(text = "Can't connect to $host:$port", exception = e)
                                         sendResponseCode(
+                                            code = ControlResponseCodes.UNKNOWN_ERROR,
                                             id = id,
-                                            code = ControlResponseCodes.UNKNOWN_ERROR.code,
-                                            buffer = buffer,
-                                            connection = connection,
                                         )
                                     }
                                     logger.info("READ FINISHED available=${msg.available}")

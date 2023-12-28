@@ -99,6 +99,14 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             }
         }
 
+        override suspend fun emmitChannel(channelId: Int) {
+            TODO("Not yet implemented")
+        }
+
+        override suspend fun destroyChannel(channelId: Int) {
+            TODO("Not yet implemented")
+        }
+
     }
 
     private suspend fun createConnection() {

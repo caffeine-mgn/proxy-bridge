@@ -28,21 +28,27 @@ class ClientConnection(
                 while (true) {
                     connection.read().use { msg ->
                         logger.info("Reading message...")
-                        try {
-                            val id = msg.readInt(buffer)
-                            val success = msg.readByte(buffer)
-                            val water = waiters.remove(id)
-                            when (success) {
-                                ControlResponseCodes.OK.code -> water?.resume(Unit)
-                                ControlResponseCodes.UNKNOWN_HOST.code -> water?.resumeWithException(
-                                    UnknownHostException()
-                                )
+                        val cmd = msg.readByte(buffer)
+                        when (cmd) {
+                            Codes.RESPONSE -> {
+                                val id = msg.readInt(buffer)
+                                val success = msg.readByte(buffer)
+                                val water = waiters.remove(id)
+                                when (success) {
+                                    ControlResponseCodes.OK.code -> water?.resume(Unit)
+                                    ControlResponseCodes.UNKNOWN_HOST.code -> water?.resumeWithException(
+                                        UnknownHostException()
+                                    )
 
-                                ControlResponseCodes.UNKNOWN_ERROR.code -> water?.resumeWithException(RuntimeException("Unknown error $success. Operation $id"))
-                                else -> water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
+                                    ControlResponseCodes.UNKNOWN_ERROR.code -> water?.resumeWithException(
+                                        RuntimeException("Unknown error $success. Operation $id")
+                                    )
+
+                                    else -> water?.resumeWithException(RuntimeException("Unsuccessful operation $id, success=$success"))
+                                }
                             }
-                        } catch (e: Throwable) {
 
+                            else -> TODO("Unknown code $cmd")
                         }
                     }
                 }
@@ -80,27 +86,30 @@ class ClientConnection(
             }
         }
     */
-    suspend fun emmitChannel(): Int {
+    suspend fun emmitChannel(channelId: Int) {
         val id = idCounter++
         logger.info("Emmit Channel!")
         connection.write(MessageType.BINARY).use { msg ->
             ByteBuffer(100).use { buffer ->
                 msg.writeByte(Codes.EMMIT_CHANNEL, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)
+                msg.writeInt(channelId, buffer = buffer)
             }
         }
-        return id
+        wait(id)
     }
 
-    suspend fun destroyChannel(id: Int): Int {
+    suspend fun destroyChannel(channelId: Int) {
         logger.info("Destroy Channel!")
+        val id = idCounter++
         connection.write(MessageType.BINARY).use { msg ->
             ByteBuffer(100).use { buffer ->
                 msg.writeByte(Codes.DESTROY_CHANNEL, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)
+                msg.writeInt(channelId, buffer = buffer)
             }
         }
-        return id
+        wait(id)
     }
 
     suspend fun connect(host: String, port: Int, channelId: Int): Int {
@@ -115,13 +124,17 @@ class ClientConnection(
                 msg.writeInt(channelId, buffer = buffer)
             }
         }
+        wait(id)
+        return channelId
+    }
+
+    private suspend fun wait(id: Int) {
         suspendCancellableCoroutine {
             it.invokeOnCancellation {
                 waiters.remove(id)
             }
             waiters[id] = it
         }
-        return channelId
     }
 
     override suspend fun asyncClose() {
