@@ -26,13 +26,11 @@ import pw.binom.proxy.client.RuntimeProperties as ClientRuntimeProperties
 import pw.binom.proxy.node.RuntimeClientProperties as NodeRuntimeProperties
 
 suspend fun HttpClient.checkIsOk() {
-    supervisorScope {
-        connect(method = "GET", uri = "https://www.google.com/".toURL())
-            .getResponse()
-            .readText {
-                it.readText()
-            }
-    }
+    connect(method = "GET", uri = "https://www.google.com/".toURL())
+        .getResponse()
+        .readText {
+            it.readText()
+        }
 }
 
 suspend fun prepareNetwork(func: suspend (HttpClient) -> Unit) {
@@ -165,9 +163,7 @@ suspend fun prepareNetwork(transportType: ClientRuntimeProperties.TransportType,
             val client = ports.createNode(nd = nd, transportType = transportType)
             try {
                 ports.createHttpClient(nd).use { httpClient ->
-                    supervisorScope {
-                        func(httpClient)
-                    }
+                    func(httpClient)
                 }
             } finally {
                 client.destroy()

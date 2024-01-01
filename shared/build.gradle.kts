@@ -26,6 +26,7 @@ kotlin {
 //                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-serialization-core:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
+                api("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
             }
         }
         val commonTest by getting {

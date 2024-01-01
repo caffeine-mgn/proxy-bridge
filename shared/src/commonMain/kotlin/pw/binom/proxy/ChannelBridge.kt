@@ -2,10 +2,12 @@ package pw.binom.proxy
 
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import pw.binom.*
 import pw.binom.io.AsyncChannel
 import pw.binom.io.AsyncCloseable
+import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.logger.Logger
 import pw.binom.logger.debug
 import pw.binom.logger.info
@@ -83,6 +85,8 @@ class ChannelBridge(
                 // Do nothing
             } catch (e: CancellationException) {
                 // Do nothing
+            } catch (e: WebSocketClosedException) {
+                // Do nothing
             } catch (e: Throwable) {
                 logger?.warn("Error on $localName<-$remoteName", exception = e)
             } finally {
@@ -109,8 +113,8 @@ class ChannelBridge(
 
     override suspend fun asyncClose() {
         println("ChannelBridge:: Closing ClientConnection")
-        wsToTcp.cancel()
-        tcpToWs.cancel()
+        wsToTcp.cancelAndJoin()
+        tcpToWs.cancelAndJoin()
         remote.asyncCloseAnyway()
         local.asyncCloseAnyway()
     }

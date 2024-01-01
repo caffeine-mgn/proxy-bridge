@@ -23,4 +23,5 @@ data class RuntimeClientProperties(
             port = 8081,
         ),
     ),
+    val pingInterval: Duration = 30.seconds,
 )

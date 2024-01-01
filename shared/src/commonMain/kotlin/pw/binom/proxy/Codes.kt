@@ -6,4 +6,5 @@ object Codes {
     val DESTROY_CHANNEL: Byte = 13
     val PUT_FILE: Byte = 11
     val RESPONSE: Byte = 14
+    val REQUEST: Byte = 15
 }

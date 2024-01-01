@@ -10,6 +10,7 @@ import pw.binom.io.AsyncOutput
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.CompositeChannelManager
+import pw.binom.proxy.ControlClient
 import pw.binom.proxy.extract
 import pw.binom.proxy.node.exceptions.ClientMissingException
 import pw.binom.strong.Strong
@@ -18,7 +19,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
-    private var existClient: ClientConnection? = null
+    private var existClient: ControlClient? = null
     private val waters = HashSet<Water>()
     private val waterLock = SpinLock()
     private val properties by inject<RuntimeClientProperties>()
@@ -27,7 +28,7 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         HashMap<Int, CancellableContinuation<Pair<AsyncChannel, CancellableContinuation<Unit>>>>()
 
     private class Water(
-        val water: CancellableContinuation<ClientConnection>,
+        val water: CancellableContinuation<ControlClient>,
         val created: DateTime
     )
 
@@ -67,16 +68,19 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         logger.info("Finished!")
     }
 
-    fun clientDisconnected(connection: ClientConnection): Boolean {
+    fun clientDisconnected(connection: ControlClient): Boolean {
+        println("Client disconnected!")
         val existClient = existClient
         if (existClient != connection) {
+            println("disconnected other client. not current")
             return false
         }
+        println("disconnected current client")
         this.existClient = null
         return true
     }
 
-    fun clientConnected(connection: ClientConnection): Boolean {
+    fun clientConnected(connection: ControlClient): Boolean {
         val existClient = existClient
         return if (existClient != null) {
             false
@@ -96,18 +100,22 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         }
     }
 
-    private suspend fun waitClient(): ClientConnection {
+    private suspend fun waitClient(): ControlClient {
+        println("Client connected!")
         val existClient = existClient
         if (existClient != null) {
+            println("Return existing client!")
             return existClient
         }
         return suspendCancellableCoroutine {
             val water = Water(water = it, created = DateTime.now)
             it.invokeOnCancellation { _ ->
+                println("Water cancelled!")
                 waterLock.synchronize {
                     waters -= water
                 }
             }
+            println("Water added!")
             waterLock.synchronize {
                 waters += water
             }
@@ -172,11 +180,14 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         cleanupJob = GlobalScope.launch {
             while (isActive) {
                 try {
+                    println("wait... ${properties.remoteClientAwaitTimeout}")
                     delay(properties.remoteClientAwaitTimeout)
+                    println("Searching and cancel!")
                     val exp = DateTime.now
                     val exparedWaters = waterLock.synchronize {
                         waters.extract { exp - it.created > properties.remoteClientAwaitTimeout }
                     }
+                    println("TASK FOR CANCEL!->${exparedWaters.size}")
                     exparedWaters.forEach {
                         it.water.resumeWithException(ClientMissingException())
                     }

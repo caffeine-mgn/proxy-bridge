@@ -1,5 +1,5 @@
 package pw.binom.proxy.client
-
+/*
 import kotlinx.coroutines.*
 import pw.binom.*
 import pw.binom.atomic.AtomicLong
@@ -23,7 +23,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
 
-class NodeClient constructor(
+class NodeClient (
     val connection: WebSocketConnection,
     networkManager: NetworkManager,
     pingInterval: Duration,
@@ -225,6 +225,7 @@ class NodeClient constructor(
                                 else -> TODO("Unknown cmd $byte and ${msg.readByte(buffer).toUByte()}")
                             }
                         } catch (e: Throwable) {
+                            e.printStackTrace()
                             logger.info(text = "Error during message reading...", exception = e)
                             throw e
                         } finally {
@@ -232,9 +233,11 @@ class NodeClient constructor(
                         }
                     }
                 } catch (e: CancellationException) {
+                    e.printStackTrace()
                     asyncCloseAnyway()
                     throw e
                 } catch (e: Throwable) {
+                    e.printStackTrace()
                     logger.info(text = "Message processed! Wait new message...", exception = e)
                     throw e
                 } finally {
@@ -264,5 +267,7 @@ class NodeClient constructor(
                 pingJob.cancelAndJoin()
             }
         }
+        connection.asyncCloseAnyway()
     }
 }
+*/

@@ -1,39 +1,52 @@
 package pw.binom.proxy.node.handlers
 
+import pw.binom.concurrency.SpinLock
+import pw.binom.concurrency.synchronize
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptWebsocket
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.proxy.node.ClientConnection
+import pw.binom.network.NetworkManager
+import pw.binom.proxy.ControlClient
 import pw.binom.proxy.node.ClientService
+import pw.binom.proxy.node.RuntimeClientProperties
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 
 class ClientControlHandler : HttpHandler, Strong.DestroyableBean {
     private val clientService by inject<ClientService>()
+    private val networkManager by inject<NetworkManager>()
+    private val properties by inject<RuntimeClientProperties>()
     private val logger by Logger.ofThisOrGlobal
     private var clientCounter = 0
     private val clients = HashSet<WebSocketConnection>()
+    private val clientsLock = SpinLock()
     override suspend fun handle(exchange: HttpServerExchange) {
         val connection = exchange.acceptWebsocket()
         val clientId = ++clientCounter
-        val client = ClientConnection(
+        val client = ControlClient(
             connection = connection,
-            logger = Logger.getLogger("Proxy::Client #$clientId"),
+            networkManager = networkManager,
+            pingInterval = properties.pingInterval,
+            logger = Logger.getLogger("External client $clientId")
         )
         try {
             clientService.clientConnected(client)
             logger.info("Client $clientId connected!")
-            clients += connection
-            client.processing()
+            clientsLock.synchronize {
+                clients += connection
+            }
+            client.runClient(ControlClient.BaseHandler.NOT_SUPPORTED)
 //            client.asyncCloseAnyway()
 //            client.connection.asyncCloseAnyway()
         } catch (e: Throwable) {
             logger.info(text = "Client $clientId disconnected with error", exception = e)
         } finally {
-            clients -= connection
+            clientsLock.synchronize {
+                clients -= connection
+            }
             logger.info("Client $clientId disconnected!")
             clientService.clientDisconnected(client)
             client.asyncCloseAnyway()

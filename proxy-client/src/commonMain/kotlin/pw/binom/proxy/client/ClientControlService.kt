@@ -3,7 +3,6 @@ package pw.binom.proxy.client
 import kotlinx.coroutines.*
 import pw.binom.*
 import pw.binom.io.ByteBuffer
-import pw.binom.io.IOException
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
@@ -19,6 +18,7 @@ import pw.binom.logger.warn
 import pw.binom.network.NetworkManager
 import pw.binom.network.SocketConnectException
 import pw.binom.proxy.Codes
+import pw.binom.proxy.ControlClient
 import pw.binom.proxy.ControlResponseCodes
 import pw.binom.proxy.Urls
 import pw.binom.strong.Strong
@@ -81,33 +81,6 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     }
 
     private var clientProcess: Job? = null
-    private val handler = object : NodeClient.Handler {
-        override suspend fun connect(channelId: Int, host: String, port: Int): Boolean {
-            return try {
-                transportService.connect(
-                    id = channelId,
-                    address = NetworkAddress.create(
-                        host = host,
-                        port = port,
-                    ),
-                )
-                true
-            } catch (e: IOException) {
-                false
-            } catch (e: UnknownHostException) {
-                false
-            }
-        }
-
-        override suspend fun emmitChannel(channelId: Int) {
-            TODO("Not yet implemented")
-        }
-
-        override suspend fun destroyChannel(channelId: Int) {
-            TODO("Not yet implemented")
-        }
-
-    }
 
     private suspend fun createConnection() {
         val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
@@ -116,14 +89,23 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             uri = url,
         ).start(bufferSize = runtimeProperties.bufferSize)
         logger.info("Connected!")
-        NodeClient(
+        ControlClient(
             connection = connection,
             networkManager = networkManager,
-            pingInterval = runtimeProperties.pingInterval
+            pingInterval = runtimeProperties.pingInterval,
+            logger = Logger.getLogger("Client"),
         ).use { client ->
             try {
                 client.runClient(
-                    handler = handler
+                    handler = ControlClient.BaseHandler.composite(connect = { host, port, channelId ->
+                        transportService.connect(
+                            id = channelId,
+                            address = NetworkAddress.create(
+                                host = host,
+                                port = port,
+                            ),
+                        )
+                    })
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -217,36 +199,42 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
 
     override suspend fun link(strong: Strong) {
         clientProcess = GlobalScope.launch(networkManager) {
-            supervisorScope {
-                while (isActive) {
-                    try {
-                        createConnection()
-                        delay(runtimeProperties.reconnectTimeout)
-                    } catch (e: DestroyingException) {
-                        break
-                    } catch (e: SocketConnectException) {
-                        logger.warn(text = "Can't connect to server: ${e.message}")
-                        delay(runtimeProperties.reconnectTimeout)
-                    } catch (e: WebSocketClosedException) {
-                        logger.warn("Connection lost")
-                        delay(runtimeProperties.reconnectTimeout)
-                    } catch (e: CancellationException) {
-                        break
-                    } catch (e: DestroyingException) {
-                        break
-                    } catch (e: Throwable) {
-                        logger.warn("Error connection", exception = e)
-                        delay(runtimeProperties.reconnectTimeout)
-                    }
+            while (isActive) {
+                logger.info("Try make connect")
+                try {
+                    createConnection()
+                    delay(runtimeProperties.reconnectTimeout)
+                } catch (e: DestroyingException) {
+                    e.printStackTrace()
+                    break
+                } catch (e: SocketConnectException) {
+                    e.printStackTrace()
+                    logger.warn(text = "Can't connect to server: ${e.message}")
+                    delay(runtimeProperties.reconnectTimeout)
+                } catch (e: WebSocketClosedException) {
+                    e.printStackTrace()
+                    logger.warn("Connection lost")
+                    delay(runtimeProperties.reconnectTimeout)
+                } catch (e: CancellationException) {
+                    break
+                } catch (e: DestroyingException) {
+                    break
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    logger.warn("Error connection", exception = e)
+                    delay(runtimeProperties.reconnectTimeout)
+                } finally {
+                    logger.info("Connection finished!")
                 }
             }
         }
     }
 
     override suspend fun destroy(strong: Strong) {
-        println("ClientControlService:: Closing ClientConnection")
+        println("ClientControlService::destroy Closing ClientConnection clientProcess=$clientProcess")
         clientProcess?.cancel(DestroyingException())
         clientProcess?.join()
+        println("ClientControlService::destroy clientProcess=$clientProcess")
         clientProcess = null
     }
 

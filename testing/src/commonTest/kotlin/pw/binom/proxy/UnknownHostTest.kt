@@ -14,7 +14,7 @@ class UnknownHostTest : BaseTest() {
                 client.connect(method = "GET", uri = "https://olololo/".toURL())
                     .getResponse()
                     .readText { it.readText() }
-                fail("Should throw UnknownHostException")
+                fail("Should throw UnknownHostException1")
             } catch (e: UnknownHostException) {
                 // Do nothing
             }
