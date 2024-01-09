@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package pw.binom.proxy
 
 import kotlinx.coroutines.*
@@ -31,16 +33,17 @@ import kotlin.time.Duration
 class ControlClient(
     val connection: WebSocketConnection,
     networkManager: NetworkManager,
-    pingInterval: Duration,
-    private val logger: Logger
+    private val pingInterval: Duration,
+    private val logger: Logger,
 ) : AsyncCloseable {
     @Suppress("FUN_INTERFACE_WITH_SUSPEND_FUNCTION")
     fun interface BaseHandler {
         companion object {
             private const val NOT_SUPPORTED_MSG = "Not supported"
-            val NOT_SUPPORTED = BaseHandler {
-                ResponseDto.unknownError(NOT_SUPPORTED_MSG)
-            }
+            val NOT_SUPPORTED =
+                BaseHandler {
+                    ResponseDto.unknownError(NOT_SUPPORTED_MSG)
+                }
 
             fun composite(
                 connect: suspend (host: String, port: Int, channelId: Int) -> Unit = { _, _, _ ->
@@ -105,7 +108,7 @@ class ControlClient(
                         }
                     }
 
-                    else -> ResponseDto.unknownError("Unknown request")
+                    else -> ResponseDto.unknownError("Unknown request. Full object: $it")
                 }
             }
         }
@@ -125,18 +128,29 @@ class ControlClient(
     private val waitersLock = SpinLock()
     private val requestIterator = AtomicInt(0)
 
-    private val pingJob = if (pingInterval > Duration.ZERO) GlobalScope.launch(networkManager) {
-        while (isActive) {
-            try {
-                delay(pingInterval)
-                ping()
-            } catch (e: ClosedException) {
-                break
-            } catch (e: CancellationException) {
-                break
+    private var pingJob: Job? = null
+
+    private suspend fun startPing()  {
+        if (pingInterval > Duration.ZERO) {
+            GlobalScope.launch(currentCoroutineContext() + CoroutineName("${logger.pkg}-PING")) {
+                supervisorScope {
+                    while (isActive) {
+                        try {
+                            delay(pingInterval)
+                            ping()
+                        } catch (e: ClosedException) {
+                            break
+                        } catch (e: CancellationException) {
+                            println("PING JOB Cancelled!!!!!!")
+                            break
+                        }
+                    }
+                }
             }
+        } else {
+            null
         }
-    } else null
+    }
 
     suspend fun ping() {
         val pingId = pingCounter.addAndGet(1)
@@ -159,7 +173,11 @@ class ControlClient(
         }
     }
 
-    suspend fun connect(host: String, port: Int, channelId: Int) {
+    suspend fun connect(
+        host: String,
+        port: Int,
+        channelId: Int,
+    ) {
         val resp =
             sendRequest(RequestDto(connect = RequestDto.Connect(host = host, port = port, channelId = channelId)))
         if (resp.isOk) {
@@ -178,7 +196,10 @@ class ControlClient(
         throw RuntimeException("Unknown response: $resp")
     }
 
-    suspend fun emmitChannel(channelId: Int, ignoreExist: Boolean) {
+    suspend fun emmitChannel(
+        channelId: Int,
+        ignoreExist: Boolean,
+    ) {
         val resp = sendRequest(RequestDto(emmitChannel = RequestDto.EmmitChannel(channelId)))
         if (resp.isOk) {
             return
@@ -193,7 +214,10 @@ class ControlClient(
         elseCheck(resp)
     }
 
-    suspend fun destroyChannel(channelId: Int, ignoreNotExist: Boolean = false) {
+    suspend fun destroyChannel(
+        channelId: Int,
+        ignoreNotExist: Boolean = false,
+    ) {
         val resp = sendRequest(RequestDto(destroyChannel = RequestDto.DestroyChannel(channelId)))
         if (resp.isOk) {
             return
@@ -210,7 +234,20 @@ class ControlClient(
 
     private suspend fun sendRequest(dto: RequestDto): ResponseDto {
         val id = requestIterator.addAndGet(1)
-        val array = proto.encodeToByteArray(RequestDto.serializer(), dto)
+        val array = dto.toByteArray()
+        logger.info("Send request $dto (${array.size} bytes)   ${dto.toByteArray().size}")
+        logger.info(
+            "STUB: ${
+                RequestDto(
+                    connect =
+                        RequestDto.Connect(
+                            host = "123",
+                            port = 11,
+                            channelId = 22
+                        )
+                ).toByteArray().size
+            }"
+        )
         sendBytes(
             code = Codes.REQUEST,
             id = id,
@@ -219,7 +256,11 @@ class ControlClient(
         return wait(id)
     }
 
-    private suspend fun sendBytes(code: Byte, id: Int, bytes: ByteArray) {
+    private suspend fun sendBytes(
+        code: Byte,
+        id: Int,
+        bytes: ByteArray,
+    ) {
         ByteBuffer(Byte.SIZE_BYTES + Int.SIZE_BYTES + Int.SIZE_BYTES + bytes.size).use { buffer ->
             buffer.put(code)
             buffer.writeInt(id)
@@ -233,13 +274,14 @@ class ControlClient(
     }
 
     suspend fun runClient(handler: BaseHandler) {
+        startPing()
         try {
             ByteBuffer(1024).use { buffer ->
                 while (true) {
                     try {
                         logger.info("ControlClient::runClient Waiting new message...")
                         connection.read().use MSG@{ msg ->
-                            logger.info("ControlClient::runClient Message got!")
+                            logger.info("ControlClient::runClient Message got! msg.type=${msg.type}")
                             when (msg.type) {
                                 MessageType.CLOSE -> return
                                 MessageType.PING -> {
@@ -267,21 +309,41 @@ class ControlClient(
                                 }
 
                                 MessageType.BINARY, MessageType.TEXT -> {
-                                    when (val byte = msg.readByte(buffer)) {
+                                    val byte = msg.readByte(buffer)
+                                    when (byte) {
                                         Codes.REQUEST -> {
                                             val id = msg.readInt(buffer)
                                             val size = msg.readInt(buffer)
                                             val bytes = msg.readByteArray(size = size, buffer = buffer)
-                                            val req = proto.decodeFromByteArray(RequestDto.serializer(), bytes)
-                                            val resp = try {
-                                                handler.income(req)
-                                            } catch (e: Throwable) {
-                                                ResponseDto.unknownError(e.toString())
-                                            }
+                                            val req =
+                                                try {
+                                                    RequestDto.fromByteArray(bytes)
+                                                } catch (e: Throwable) {
+                                                    logger.info(text = "Can't decode income request", exception = e)
+                                                    sendBytes(
+                                                        code = Codes.RESPONSE,
+                                                        id = id,
+                                                        bytes =
+                                                            ResponseDto.unknownError("Can't decode income request")
+                                                                .toByteArray()
+                                                    )
+                                                    return@MSG
+                                                }
+                                            logger.info("Income request $req (${bytes.size} bytes). size=$size")
+                                            val resp =
+                                                try {
+                                                    handler.income(req)
+                                                } catch (e: Throwable) {
+                                                    logger.info(
+                                                        text = "Unknown exception during request processing",
+                                                        exception = e
+                                                    )
+                                                    ResponseDto.unknownError(e.toString())
+                                                }
                                             sendBytes(
                                                 code = Codes.RESPONSE,
                                                 id = id,
-                                                bytes = proto.encodeToByteArray(ResponseDto.serializer(), resp)
+                                                bytes = resp.toByteArray()
                                             )
                                         }
 
@@ -289,10 +351,26 @@ class ControlClient(
                                             val id = msg.readInt(buffer)
                                             val size = msg.readInt(buffer)
                                             val bytes = msg.readByteArray(size = size, buffer = buffer)
-                                            val resp = proto.decodeFromByteArray(ResponseDto.serializer(), bytes)
-                                            val con = waitersLock.synchronize {
-                                                waiters.remove(id)
-                                            } ?: return
+                                            val con =
+                                                waitersLock.synchronize {
+                                                    waiters.remove(id)
+                                                }
+                                            if (con == null) {
+                                                logger.info("Can't find request water for request $id")
+                                                return@MSG
+                                            }
+                                            val resp =
+                                                try {
+                                                    ResponseDto.fromByteArray(bytes)
+                                                } catch (e: Throwable) {
+                                                    con.resumeWithException(
+                                                        RuntimeException(
+                                                            "Can't decode income response",
+                                                            e
+                                                        )
+                                                    )
+                                                    return@MSG
+                                                }
                                             con.resume(resp)
                                         }
 
@@ -306,11 +384,15 @@ class ControlClient(
                             }
                         }
                     } catch (e: CancellationException) {
-                        logger.info(text = "ControlClient::runClient STOP PROCESSING #1")
-                        asyncCloseAnyway()
+                        withContext(NonCancellable) {
+                            logger.info(text = "ControlClient::runClient STOP PROCESSING #1")
+                            asyncCloseAnyway()
+                        }
                         return
                     } catch (e: WebSocketClosedException) {
-                        asyncCloseAnyway()
+                        withContext(NonCancellable) {
+                            asyncCloseAnyway()
+                        }
                         return
                     } catch (e: Throwable) {
                         logger.info(text = "ControlClient::runClient STOP PROCESSING #2", exception = e)
@@ -319,6 +401,7 @@ class ControlClient(
                 }
             }
         } catch (e: Throwable) {
+            println("EROROROROR!!!!!!!!")
             e.printStackTrace()
             throw e
         } finally {
@@ -326,16 +409,17 @@ class ControlClient(
         }
     }
 
-    private suspend fun wait(id: Int): ResponseDto = suspendCancellableCoroutine {
-        it.invokeOnCancellation {
+    private suspend fun wait(id: Int): ResponseDto =
+        suspendCancellableCoroutine {
+            it.invokeOnCancellation {
+                waitersLock.synchronize {
+                    waiters.remove(id)
+                }
+            }
             waitersLock.synchronize {
-                waiters.remove(id)
+                waiters[id] = it
             }
         }
-        waitersLock.synchronize {
-            waiters[id] = it
-        }
-    }
 
     override suspend fun asyncClose() {
         logger.info("ControlClient::asyncClose Closing web socket connection")
@@ -354,7 +438,12 @@ class ControlClient(
         val pingJob = pingJob
         if (pingJob != null) {
             if (pingJob.isActive && !pingJob.isCompleted && !pingJob.isCancelled) {
-                pingJob.cancelAndJoin()
+                try {
+                    pingJob.cancelAndJoin()
+                    logger.info("PING JOB CANCELLED")
+                } catch (e: Throwable) {
+                    println("ERROR ON CLOSE CONTROL CLIENT: $e")
+                }
             }
         }
     }

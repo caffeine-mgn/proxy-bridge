@@ -41,15 +41,17 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
         port: Int,
         channelId: Int,
     ) {
-        val connectResult = runCatching {
-            transportService.connect(
-                id = channelId,
-                address = NetworkAddress.create(
-                    host = host,
-                    port = port,
-                ),
-            )
-        }
+        val connectResult =
+            runCatching {
+                transportService.connect(
+                    id = channelId,
+                    address =
+                        NetworkAddress.create(
+                            host = host,
+                            port = port
+                        )
+                )
+            }
         when {
             connectResult.isSuccess -> {
                 connection.write(MessageType.BINARY).use { msg ->
@@ -85,35 +87,40 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     private suspend fun createConnection() {
         val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
         logger.info("Connection to $url...")
-        val connection = httpClient.connectWebSocket(
-            uri = url,
-        ).start(bufferSize = runtimeProperties.bufferSize)
+        val connection =
+            httpClient.connectWebSocket(
+                uri = url
+            ).start(bufferSize = runtimeProperties.bufferSize)
         logger.info("Connected!")
         ControlClient(
             connection = connection,
             networkManager = networkManager,
             pingInterval = runtimeProperties.pingInterval,
-            logger = Logger.getLogger("Client"),
+            logger = Logger.getLogger("Client")
         ).use { client ->
             try {
                 client.runClient(
-                    handler = ControlClient.BaseHandler.composite(connect = { host, port, channelId ->
-                        transportService.connect(
-                            id = channelId,
-                            address = NetworkAddress.create(
-                                host = host,
-                                port = port,
-                            ),
-                        )
-                    })
+                    handler =
+                        ControlClient.BaseHandler.composite(connect = { host, port, channelId ->
+                            transportService.connect(
+                                id = channelId,
+                                address =
+                                    NetworkAddress.create(
+                                        host = host,
+                                        port = port
+                                    )
+                            )
+                        })
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 logger.severe(text = "Error on package reading", exception = e)
             } finally {
-                logger.warn("Control finished!")
-                connection.asyncCloseAnyway()
+                withContext(NonCancellable) {
+                    logger.warn("Control finished!")
+                    connection.asyncCloseAnyway()
+                }
             }
         }
         return
@@ -138,7 +145,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                                             connection = connection,
                                             host = host,
                                             port = port,
-                                            channelId = channelId,
+                                            channelId = channelId
                                         )
                                     }
 
@@ -198,36 +205,32 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     }
 
     override suspend fun link(strong: Strong) {
-        clientProcess = GlobalScope.launch(networkManager) {
-            while (isActive) {
-                logger.info("Try make connect")
-                try {
-                    createConnection()
-                    delay(runtimeProperties.reconnectTimeout)
-                } catch (e: DestroyingException) {
-                    e.printStackTrace()
-                    break
-                } catch (e: SocketConnectException) {
-                    e.printStackTrace()
-                    logger.warn(text = "Can't connect to server: ${e.message}")
-                    delay(runtimeProperties.reconnectTimeout)
-                } catch (e: WebSocketClosedException) {
-                    e.printStackTrace()
-                    logger.warn("Connection lost")
-                    delay(runtimeProperties.reconnectTimeout)
-                } catch (e: CancellationException) {
-                    break
-                } catch (e: DestroyingException) {
-                    break
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                    logger.warn("Error connection", exception = e)
-                    delay(runtimeProperties.reconnectTimeout)
-                } finally {
-                    logger.info("Connection finished!")
+        clientProcess =
+            GlobalScope.launch(networkManager + CoroutineName(logger.pkg)) {
+                while (isActive) {
+                    logger.info("Try make connect")
+                    try {
+                        createConnection()
+                        delay(runtimeProperties.reconnectTimeout)
+                    } catch (e: SocketConnectException) {
+                        e.printStackTrace()
+                        logger.warn(text = "Can't connect to server: ${e.message}")
+                        delay(runtimeProperties.reconnectTimeout)
+                    } catch (e: WebSocketClosedException) {
+                        e.printStackTrace()
+                        logger.warn("Connection lost")
+                        delay(runtimeProperties.reconnectTimeout)
+                    } catch (e: CancellationException) {
+                        break
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        logger.warn("Error connection", exception = e)
+                        delay(runtimeProperties.reconnectTimeout)
+                    } finally {
+                        logger.info("Connection finished!")
+                    }
                 }
             }
-        }
     }
 
     override suspend fun destroy(strong: Strong) {

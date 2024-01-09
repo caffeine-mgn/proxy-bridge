@@ -32,6 +32,7 @@ class ProxyHandler : HttpHandler {
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<RuntimeClientProperties>()
     private val logger by Logger.ofThisOrGlobal
+
     override suspend fun handle(exchange: HttpServerExchange) {
         when (exchange.requestMethod) {
             "CONNECT" -> tcp(exchange)
@@ -45,35 +46,38 @@ class ProxyHandler : HttpHandler {
         baseProtocolSelector.set(
             http,
             "http",
-            "ws",
+            "ws"
         )
         val protocolSelector =
-            SingleProtocolSelector(ProxedFactory(protocolSelector = baseProtocolSelector, channelProvider = { url ->
-                clientService.connectTo(
-                    host = url.host,
-                    port = url.port ?: 80,
-                ).second
-            }))
+            SingleProtocolSelector(
+                ProxedFactory(protocolSelector = baseProtocolSelector, channelProvider = { url ->
+                    clientService.connectTo(
+                        host = url.host,
+                        port = url.port ?: 80
+                    ).second
+                })
+            )
 
         BaseHttpClient(
             useKeepAlive = true,
             protocolSelector = protocolSelector,
-            requestHook = RequestHook.Default,
+            requestHook = RequestHook.Default
         )
     }
 
     private suspend fun httpRequest(exchange: HttpServerExchange) {
-        val req = try {
-            httpClient.startConnect(
-                method = exchange.requestMethod,
-                uri = exchange.requestURI.toURL(),
-                headers = exchange.requestHeaders,
-                requestLength = OutputLength.None,
-            )
-        } catch (e: ClientMissingException) {
-            exchange.startResponse(503)
-            return
-        }
+        val req =
+            try {
+                httpClient.startConnect(
+                    method = exchange.requestMethod,
+                    uri = exchange.requestURI.toURL(),
+                    headers = exchange.requestHeaders,
+                    requestLength = OutputLength.None
+                )
+            } catch (e: ClientMissingException) {
+                exchange.startResponse(503)
+                return
+            }
         if (exchange.requestHeaders.bodyExist) {
             logger.info("Copping http->ws")
             req.startWriteBinary().use { output ->
@@ -87,7 +91,7 @@ class ProxyHandler : HttpHandler {
         val resp = req.flush()
         exchange.startResponse(
             statusCode = resp.responseCode,
-            headers = resp.inputHeaders + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE),
+            headers = resp.inputHeaders + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE)
         )
         if (resp.inputHeaders.bodyExist) {
             logger.info("Copping ws->http")
@@ -111,35 +115,39 @@ class ProxyHandler : HttpHandler {
         val port = items[1].toInt()
         logger.info("Address: $host:$port")
 
-        val connectionInfo = try {
-            clientService.connectTo(
-                host = host,
-                port = port,
-            )
-        } catch (e: UnknownHostException) {
-            exchange.startResponse(404)
-            return
-        } catch (e: ClientMissingException) {
-            exchange.startResponse(503)
-            return
-        }
+        val connectionInfo =
+            try {
+                clientService.connectTo(
+                    host = host,
+                    port = port
+                )
+            } catch (e: UnknownHostException) {
+                exchange.startResponse(404)
+                return
+            } catch (e: ClientMissingException) {
+                exchange.startResponse(503)
+                return
+            }
         logger.info("Connected!")
         val input = exchange.input
         exchange.startResponse(200, emptyHeaders())
         val output = exchange.output
         logger.info("Try init connect on remote client!")
-        val localChannel = AsyncChannel.create(
-            input = input,
-            output = output,
-        )
-        val bridge = ChannelBridge.create(
-            local = localChannel,
-            remote = connectionInfo.second,
-            bufferSize = runtimeProperties.bufferSize,
-            logger = Logger.getLogger("Node Transport #${connectionInfo.first}"),
-            localName = "node",
-            id = connectionInfo.first,
-        )
+        val localChannel =
+            AsyncChannel.create(
+                input = input,
+                output = output
+            )
+        val bridge =
+            ChannelBridge.create(
+                local = localChannel,
+                remote = connectionInfo.second,
+                bufferSize = runtimeProperties.bufferSize,
+                logger = Logger.getLogger("Node Transport #${connectionInfo.first}"),
+                localName = "node",
+                id = connectionInfo.first,
+                scope = networkManager
+            )
         bridge.join()
 //        val reversJob = GlobalScope.launch(coroutineContext) {
 //            while (true) {

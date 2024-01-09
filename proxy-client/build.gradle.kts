@@ -32,7 +32,9 @@ kotlin {
                 api("pw.binom.io:strong:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:signal:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
+                api(
+                    "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
+                )
                 api(project(":shared"))
             }
         }
@@ -65,6 +67,6 @@ tasks {
             file("build/bin/mingwX64/releaseExecutable"),
             file("build/libs/proxy-client.jar")
         )
-        into(file("/media/subochev/BIG/Nextcloud/tmp/dddd"))
+        into(file("/home/subochev/Nextcloud/tmp/dddd"))
     }
 }

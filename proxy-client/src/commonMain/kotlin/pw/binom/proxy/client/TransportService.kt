@@ -22,7 +22,10 @@ class TransportService : Strong.DestroyableBean {
     private var closing = false
     private val logger by Logger.ofThisOrGlobal
 
-    suspend fun connectTcp(id: Int, address: NetworkAddress) {
+    suspend fun connectTcp(
+        id: Int,
+        address: NetworkAddress,
+    ) {
         require(!closing) { "Service is closing" }
         val transportConnection = connectionFactory.connect(id)
         val socket =
@@ -34,7 +37,6 @@ class TransportService : Strong.DestroyableBean {
                 }
             }
 
-
         ChannelBridge.create(
             local = socket,
             remote = transportConnection,
@@ -42,13 +44,17 @@ class TransportService : Strong.DestroyableBean {
             bufferSize = runtimeProperties.bufferSize,
             localName = "client",
             id = id,
+            scope = networkManager
         )
     }
 
-    suspend fun connect(id: Int, address: NetworkAddress) {
+    suspend fun connect(
+        id: Int,
+        address: NetworkAddress,
+    ) {
         connectTcp(
             id = id,
-            address = address,
+            address = address
         )
     }
 

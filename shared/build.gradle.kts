@@ -25,14 +25,24 @@ kotlin {
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
 //                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-core:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
+                api(
+                    "org.jetbrains.kotlinx:kotlinx-serialization-core:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
+                )
+                api(
+                    "org.jetbrains.kotlinx:kotlinx-serialization-protobuf:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
+                )
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
+            }
+        }
+        val jvmTest by getting {
+            dependsOn(commonTest)
+            dependencies {
+                api(kotlin("test"))
             }
         }
     }

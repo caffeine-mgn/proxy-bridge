@@ -1,5 +1,7 @@
 package pw.binom.proxy.node.handlers
 
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.io.http.websocket.WebSocketConnection
@@ -23,15 +25,17 @@ class ClientControlHandler : HttpHandler, Strong.DestroyableBean {
     private var clientCounter = 0
     private val clients = HashSet<WebSocketConnection>()
     private val clientsLock = SpinLock()
+
     override suspend fun handle(exchange: HttpServerExchange) {
         val connection = exchange.acceptWebsocket()
         val clientId = ++clientCounter
-        val client = ControlClient(
-            connection = connection,
-            networkManager = networkManager,
-            pingInterval = properties.pingInterval,
-            logger = Logger.getLogger("External client $clientId")
-        )
+        val client =
+            ControlClient(
+                connection = connection,
+                networkManager = networkManager,
+                pingInterval = properties.pingInterval,
+                logger = Logger.getLogger("External client $clientId")
+            )
         try {
             clientService.clientConnected(client)
             logger.info("Client $clientId connected!")
@@ -48,8 +52,10 @@ class ClientControlHandler : HttpHandler, Strong.DestroyableBean {
                 clients -= connection
             }
             logger.info("Client $clientId disconnected!")
-            clientService.clientDisconnected(client)
-            client.asyncCloseAnyway()
+            withContext(NonCancellable) {
+                clientService.clientDisconnected(client)
+                client.asyncCloseAnyway()
+            }
         }
     }
 
@@ -58,5 +64,4 @@ class ClientControlHandler : HttpHandler, Strong.DestroyableBean {
             it.asyncCloseAnyway()
         }
     }
-
 }

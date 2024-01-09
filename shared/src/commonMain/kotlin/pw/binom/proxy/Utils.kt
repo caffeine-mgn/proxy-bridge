@@ -2,6 +2,35 @@ package pw.binom.proxy
 
 import pw.binom.collections.removeIf
 
+class ArgCounter {
+    private var name: String? = null
+
+    companion object {
+        fun calc(func: ArgCounter.() -> Unit) {
+            val counter = ArgCounter()
+            func(counter)
+            counter.flush()
+        }
+    }
+
+    fun add(
+        value: Any?,
+        name: String,
+    ) {
+        value ?: return
+        if (this.name != null) {
+            throw RuntimeException("Can't set argument $name: argument ${this.name} already passed")
+        }
+        this.name = name
+    }
+
+    fun flush() {
+        if (name == null) {
+            throw RuntimeException("No any argument pass")
+        }
+    }
+}
+
 inline fun <T> MutableCollection<T>.extract(crossinline condition: (T) -> Boolean): List<T> {
     val result = ArrayList<T>()
     removeIf {

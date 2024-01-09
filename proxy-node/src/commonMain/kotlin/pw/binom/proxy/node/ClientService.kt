@@ -29,31 +29,43 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
 
     private class Water(
         val water: CancellableContinuation<ControlClient>,
-        val created: DateTime
+        val created: DateTime,
     )
 
-    suspend fun webSocketConnected(id: Int, connection: suspend () -> AsyncChannel) {
+    suspend fun webSocketConnected(
+        id: Int,
+        connection: suspend () -> AsyncChannel,
+    ) {
         compositeChannelManager.useChannel(
             id = id,
             channel = connection()
         )
     }
 
-    suspend fun inputConnected(id: Int, connection: suspend () -> AsyncInput) {
+    suspend fun inputConnected(
+        id: Int,
+        connection: suspend () -> AsyncInput,
+    ) {
         compositeChannelManager.useInput(
             id = id,
             input = connection()
         )
     }
 
-    suspend fun outputConnected(id: Int, connection: suspend () -> AsyncOutput) {
+    suspend fun outputConnected(
+        id: Int,
+        connection: suspend () -> AsyncOutput,
+    ) {
         compositeChannelManager.useOutput(
             id = id,
             output = connection()
         )
     }
 
-    suspend fun transportProcessing(id: Int, connection: suspend () -> AsyncChannel) {
+    suspend fun transportProcessing(
+        id: Int,
+        connection: suspend () -> AsyncChannel,
+    ) {
         val water = connectionWater.remove(id)
         if (water == null) {
             logger.info("Water for id=$id not found!")
@@ -69,13 +81,10 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
     }
 
     fun clientDisconnected(connection: ControlClient): Boolean {
-        println("Client disconnected!")
         val existClient = existClient
         if (existClient != connection) {
-            println("disconnected other client. not current")
             return false
         }
-        println("disconnected current client")
         this.existClient = null
         return true
     }
@@ -86,12 +95,12 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
             false
         } else {
             this.existClient = connection
-            val waters = waterLock.synchronize {
-                val h = HashSet(waters)
-                this.waters.clear()
-                h
-            }
-
+            val waters =
+                waterLock.synchronize {
+                    val h = HashSet(waters)
+                    this.waters.clear()
+                    h
+                }
 
             waters.forEach {
                 it.water.resume(connection)
@@ -101,21 +110,17 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
     }
 
     private suspend fun waitClient(): ControlClient {
-        println("Client connected!")
         val existClient = existClient
         if (existClient != null) {
-            println("Return existing client!")
             return existClient
         }
         return suspendCancellableCoroutine {
             val water = Water(water = it, created = DateTime.now)
             it.invokeOnCancellation { _ ->
-                println("Water cancelled!")
                 waterLock.synchronize {
                     waters -= water
                 }
             }
-            println("Water added!")
             waterLock.synchronize {
                 waters += water
             }
@@ -132,7 +137,10 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
 //        )
 //    }
 
-    suspend fun connectTo(host: String, port: Int): Pair<Int, AsyncChannel> {
+    suspend fun connectTo(
+        host: String,
+        port: Int,
+    ): Pair<Int, AsyncChannel> {
         val connectionId = channelCounter++
 //        val scope = coroutineContext
         logger.info("Wait a client...")
@@ -142,7 +150,7 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         client.connect(
             host = host,
             port = port,
-            channelId = connectionId,
+            channelId = connectionId
         )
         logger.info("Waiting $connectionId transport channel")
         val channel = compositeChannelManager.getChannel(connectionId)
@@ -171,34 +179,33 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
             channel = l.first,
             continuation = l.second,
         )
-        */
+         */
     }
 
     private var cleanupJob: Job? = null
 
     override suspend fun link(strong: Strong) {
-        cleanupJob = GlobalScope.launch {
-            while (isActive) {
-                try {
-                    println("wait... ${properties.remoteClientAwaitTimeout}")
-                    delay(properties.remoteClientAwaitTimeout)
-                    println("Searching and cancel!")
-                    val exp = DateTime.now
-                    val exparedWaters = waterLock.synchronize {
-                        waters.extract { exp - it.created > properties.remoteClientAwaitTimeout }
+        cleanupJob =
+            GlobalScope.launch {
+                while (isActive) {
+                    try {
+                        delay(properties.remoteClientAwaitTimeout)
+                        val exp = DateTime.now
+                        val exparedWaters =
+                            waterLock.synchronize {
+                                waters.extract { exp - it.created > properties.remoteClientAwaitTimeout }
+                            }
+                        exparedWaters.forEach {
+                            it.water.resumeWithException(ClientMissingException())
+                        }
+                    } catch (e: CancellationException) {
+                        break
                     }
-                    println("TASK FOR CANCEL!->${exparedWaters.size}")
-                    exparedWaters.forEach {
-                        it.water.resumeWithException(ClientMissingException())
-                    }
-                } catch (e: CancellationException) {
-                    break
                 }
             }
-        }
     }
 
     override suspend fun destroy(strong: Strong) {
-        cleanupJob?.cancel()
+        cleanupJob?.cancelAndJoin()
     }
 }
