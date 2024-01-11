@@ -38,6 +38,7 @@ kotlin {
                 api("pw.binom.io:strong:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:signal:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:prometheus:${pw.binom.Versions.BINOM_VERSION}")
                 api(
                     "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
                 )
@@ -72,7 +73,7 @@ tasks {
     val linkLinuxRelease = this.getByName("linkReleaseExecutableLinuxX64")
     val linkLinuxDebug = this.getByName("linkDebugExecutableLinuxX64")
     register("deploy") {
-        dependsOn(linkLinuxDebug)
+        dependsOn(linkLinuxRelease)
         doLast {
             ssh.run(
                 delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
@@ -93,8 +94,8 @@ tasks {
                         delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
                             put(
                                 hashMapOf(
-//                                    "from" to file("build/bin/linuxX64/releaseExecutable/proxy-node.kexe"),
-                                    "from" to file("build/bin/linuxX64/debugExecutable/proxy-node.kexe"),
+                                    "from" to file("build/bin/linuxX64/releaseExecutable/proxy-node.kexe"),
+//                                    "from" to file("build/bin/linuxX64/debugExecutable/proxy-node.kexe"),
                                     "into" to "/opt/proxy/proxy-node.kexe"
                                 )
                             )

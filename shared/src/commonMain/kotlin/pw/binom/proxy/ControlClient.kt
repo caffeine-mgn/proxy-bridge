@@ -25,6 +25,7 @@ import pw.binom.proxy.ControlClient.BaseHandler
 import pw.binom.proxy.exceptions.ChannelExistException
 import pw.binom.proxy.exceptions.ChannelNotFoundException
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
@@ -130,7 +131,7 @@ class ControlClient(
 
     private var pingJob: Job? = null
 
-    private suspend fun startPing()  {
+    private suspend fun startPing() {
         if (pingInterval > Duration.ZERO) {
             GlobalScope.launch(currentCoroutineContext() + CoroutineName("${logger.pkg}-PING")) {
                 supervisorScope {
@@ -277,7 +278,7 @@ class ControlClient(
         startPing()
         try {
             ByteBuffer(1024).use { buffer ->
-                while (true) {
+                while (coroutineContext.isActive) {
                     try {
                         logger.info("ControlClient::runClient Waiting new message...")
                         connection.read().use MSG@{ msg ->
@@ -400,10 +401,6 @@ class ControlClient(
                     }
                 }
             }
-        } catch (e: Throwable) {
-            println("EROROROROR!!!!!!!!")
-            e.printStackTrace()
-            throw e
         } finally {
             logger.info("ControlClient::runClient STOP PROCESSING")
         }

@@ -4,12 +4,11 @@ package pw.binom.proxy
 
 import kotlinx.coroutines.*
 import pw.binom.*
+import pw.binom.atomic.AtomicBoolean
 import pw.binom.io.AsyncChannel
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.logger.Logger
-import pw.binom.logger.debug
-import pw.binom.logger.info
 import pw.binom.logger.warn
 import pw.binom.network.SocketClosedException
 import pw.binom.proxy.io.copyTo
@@ -23,7 +22,6 @@ class ChannelBridge(
     private val logger: Logger?,
     private val localName: String,
     private val remoteName: String,
-    private val controller: Controller?,
     private val scope: CoroutineScope,
 ) : AsyncCloseable {
     interface Controller {
@@ -49,7 +47,6 @@ class ChannelBridge(
             logger: Logger? = null,
             localName: String = "local",
             remoteName: String = "remote",
-            controller: Controller? = null,
             scope: CoroutineScope,
         ): ChannelBridge {
             val bridge =
@@ -60,7 +57,6 @@ class ChannelBridge(
                     logger = logger,
                     localName = localName,
                     remoteName = remoteName,
-                    controller = controller,
                     id = id,
                     scope = scope
                 )
@@ -79,39 +75,34 @@ class ChannelBridge(
 
     private suspend fun start() {
         wsToTcp =
-            scope.launch(CoroutineName("wsToTcp")) {
+            scope.launch(CoroutineName("$localName<-$remoteName")) {
                 supervisorScope {
                     try {
-                        logger?.info("Start coping.... $remoteName($remote)->$localName($local)}")
                         remote.copyTo(local, bufferSize = bufferSize) {
-                            logger?.debug("$localName<-$remoteName $it")
                         }
                     } catch (e: SocketClosedException) {
-                        logger?.info("SocketClosedException")
+//                        logger?.info("SocketClosedException")
                         // Do nothing
                     } catch (e: CancellationException) {
-                        logger?.info("CancellationException")
+//                        logger?.info("CancellationException")
                         // Do nothing
                     } catch (e: WebSocketClosedException) {
-                        logger?.info("WebSocketClosedException")
+//                        logger?.info("WebSocketClosedException")
                         // Do nothing
                     } catch (e: Throwable) {
                         logger?.warn("Error on $localName<-$remoteName", exception = e)
                     } finally {
                         withContext(NonCancellable) {
-                            println("Making close #1---wsToTcp")
-                            asyncClose()
+                            tcpToWs.cancelAndJoin()
                         }
                     }
                 }
             }
         tcpToWs =
-            scope.launch(CoroutineName("tcpToWs")) {
+            scope.launch(CoroutineName("$localName->$remoteName")) {
                 supervisorScope {
                     try {
-                        logger?.info("Start coping.... $localName($local)->$remoteName($remote)")
                         local.copyTo(remote, bufferSize = bufferSize) {
-                            logger?.debug("$localName->$remoteName $it")
                         }
                     } catch (e: SocketClosedException) {
                         // Do nothing
@@ -121,25 +112,26 @@ class ChannelBridge(
                         logger?.warn("Error on $localName->$remoteName", exception = e)
                     } finally {
                         withContext(NonCancellable) {
-                            println("Making close #2---tcpToWs")
-                            asyncClose()
+                            wsToTcp.cancel()
                         }
                     }
                 }
             }
     }
 
+    private val closed = AtomicBoolean(false)
+
     override suspend fun asyncClose() {
-        println("ChannelBridge:: Closing ClientConnection")
-        println("ChannelBridge:: Closing #1")
+//        println("ChannelBridge:: Closing ClientConnection")
+//        println("ChannelBridge:: Closing #1")
         remote.asyncCloseAnyway()
-        println("ChannelBridge:: Closing #2")
+//        println("ChannelBridge:: Closing #2")
         local.asyncCloseAnyway()
-        println("ChannelBridge:: Closing #3")
+//        println("ChannelBridge:: Closing #3")
         wsToTcp.cancelAndJoin()
-        println("ChannelBridge:: Closing #4")
+//        println("ChannelBridge:: Closing #4")
         tcpToWs.cancelAndJoin()
-        println("ChannelBridge:: Closing #5")
-        println("ChannelBridge:: CLOSED!")
+//        println("ChannelBridge:: Closing #5")
+//        println("ChannelBridge:: CLOSED!")
     }
 }

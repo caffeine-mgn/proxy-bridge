@@ -13,31 +13,38 @@ import pw.binom.signal.Signal
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 
-suspend fun startProxyNode(properties: RuntimeClientProperties, networkManager: NetworkManager): Strong {
-    val baseConfig = Strong.config {
-        it.bean { networkManager }
-        it.bean { ExternalHandler() }
-        it.bean { properties }
-        it.bean { ClientControlHandler() }
-        it.bean { ClientTransportTcpHandler() }
-        it.bean { ClientTransportWsHandler() }
-        it.bean { ClientService() }
-        it.bean { ProxyHandler() }
-        it.bean { InternalHandler() }
-        it.bean { ClientPoolOutputHandler() }
-        it.bean { ClientPoolInputHandler() }
-        it.bean { InternalWebServerService() }
-        it.bean { ExternalWebServerService() }
-    }
+suspend fun startProxyNode(
+    properties: RuntimeClientProperties,
+    networkManager: NetworkManager,
+): Strong {
+    val baseConfig =
+        Strong.config {
+            it.bean { networkManager }
+            it.bean { ExternalHandler() }
+            it.bean { properties }
+            it.bean { ClientControlHandler() }
+            it.bean { ClientTransportTcpHandler() }
+            it.bean { ClientTransportWsHandler() }
+            it.bean { ClientService() }
+            it.bean { ProxyHandler() }
+            it.bean { InternalHandler() }
+            it.bean { ClientPoolOutputHandler() }
+            it.bean { ClientPoolInputHandler() }
+            it.bean { InternalWebServerService() }
+            it.bean { ExternalWebServerService() }
+            it.bean { BinomMetrics }
+            it.bean { PrometheusController() }
+        }
     println("Starting node")
     return Strong.create(baseConfig, BaseConfig)
 }
 
 fun main(args: Array<String>) {
-    val params = args.filter { it.startsWith("-D") }.associate {
-        val items = it.removePrefix("-D").split('=', limit = 2)
-        items[0] to items[1]
-    }
+    val params =
+        args.filter { it.startsWith("-D") }.associate {
+            val items = it.removePrefix("-D").split('=', limit = 2)
+            items[0] to items[1]
+        }
     val properties = Properties.decodeFromStringMap(RuntimeClientProperties.serializer(), params)
 
     runBlocking {
@@ -53,7 +60,7 @@ fun main(args: Array<String>) {
                     }
                 }
             }
-        strong.awaitDestroy()
+            strong.awaitDestroy()
         }
     }
 }

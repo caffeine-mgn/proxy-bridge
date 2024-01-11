@@ -1,5 +1,6 @@
 package pw.binom.proxy.node.handlers
 
+import kotlinx.coroutines.NonCancellable.join
 import pw.binom.io.AsyncChannel
 import pw.binom.io.http.Headers
 import pw.binom.io.http.emptyHeaders
@@ -148,7 +149,9 @@ class ProxyHandler : HttpHandler {
                 id = connectionInfo.first,
                 scope = networkManager
             )
-        bridge.join()
+        bridge.use {
+            it.join()
+        }
 //        val reversJob = GlobalScope.launch(coroutineContext) {
 //            while (true) {
 //                connectionInfo.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
