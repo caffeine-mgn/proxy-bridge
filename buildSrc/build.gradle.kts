@@ -33,4 +33,5 @@ dependencies {
     api("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     api("org.jetbrains.kotlin:kotlin-serialization:$kotlinVersion")
     api("com.bmuschko:gradle-docker-plugin:7.3.0")
+    api("net.lingala.zip4j:zip4j:2.9.0")
 }

@@ -4,7 +4,6 @@ package pw.binom.proxy
 
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.protobuf.ProtoBuf
 import pw.binom.*
 import pw.binom.atomic.AtomicInt
 import pw.binom.atomic.AtomicLong
@@ -29,6 +28,7 @@ import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
+import kotlin.time.measureTime
 
 @OptIn(ExperimentalSerializationApi::class)
 class ControlClient(
@@ -37,6 +37,8 @@ class ControlClient(
     private val pingInterval: Duration,
     private val logger: Logger,
 ) : AsyncCloseable {
+    private val logger2 = InternalLog.file("ControlClient")
+
     @Suppress("FUN_INTERFACE_WITH_SUSPEND_FUNCTION")
     fun interface BaseHandler {
         companion object {
@@ -46,20 +48,22 @@ class ControlClient(
                     ResponseDto.unknownError(NOT_SUPPORTED_MSG)
                 }
 
+            private fun throwNotSupported(): Nothing = throw RuntimeException(NOT_SUPPORTED_MSG)
+
             fun composite(
                 connect: suspend (host: String, port: Int, channelId: Int) -> Unit = { _, _, _ ->
                     throw RuntimeException(
                         NOT_SUPPORTED_MSG
                     )
                 },
-                emmitChannel: suspend (channelId: Int) -> Unit = { throw RuntimeException(NOT_SUPPORTED_MSG) },
-                destroyChannel: suspend (channelId: Int) -> Unit = { throw RuntimeException(NOT_SUPPORTED_MSG) },
-                setIdle: suspend (channelId: Int) -> Unit = { throw RuntimeException(NOT_SUPPORTED_MSG) },
-                setProxy: suspend (host: String, port: Int, channelId: Int) -> Unit = { _, _, _ ->
-                    throw RuntimeException(
-                        NOT_SUPPORTED_MSG
-                    )
-                },
+                emmitChannel: suspend (channelId: Int) -> Unit = { throwNotSupported() },
+                destroyChannel: suspend (channelId: Int) -> Unit = { throwNotSupported() },
+                setIdle: suspend (channelId: Int) -> Unit = { throwNotSupported() },
+                setProxy: suspend (
+                    host: String,
+                    port: Int,
+                    channelId: Int,
+                ) -> Unit = { _, _, _ -> throwNotSupported() },
             ) = BaseHandler {
                 when {
                     it.connect != null -> {
@@ -118,7 +122,6 @@ class ControlClient(
     }
 
     companion object {
-        private val proto = ProtoBuf
         private const val MAX_PING_BYTES = Long.SIZE_BYTES
     }
 
@@ -133,30 +136,49 @@ class ControlClient(
 
     private suspend fun startPing() {
         if (pingInterval > Duration.ZERO) {
-            GlobalScope.launch(currentCoroutineContext() + CoroutineName("${logger.pkg}-PING")) {
-                supervisorScope {
-                    while (isActive) {
-                        try {
-                            delay(pingInterval)
-                            ping()
-                        } catch (e: ClosedException) {
-                            break
-                        } catch (e: CancellationException) {
-                            println("PING JOB Cancelled!!!!!!")
-                            break
+            pingJob =
+                GlobalScope.launch(currentCoroutineContext() + CoroutineName("${logger.pkg}-PING")) {
+                    supervisorScope {
+                        while (isActive) {
+                            try {
+                                delay(pingInterval)
+                                val pingOk =
+                                    withTimeoutOrNull(pingInterval * 3) {
+                                        measureTime {
+                                            ping()
+                                        }
+                                    }
+
+                                if (pingOk != null) {
+                                    logger2.info { "PingJob OK: $pingOk" }
+                                } else {
+                                    logger2.info { "PingJob FAIL" }
+                                }
+                            } catch (e: ClosedException) {
+                                logger2.info { "Called close PingJob" }
+                                break
+                            } catch (e: CancellationException) {
+                                println("PING JOB Cancelled!!!!!!")
+                                break
+                            } catch (e: Throwable) {
+                                logger2.warn { "On Ping Exception:\n${e.stackTraceToString()}" }
+                            } finally {
+                                logger2.info { "Stopping PingJob" }
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            null
         }
     }
 
+    private val pingBuffer = ByteBuffer(MAX_PING_BYTES)
+
     suspend fun ping() {
         val pingId = pingCounter.addAndGet(1)
+        logger2.info { "Send PING $pingId" }
         connection.write(MessageType.PING).use { out ->
-            ByteBuffer(MAX_PING_BYTES).use { buffer ->
+            pingBuffer.clear()
+            pingBuffer.let { buffer ->
                 buffer.writeLong(pingId)
                 buffer.flip()
                 out.writeFully(buffer)
@@ -236,19 +258,6 @@ class ControlClient(
     private suspend fun sendRequest(dto: RequestDto): ResponseDto {
         val id = requestIterator.addAndGet(1)
         val array = dto.toByteArray()
-        logger.info("Send request $dto (${array.size} bytes)   ${dto.toByteArray().size}")
-        logger.info(
-            "STUB: ${
-                RequestDto(
-                    connect =
-                        RequestDto.Connect(
-                            host = "123",
-                            port = 11,
-                            channelId = 22
-                        )
-                ).toByteArray().size
-            }"
-        )
         sendBytes(
             code = Codes.REQUEST,
             id = id,
@@ -286,6 +295,7 @@ class ControlClient(
                             when (msg.type) {
                                 MessageType.CLOSE -> return
                                 MessageType.PING -> {
+                                    logger2.info { "PING" }
                                     buffer.clear()
                                     buffer.reset(position = 0, length = Long.SIZE_BYTES)
                                     msg.readFully(buffer)
@@ -297,13 +307,21 @@ class ControlClient(
                                 }
 
                                 MessageType.PONG -> {
+                                    logger2.info { "PONG" }
                                     buffer.reset(position = 0, length = Long.SIZE_BYTES)
                                     msg.readFully(buffer)
                                     buffer.flip()
                                     if (buffer.remaining != MAX_PING_BYTES) {
                                         val pingId = buffer.readLong()
-                                        pingWaitersLock.synchronize {
-                                            pingWaiters.remove(pingId)?.resume(Unit)
+                                        val water =
+                                            pingWaitersLock.synchronize {
+                                                pingWaiters.remove(pingId)
+                                            }
+                                        if (water == null)
+                                            {
+                                                logger2.info { "Ping with $pingId not found" }
+                                            } else {
+                                            water.resume(Unit)
                                         }
                                     }
                                     return@MSG
@@ -443,5 +461,6 @@ class ControlClient(
                 }
             }
         }
+        pingBuffer.close()
     }
 }

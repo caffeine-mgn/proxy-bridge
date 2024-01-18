@@ -5,9 +5,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.properties.Properties
 import pw.binom.*
+import pw.binom.atomic.AtomicBoolean
+import pw.binom.date.DateTime
+import pw.binom.date.format.toDatePattern
 import pw.binom.io.ByteBufferFactory
-import pw.binom.io.file.LocalFileSystem
-import pw.binom.io.file.workDirectoryFile
+import pw.binom.io.file.*
 import pw.binom.io.http.BasicAuth
 import pw.binom.io.http.BearerAuth
 import pw.binom.io.httpClient.HttpClient
@@ -19,12 +21,17 @@ import pw.binom.io.socket.UdpNetSocket
 import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
+import pw.binom.process.exitProcess
+import pw.binom.proxy.GLog
 import pw.binom.signal.Signal
 import pw.binom.strong.ServiceProvider
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 import pw.binom.strong.inject
+import pw.binom.thread.Thread
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 fun ServiceProvider<NetworkManager>.asInstance() =
     object : NetworkManager {
@@ -97,7 +104,25 @@ suspend fun startProxyClient(
     return Strong.create(baseConfig)
 }
 
+val closed = AtomicBoolean(false)
+
 fun main(args: Array<String>) {
+    Thread {
+        Thread.sleep(1.hours)
+        println("Goodbay. time to die")
+        InternalLog.info(file = "main") { "Goodbay. time to die" }
+        closed.setValue(true)
+        exitProcess(0)
+    }.start()
+    Thread {
+        while (!closed.getValue()) {
+            Thread.sleep(5.minutes)
+            InternalLog.info(file = "main") { "Making GC" }
+            System.gc()
+        }
+    }.start()
+    val date = "yyyy-MM-dd-HH-mm".toDatePattern().toString(DateTime.now, DateTime.systemZoneOffset)
+    InternalLog.default = GLog(File(Environment.currentExecutionPath).parent!!.relative("$date.glog"))
     val params =
         args.filter { it.startsWith("-D") }.associate {
             val items = it.removePrefix("-D").split('=', limit = 2)

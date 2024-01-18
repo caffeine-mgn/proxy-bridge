@@ -27,7 +27,7 @@ object MessagePackConst {
 
     const val MP_FIXNUM = 0x00.toByte() // last 7 bits is value
 
-    const val MP_UINT8 = 0xcc.toByte()
+    const val MP_UINT8 = 0xcc.toByte() // 204 11001100
     const val MP_UINT16 = 0xcd.toByte()
     const val MP_UINT32 = 0xce.toByte()
     const val MP_UINT64 = 0xcf.toByte()
@@ -35,7 +35,7 @@ object MessagePackConst {
     const val MP_NEGATIVE_FIXNUM = 0xe0.toByte() // last 5 bits is value
 
     const val MP_NEGATIVE_FIXNUM_INT = 0xe0 //  /me wishes for signed numbers.
-    const val MP_INT8 = 0xd0.toByte()
+    const val MP_INT8 = 0xd0.toByte() // 208 11010000
     const val MP_INT16 = 0xd1.toByte()
     const val MP_INT32 = 0xd2.toByte()
     const val MP_INT64 = 0xd3.toByte()

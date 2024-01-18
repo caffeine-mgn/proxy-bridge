@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package pw.binom.proxy.client
 
 import kotlinx.coroutines.*
@@ -32,6 +34,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     val selfReplaceService by inject<FileService>()
     val networkManager by inject<NetworkManager>()
     val logger by Logger.ofThisOrGlobal
+    val logger2 = InternalLog.file("ClientControlService")
 
     private suspend fun connectProcessing(
         id: Int,
@@ -87,11 +90,13 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
     private suspend fun createConnection() {
         val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
         logger.info("Connection to $url...")
+        logger2.info { "Connection to $url" }
         val connection =
             httpClient.connectWebSocket(
                 uri = url
             ).start(bufferSize = runtimeProperties.bufferSize)
         logger.info("Connected!")
+        logger2.info { "Connected!" }
         ControlClient(
             connection = connection,
             networkManager = networkManager,

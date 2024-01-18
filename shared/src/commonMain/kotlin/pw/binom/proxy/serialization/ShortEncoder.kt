@@ -83,7 +83,7 @@ class ShortEncoder(
         if (value == null) {
             encodeNull()
         } else {
-            out.writeByte(Consts.FALSE)
+            out.writeByte(MessagePackConst.MP_FALSE)
             encodeSerializableElement(
                 descriptor = descriptor,
                 index = index,
@@ -124,7 +124,7 @@ class ShortEncoder(
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder = this
 
     override fun encodeBoolean(value: Boolean) {
-        encodeByte(if (value) Consts.TRUE else Consts.FALSE)
+        encodeByte(if (value) MessagePackConst.MP_TRUE else MessagePackConst.MP_FALSE)
     }
 
     override fun encodeByte(value: Byte) {
@@ -212,7 +212,7 @@ class ShortEncoder(
 
     @ExperimentalSerializationApi
     override fun encodeNull() {
-        out.writeByte(Consts.NIL)
+        out.writeByte(MessagePackConst.MP_NULL)
     }
 
     override fun encodeShort(value: Short) {

@@ -1,3 +1,8 @@
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.CompressionLevel
+import net.lingala.zip4j.model.enums.EncryptionMethod
+
 plugins {
     kotlin("multiplatform")
     id("kotlinx-serialization")
@@ -32,6 +37,7 @@ kotlin {
                 api("pw.binom.io:strong:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:signal:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:process:${pw.binom.Versions.BINOM_VERSION}")
                 api(
                     "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
                 )
@@ -60,7 +66,7 @@ tasks {
         }
     }
     val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
-    register("deploy", Copy::class.java) {
+    register("deploy2", Copy::class.java) {
         dependsOn(linkMingw)
         dependsOn(shadowJar)
         from(
@@ -68,5 +74,33 @@ tasks {
             file("build/libs/proxy-client.jar")
         )
         into(file("/home/subochev/Nextcloud/tmp/dddd"))
+    }
+    val batFile = buildDir.resolve("run-jvm.bat")
+    val genBat =
+        register("genBat") {
+            outputs.file(batFile)
+            doLast {
+                batFile
+                    .writeText(
+                        "C:\\Users\\SubochevAV\\jvms\\jdk-17.0.2\\bin\\java -jar proxy-client.jar -Durl=http://r2d3.entry.binom.pw -Dproxy.address=webproxy.isb:8080 -Dproxy.auth.basicAuth.user=subochevav -Dproxy.auth.basicAuth.password=droVosek3192 -DtransportType=WS"
+                    )
+            }
+        }
+
+    register("deploy") {
+        dependsOn(shadowJar)
+        dependsOn(genBat)
+        inputs.file(shadowJar.archiveFile)
+        inputs.file(batFile)
+        doLast {
+            val zipParameters = ZipParameters()
+            zipParameters.isEncryptFiles = true
+            zipParameters.compressionLevel = CompressionLevel.HIGHER
+            zipParameters.encryptionMethod = EncryptionMethod.AES
+
+            val zipFile = ZipFile("/home/subochev/Nextcloud/tmp/dddd/proxy-client.zip", "1".toCharArray())
+            zipFile.addFile(shadowJar.archiveFile.get().asFile, zipParameters)
+            zipFile.addFile(batFile, zipParameters)
+        }
     }
 }

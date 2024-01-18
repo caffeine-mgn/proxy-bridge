@@ -23,6 +23,7 @@ kotlin {
                 api(kotlin("stdlib"))
                 api("pw.binom.io:http:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:file:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:metric:${pw.binom.Versions.BINOM_VERSION}")
 //                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")

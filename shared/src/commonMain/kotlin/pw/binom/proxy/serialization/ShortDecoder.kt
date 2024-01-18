@@ -6,6 +6,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.modules.SerializersModule
+import pw.binom.*
 import pw.binom.io.ByteArrayInput
 import pw.binom.proxy.serialization.MessagePackConst.MP_INT16
 import pw.binom.proxy.serialization.MessagePackConst.MP_INT32
@@ -77,7 +78,7 @@ class ShortDecoder(
         previousValue: T?,
     ): T? {
         val b = input.readByte()
-        if (b == Consts.NIL) {
+        if (b == MessagePackConst.MP_NULL) {
             return null
         }
         return decodeSerializableElement(
@@ -114,7 +115,7 @@ class ShortDecoder(
             desc = descriptor
         )
 
-    override fun decodeBoolean(): Boolean = decodeByte() == Consts.TRUE
+    override fun decodeBoolean(): Boolean = decodeByte() == MessagePackConst.MP_TRUE
 
     override fun decodeByte(): Byte = input.readByte()
 
@@ -138,10 +139,16 @@ class ShortDecoder(
         if ((firstByte.toInt() ushr 7) == 0) {
             return firstByte.toInt()
         }
-        when (firstByte) {
-            MP_UINT8, MP_INT8 -> return input.readByte().toInt()
-            MP_UINT16, MP_INT16 -> return input.readShort().toInt()
-            MP_UINT32, MP_INT32 -> return input.readInt()
+        return when (firstByte) {
+            MP_UINT8 -> Int.fromBytes(0, 0, 0, input.readByte())
+
+            MP_INT8 -> Int.fromBytes(-1, -1, -1, input.readByte())
+
+            MP_UINT16 -> Int.fromBytes(0, 0, input.readByte(), input.readByte())
+
+            MP_INT16 -> Int.fromBytes(-1, -1, input.readByte(), input.readByte())
+
+            MP_UINT32, MP_INT32 -> input.readInt()
             else -> TODO()
         }
     }
@@ -149,7 +156,7 @@ class ShortDecoder(
     override fun decodeLong(): Long = input.readLong()
 
     @ExperimentalSerializationApi
-    override fun decodeNotNullMark(): Boolean = input.readByte() != Consts.NIL
+    override fun decodeNotNullMark(): Boolean = input.readByte() != MessagePackConst.MP_NULL
 
     @ExperimentalSerializationApi
     override fun decodeNull(): Nothing? = null
