@@ -10,9 +10,11 @@ import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.connectWebSocket
+import pw.binom.io.socket.DomainSocketAddress
 import pw.binom.io.socket.NetworkAddress
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
+import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.severe
@@ -49,7 +51,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                 transportService.connect(
                     id = channelId,
                     address =
-                        NetworkAddress.create(
+                        DomainSocketAddress(
                             host = host,
                             port = port
                         )
@@ -57,7 +59,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             }
         when {
             connectResult.isSuccess -> {
-                connection.write(MessageType.BINARY).use { msg ->
+                connection.write(MessageType.BINARY).useAsync { msg ->
                     msg.writeInt(id, buffer = buffer)
                     msg.writeByte(ControlResponseCodes.OK.code, buffer = buffer)
                 }
@@ -66,7 +68,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             connectResult.isFailure -> {
                 when (val e = connectResult.exceptionOrNull()) {
                     is UnknownHostException -> {
-                        connection.write(MessageType.BINARY).use { msg ->
+                        connection.write(MessageType.BINARY).useAsync { msg ->
                             msg.writeInt(id, buffer = buffer)
                             msg.writeByte(ControlResponseCodes.UNKNOWN_HOST.code, buffer = buffer)
                         }
@@ -74,7 +76,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                     }
 
                     else -> {
-                        connection.write(MessageType.BINARY).use { msg ->
+                        connection.write(MessageType.BINARY).useAsync { msg ->
                             msg.writeInt(id, buffer = buffer)
                             msg.writeByte(ControlResponseCodes.UNKNOWN_ERROR.code, buffer = buffer)
                         }
@@ -102,7 +104,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             networkManager = networkManager,
             pingInterval = runtimeProperties.pingInterval,
             logger = Logger.getLogger("Client")
-        ).use { client ->
+        ).useAsync { client ->
             try {
                 client.runClient(
                     handler =
@@ -110,7 +112,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                             transportService.connect(
                                 id = channelId,
                                 address =
-                                    NetworkAddress.create(
+                                    DomainSocketAddress(
                                         host = host,
                                         port = port
                                     )
@@ -135,7 +137,7 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
             try {
                 while (true) {
                     try {
-                        connection.read().use { msg ->
+                        connection.read().useAsync { msg ->
                             try {
                                 logger.info("Income message!")
                                 when (val byte = msg.readByte(buffer)) {
@@ -159,13 +161,13 @@ class ClientControlService : Strong.LinkingBean, Strong.DestroyableBean {
                                         val fileStr = msg.readUTF8String(buffer)
                                         try {
                                             selfReplaceService.putFile(fileDest = fileStr, input = msg, buffer = buffer)
-                                            connection.write(MessageType.BINARY).use { msg ->
+                                            connection.write(MessageType.BINARY).useAsync { msg ->
                                                 msg.writeInt(id, buffer = buffer)
                                                 msg.writeByte(1, buffer = buffer)
                                             }
                                         } catch (e: Throwable) {
                                             logger.info("ERROR: ", e)
-                                            connection.write(MessageType.BINARY).use { msg ->
+                                            connection.write(MessageType.BINARY).useAsync { msg ->
                                                 msg.writeInt(id, buffer = buffer)
                                                 msg.writeByte(0, buffer = buffer)
                                             }

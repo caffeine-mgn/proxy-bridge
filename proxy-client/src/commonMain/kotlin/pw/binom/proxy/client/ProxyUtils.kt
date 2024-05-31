@@ -4,18 +4,17 @@ import pw.binom.DEFAULT_BUFFER_SIZE
 import pw.binom.io.*
 import pw.binom.io.http.*
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
-import pw.binom.io.socket.InetNetworkAddress
-import pw.binom.io.socket.NetworkAddress
+import pw.binom.io.socket.SocketAddress
 import pw.binom.network.NetworkManager
 import pw.binom.network.tcpConnect
 
 suspend fun NetworkManager.tcpConnectViaHttpProxy(
-    proxy: InetNetworkAddress,
-    address: NetworkAddress,
+    proxy: SocketAddress,
+    address: SocketAddress,
     readBufferSize: Int = DEFAULT_BUFFER_SIZE,
     auth: HttpAuth? = null,
     headers: Headers = emptyHeaders(),
-) = tcpConnect(address = proxy)
+) = tcpConnect(address = proxy.resolve())
     .tcpConnectViaHttpProxy(
         address = address,
         readBufferSize = readBufferSize,
@@ -24,7 +23,7 @@ suspend fun NetworkManager.tcpConnectViaHttpProxy(
     )
 
 suspend fun AsyncChannel.tcpConnectViaHttpProxy(
-    address: NetworkAddress,
+    address: SocketAddress,
     readBufferSize: Int = DEFAULT_BUFFER_SIZE,
     auth: HttpAuth? = null,
     headers: Headers = emptyHeaders(),
@@ -37,7 +36,7 @@ suspend fun AsyncChannel.tcpConnectViaHttpProxy(
     }
     headersForSend.add(headers)
 
-    bufferedAsciiWriter(closeParent = false).use { writer ->
+    bufferedAsciiWriter(closeParent = false).useAsync { writer ->
         Http11ConnectFactory2.sendRequest(
             output = writer,
             method = "CONNECT",

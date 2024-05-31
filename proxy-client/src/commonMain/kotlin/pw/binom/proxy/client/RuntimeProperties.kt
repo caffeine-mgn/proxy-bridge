@@ -7,6 +7,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import pw.binom.*
+import pw.binom.io.socket.DomainSocketAddress
 import pw.binom.io.socket.NetworkAddress
 import pw.binom.proxy.serialization.NetworkAddressSerializer
 import pw.binom.url.URL
@@ -47,7 +48,7 @@ data class RuntimeProperties(
     @Serializable
     data class Proxy(
         @Serializable(NetworkAddressSerializer::class)
-        val address: NetworkAddress,
+        val address: DomainSocketAddress,
         val auth: Auth? = null,
     )
 

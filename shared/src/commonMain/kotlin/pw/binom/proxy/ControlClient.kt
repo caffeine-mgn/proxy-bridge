@@ -9,14 +9,11 @@ import pw.binom.atomic.AtomicInt
 import pw.binom.atomic.AtomicLong
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
-import pw.binom.io.AsyncCloseable
-import pw.binom.io.ByteBuffer
-import pw.binom.io.ClosedException
+import pw.binom.io.*
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.socket.UnknownHostException
-import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.network.NetworkManager
@@ -176,7 +173,7 @@ class ControlClient(
     suspend fun ping() {
         val pingId = pingCounter.addAndGet(1)
         logger2.info { "Send PING $pingId" }
-        connection.write(MessageType.PING).use { out ->
+        connection.write(MessageType.PING).useAsync { out ->
             pingBuffer.clear()
             pingBuffer.let { buffer ->
                 buffer.writeLong(pingId)
@@ -277,7 +274,7 @@ class ControlClient(
             buffer.writeInt(bytes.size)
             buffer.write(bytes)
             buffer.clear()
-            connection.write(MessageType.BINARY).use { msg ->
+            connection.write(MessageType.BINARY).useAsync { msg ->
                 msg.write(buffer)
             }
         }
@@ -290,7 +287,7 @@ class ControlClient(
                 while (coroutineContext.isActive) {
                     try {
                         logger.info("ControlClient::runClient Waiting new message...")
-                        connection.read().use MSG@{ msg ->
+                        connection.read().useAsync MSG@{ msg ->
                             logger.info("ControlClient::runClient Message got! msg.type=${msg.type}")
                             when (msg.type) {
                                 MessageType.CLOSE -> return
@@ -300,7 +297,7 @@ class ControlClient(
                                     buffer.reset(position = 0, length = Long.SIZE_BYTES)
                                     msg.readFully(buffer)
                                     buffer.flip()
-                                    connection.write(MessageType.PONG).use { out ->
+                                    connection.write(MessageType.PONG).useAsync { out ->
                                         out.writeFully(buffer)
                                     }
                                     return@MSG

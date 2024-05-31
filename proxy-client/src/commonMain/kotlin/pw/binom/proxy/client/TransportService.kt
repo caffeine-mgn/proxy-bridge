@@ -5,6 +5,7 @@ import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.socket.NetworkAddress
+import pw.binom.io.socket.SocketAddress
 import pw.binom.logger.Logger
 import pw.binom.network.NetworkManager
 import pw.binom.network.tcpConnect
@@ -24,7 +25,7 @@ class TransportService : Strong.DestroyableBean {
 
     suspend fun connectTcp(
         id: Int,
-        address: NetworkAddress,
+        address: SocketAddress,
     ) {
         require(!closing) { "Service is closing" }
         val transportConnection = connectionFactory.connect(id)
@@ -50,7 +51,7 @@ class TransportService : Strong.DestroyableBean {
 
     suspend fun connect(
         id: Int,
-        address: NetworkAddress,
+        address: SocketAddress,
     ) {
         connectTcp(
             id = id,

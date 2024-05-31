@@ -25,9 +25,9 @@ kotlin {
         }
     }
     jvm {
-        compilations.all {
-            kotlinOptions.jvmTarget = "1.8"
-        }
+//        compilations.all {
+//            kotlinOptions.jvmTarget = "1.8"
+//        }
     }
     sourceSets {
         val commonMain by getting {
@@ -80,7 +80,7 @@ tasks {
                     val remote =
                         Remote(
                             hashMapOf<String, Any?>(
-                                "host" to "192.168.88.53",
+                                "host" to "192.168.88.44",
                                 "user" to "root",
                                 "identity" to file("/home/subochev/.ssh/id_rsa"),
                                 "knownHosts" to org.hidetake.groovy.ssh.connection.AllowAnyHosts.instance

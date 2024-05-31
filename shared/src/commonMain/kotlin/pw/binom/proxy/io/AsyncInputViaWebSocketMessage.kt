@@ -13,6 +13,7 @@ import pw.binom.io.http.websocket.Message
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.use
+import pw.binom.io.useAsync
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.TimeSource
@@ -45,7 +46,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
     suspend fun ping(): Duration {
         val now = TimeSource.Monotonic.markNow()
         val pingId = pingCounter.addAndGet(1)
-        connection.write(MessageType.PING).use { out ->
+        connection.write(MessageType.PING).useAsync { out ->
             ByteBuffer(MAX_PING_BYTES).use { buffer ->
                 buffer.writeLong(pingId)
                 buffer.flip()
@@ -79,7 +80,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                     continue
                 }
                 if (msg.type == MessageType.PING) {
-                    connection.write(MessageType.PONG).use { out ->
+                    connection.write(MessageType.PONG).useAsync { out ->
                         ByteBuffer(MAX_PING_BYTES).use { buffer ->
                             buffer.reset(position = 0, length = MAX_PING_BYTES)
                             msg.readFully(buffer)
@@ -119,7 +120,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
 
     override suspend fun write(data: ByteBuffer): Int {
         val wrote = data.remaining
-        connection.write(MessageType.BINARY).use { msg ->
+        connection.write(MessageType.BINARY).useAsync { msg ->
             msg.writeFully(data)
         }
         return wrote

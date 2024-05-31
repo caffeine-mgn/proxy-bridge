@@ -15,6 +15,7 @@ import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
+import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.debug
 import pw.binom.logger.info
@@ -81,7 +82,7 @@ class ProxyHandler : HttpHandler {
             }
         if (exchange.requestHeaders.bodyExist) {
             logger.info("Copping http->ws")
-            req.startWriteBinary().use { output ->
+            req.startWriteBinary().useAsync { output ->
                 exchange.input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
                     logger.debug("http->ws $it")
                 }
@@ -96,9 +97,9 @@ class ProxyHandler : HttpHandler {
         )
         if (resp.inputHeaders.bodyExist) {
             logger.info("Copping ws->http")
-            resp.readBinary().use { input ->
+            resp.readBinary().useAsync { input ->
                 logger.info("Input type: $input. available: ${input.available}")
-                exchange.output.use { output ->
+                exchange.output.useAsync { output ->
                     input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
                         logger.debug("ws->http $it")
                     }
@@ -149,7 +150,7 @@ class ProxyHandler : HttpHandler {
                 id = connectionInfo.first,
                 scope = networkManager
             )
-        bridge.use {
+        bridge.useAsync {
             it.join()
         }
 //        val reversJob = GlobalScope.launch(coroutineContext) {

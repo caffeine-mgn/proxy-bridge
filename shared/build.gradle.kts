@@ -13,9 +13,9 @@ kotlin {
         }
     }
     jvm {
-        compilations.all {
-            kotlinOptions.jvmTarget = "1.8"
-        }
+//        compilations.all {
+//            kotlinOptions.jvmTarget = "1.8"
+//        }
     }
     sourceSets {
         val commonMain by getting {
@@ -25,6 +25,9 @@ kotlin {
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:file:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:metric:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:thread:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:socket:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:network:${pw.binom.Versions.BINOM_VERSION}")
 //                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
                 api(

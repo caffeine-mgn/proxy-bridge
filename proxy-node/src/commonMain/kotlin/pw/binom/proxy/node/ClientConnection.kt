@@ -10,6 +10,7 @@ import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.use
+import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.warn
@@ -26,7 +27,7 @@ class ClientConnection(
         try {
             ByteBuffer(100).use { buffer ->
                 while (true) {
-                    connection.read().use { msg ->
+                    connection.read().useAsync { msg ->
                         logger.info("Reading message...")
                         val cmd = msg.readByte(buffer)
                         when (cmd) {
@@ -89,7 +90,7 @@ class ClientConnection(
     suspend fun emmitChannel(channelId: Int) {
         val id = idCounter++
         logger.info("Emmit Channel!")
-        connection.write(MessageType.BINARY).use { msg ->
+        connection.write(MessageType.BINARY).useAsync { msg ->
             ByteBuffer(100).use { buffer ->
                 msg.writeByte(Codes.EMMIT_CHANNEL, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)
@@ -102,7 +103,7 @@ class ClientConnection(
     suspend fun destroyChannel(channelId: Int) {
         logger.info("Destroy Channel!")
         val id = idCounter++
-        connection.write(MessageType.BINARY).use { msg ->
+        connection.write(MessageType.BINARY).useAsync { msg ->
             ByteBuffer(100).use { buffer ->
                 msg.writeByte(Codes.DESTROY_CHANNEL, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)
@@ -115,7 +116,7 @@ class ClientConnection(
     suspend fun connect(host: String, port: Int, channelId: Int): Int {
         logger.info("Connect to $host:$port/$channelId")
         val id = idCounter++
-        connection.write(MessageType.BINARY).use { msg ->
+        connection.write(MessageType.BINARY).useAsync { msg ->
             ByteBuffer(100).use { buffer ->
                 msg.writeByte(Codes.CONNECT, buffer = buffer)
                 msg.writeInt(id, buffer = buffer)

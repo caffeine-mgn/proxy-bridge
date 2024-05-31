@@ -7,24 +7,24 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import pw.binom.io.socket.NetworkAddress
+import pw.binom.io.socket.DomainSocketAddress
 
-@Serializer(NetworkAddress::class)
-object NetworkAddressSerializer : KSerializer<NetworkAddress> {
+@Serializer(DomainSocketAddress::class)
+object NetworkAddressSerializer : KSerializer<DomainSocketAddress> {
     override val descriptor: SerialDescriptor
         get() = String.serializer().descriptor
 
-    override fun deserialize(decoder: Decoder): NetworkAddress {
+    override fun deserialize(decoder: Decoder): DomainSocketAddress {
         val str = decoder.decodeString()
         val items = str.split(':', limit = 2)
-        return NetworkAddress.create(
+        return DomainSocketAddress(
                 host = items[0],
                 port = items.getOrNull(1)?.toIntOrNull()
                         ?: throw SerializationException("Invalid NetworkAddress \"$str\"")
         )
     }
 
-    override fun serialize(encoder: Encoder, value: NetworkAddress) {
+    override fun serialize(encoder: Encoder, value: DomainSocketAddress) {
         encoder.encodeString("${value.host}:${value.port}")
     }
 }

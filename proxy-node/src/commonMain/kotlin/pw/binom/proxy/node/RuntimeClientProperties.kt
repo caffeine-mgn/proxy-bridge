@@ -2,7 +2,7 @@ package pw.binom.proxy.node
 
 import kotlinx.serialization.Serializable
 import pw.binom.*
-import pw.binom.io.socket.InetNetworkAddress
+import pw.binom.io.socket.InetSocketAddress
 import pw.binom.proxy.serialization.InetNetworkAddressSerializer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -11,14 +11,14 @@ import kotlin.time.Duration.Companion.seconds
 data class RuntimeClientProperties(
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
     val remoteClientAwaitTimeout: Duration = 5.seconds,
-    val externalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetNetworkAddress> = listOf(
-        InetNetworkAddress.create(
+    val externalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetSocketAddress> = listOf(
+        InetSocketAddress.resolve(
             host = "0.0.0.0",
             port = 8080,
         ),
     ),
-    val internalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetNetworkAddress> = listOf(
-        InetNetworkAddress.create(
+    val internalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetSocketAddress> = listOf(
+        InetSocketAddress.resolve(
             host = "0.0.0.0",
             port = 8081,
         ),

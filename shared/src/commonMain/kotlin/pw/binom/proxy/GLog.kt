@@ -8,9 +8,7 @@ import pw.binom.date.DateTime
 import pw.binom.date.format.toDatePattern
 import pw.binom.io.bufferedWriter
 import pw.binom.io.file.File
-import pw.binom.io.file.mkdirs
 import pw.binom.io.file.openWrite
-import pw.binom.io.file.parent
 import pw.binom.thread.Thread
 
 class GLog(val file: File) : InternalLog {

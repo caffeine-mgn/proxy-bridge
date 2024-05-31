@@ -9,15 +9,15 @@ import pw.binom.atomic.AtomicBoolean
 import pw.binom.date.DateTime
 import pw.binom.date.format.toDatePattern
 import pw.binom.io.ByteBufferFactory
-import pw.binom.io.file.*
+import pw.binom.io.file.File
+import pw.binom.io.file.LocalFileSystem
+import pw.binom.io.file.workDirectoryFile
 import pw.binom.io.http.BasicAuth
 import pw.binom.io.http.BearerAuth
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
-import pw.binom.io.socket.TcpClientSocket
-import pw.binom.io.socket.TcpNetServerSocket
-import pw.binom.io.socket.UdpNetSocket
+import pw.binom.io.socket.*
 import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
@@ -35,9 +35,12 @@ import kotlin.time.Duration.Companion.minutes
 
 fun ServiceProvider<NetworkManager>.asInstance() =
     object : NetworkManager {
+        override fun attach(channel: MulticastUdpSocket): MulticastUdpConnection =
+            service.attach(channel = channel)
+
         override fun attach(
             channel: TcpClientSocket,
-            mode: Int,
+            mode: ListenFlags,
         ): TcpConnection = service.attach(channel = channel, mode = mode)
 
         override fun attach(channel: TcpNetServerSocket): TcpServerConnection = service.attach(channel)
@@ -77,18 +80,18 @@ suspend fun startProxyClient(
                         HttpProxyConfig(
                             address = proxyConfig.address,
                             auth =
-                                proxyConfig.auth?.let { auth ->
-                                    when {
-                                        auth.basicAuth != null ->
-                                            BasicAuth(
-                                                login = auth.basicAuth.user,
-                                                password = auth.basicAuth.password
-                                            )
+                            proxyConfig.auth?.let { auth ->
+                                when {
+                                    auth.basicAuth != null ->
+                                        BasicAuth(
+                                            login = auth.basicAuth.user,
+                                            password = auth.basicAuth.password
+                                        )
 
-                                        auth.bearerAuth != null -> BearerAuth(token = auth.bearerAuth.token)
-                                        else -> null
-                                    }
+                                    auth.bearerAuth != null -> BearerAuth(token = auth.bearerAuth.token)
+                                    else -> null
                                 }
+                            }
                         )
                     }
                 val nm = inject<NetworkManager>()
