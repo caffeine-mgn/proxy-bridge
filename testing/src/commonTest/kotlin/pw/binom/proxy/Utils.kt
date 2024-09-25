@@ -7,22 +7,22 @@ import pw.binom.io.Closeable
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
-import pw.binom.io.socket.InetNetworkAddress
-import pw.binom.io.socket.NetworkAddress
+import pw.binom.io.socket.*
 import pw.binom.io.use
+import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
 import pw.binom.network.TcpServerConnection
-import pw.binom.proxy.client.RuntimeProperties
-import pw.binom.proxy.client.startProxyClient
-import pw.binom.proxy.node.startProxyNode
+import pw.binom.proxy.gateway.properties.RuntimeProperties
+import pw.binom.proxy.gateway.startProxyClient
+import pw.binom.proxy.server.startProxyNode
 import pw.binom.strong.Strong
 import pw.binom.url.toURL
 import kotlin.time.Duration.Companion.seconds
-import pw.binom.proxy.client.RuntimeProperties as ClientRuntimeProperties
-import pw.binom.proxy.node.RuntimeClientProperties as NodeRuntimeProperties
+import pw.binom.proxy.gateway.properties.RuntimeProperties as ClientRuntimeProperties
+import pw.binom.proxy.server.properties.RuntimeClientProperties as NodeRuntimeProperties
 
 suspend fun HttpClient.checkIsOk() {
     connect(method = "GET", uri = "https://www.google.com/".toURL())
@@ -52,8 +52,8 @@ class Ports {
     val nodeConfig
         get() =
             NodeRuntimeProperties(
-                externalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = externalPort)),
-                internalBinds = listOf(InetNetworkAddress.create(host = "127.0.0.1", port = internalPort)),
+                externalBinds = listOf(InetSocketAddress.resolve(host = "127.0.0.1", port = externalPort)),
+                internalBinds = listOf(InetSocketAddress.resolve(host = "127.0.0.1", port = internalPort)),
                 bufferSize = 1024 * 1024
             )
 
@@ -63,7 +63,7 @@ class Ports {
             transportType = transportType,
             proxy =
                 ClientRuntimeProperties.Proxy(
-                    address = NetworkAddress.create(host = "127.0.0.1", port = 8888)
+                    address = DomainSocketAddress(host = "127.0.0.1", port = 8888)
                 ),
             bufferSize = 1024 * 1024
         )
@@ -74,7 +74,7 @@ class Ports {
             proxy =
                 HttpProxyConfig(
                     address =
-                        NetworkAddress.create(
+                        DomainSocketAddress(
                             host = "127.0.0.1",
                             port = internalPort
                         )
@@ -156,7 +156,7 @@ suspend fun prepareNetwork(
 ) {
     Logger.getLogger("Strong.Starter").level = Logger.WARNING
     val ports = Ports()
-    ports.instance(transportType = transportType).use {
+    ports.instance(transportType = transportType).useAsync {
         withContext(it.networkManager) {
             func(it.client)
         }

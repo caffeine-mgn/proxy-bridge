@@ -27,6 +27,7 @@ class GLog(val file: File) : InternalLog {
         level: InternalLog.Level,
         file: String?,
         line: Int?,
+        method:String?,
         text: () -> String,
     ) {
         val levelStr =

@@ -1,7 +1,7 @@
 package pw.binom.proxy
 
 import pw.binom.io.socket.UnknownHostException
-import pw.binom.proxy.client.RuntimeProperties
+import pw.binom.proxy.gateway.properties.RuntimeProperties
 import pw.binom.url.toURL
 import kotlin.test.Test
 import kotlin.test.fail

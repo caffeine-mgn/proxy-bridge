@@ -1,6 +1,17 @@
 package pw.binom.proxy
 
+import kotlinx.coroutines.CoroutineScope
 import pw.binom.collections.removeIf
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
+
+suspend fun currentScope(): CoroutineScope {
+    val ctx = coroutineContext
+    return object : CoroutineScope {
+        override val coroutineContext: CoroutineContext
+            get() = ctx
+    }
+}
 
 class ArgCounter {
     private var name: String? = null

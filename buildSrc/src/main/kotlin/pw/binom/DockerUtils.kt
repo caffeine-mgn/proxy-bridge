@@ -1,10 +1,9 @@
 package pw.binom
-/*
+
 import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
-import com.bmuschko.gradle.docker.tasks.container.extras.DockerWaitHealthyContainer
 import com.bmuschko.gradle.docker.tasks.image.DockerPullImage
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -20,19 +19,19 @@ object DockerUtils {
         val start: TaskProvider<DockerStartContainer>,
         val stop: TaskProvider<DockerStopContainer>,
         val remove: TaskProvider<DockerRemoveContainer>,
-        val waitHealthy: TaskProvider<DockerWaitHealthyContainer>?,
+//        val waitHealthy: TaskProvider<DockerWaitHealthyContainer>?,
     ) {
         fun dependsOn(task: Task) {
             task.dependsOn(start)
-            if (waitHealthy != null) {
-                task.dependsOn(waitHealthy)
-            }
+//            if (waitHealthy != null) {
+//                task.dependsOn(waitHealthy)
+//            }
             task.finalizedBy(stop)
             task.finalizedBy(remove)
         }
     }
 
-    fun dockerContanier(
+    fun dockerContainer(
         project: Project,
         image: String,
         tcpPorts: List<Pair<Int, Int>>,
@@ -40,7 +39,6 @@ object DockerUtils {
         suffix: String,
         envs: Map<String, String> = emptyMap(),
         healthCheck: String? = null,
-        withHealthCheck: Boolean = false,
     ): DockerTasks {
         val containerId = UUID.randomUUID().toString()
         val pullTask =
@@ -86,18 +84,18 @@ object DockerUtils {
             it.targetContainerId(containerId)
         }
 
-        val waitHealthyTask = if (withHealthCheck) {
-            project.tasks.register(
-                "waitHealthy$suffix",
-                DockerWaitHealthyContainer::class.java
-            )
-        } else {
-            null
-        }
-        waitHealthyTask?.configure {
-            it.dependsOn(startTask)
-            it.targetContainerId(containerId)
-        }
+//        val waitHealthyTask = if (withHealthCheck) {
+//            project.tasks.register(
+//                "waitHealthy$suffix",
+//                DockerWaitHealthyContainer::class.java
+//            )
+//        } else {
+//            null
+//        }
+//        waitHealthyTask?.configure {
+//            it.dependsOn(startTask)
+//            it.targetContainerId(containerId)
+//        }
 
         val stopTask = project.tasks.register(
             "stop$suffix",
@@ -124,8 +122,8 @@ object DockerUtils {
             start = startTask,
             stop = stopTask,
             remove = removeTask,
-            waitHealthy = waitHealthyTask
+//            waitHealthy = waitHealthyTask
         )
     }
 }
-*/
+

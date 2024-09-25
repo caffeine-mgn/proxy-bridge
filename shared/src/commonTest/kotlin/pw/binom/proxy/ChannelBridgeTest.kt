@@ -22,7 +22,7 @@ class ChannelBridgeTest {
 
         private var remaining = size
 
-        override suspend fun read(dest: ByteBuffer): Int {
+        override suspend fun read(dest: ByteBuffer): DataTransferSize {
             val wasRead = minOf(dest.remaining, remaining.toInt())
             remaining -= wasRead
             if (delay > Duration.ZERO) {
@@ -31,7 +31,7 @@ class ChannelBridgeTest {
             }
 
             dest.position += wasRead
-            return wasRead
+            return DataTransferSize.ofSize(wasRead)
         }
     }
 
@@ -54,6 +54,6 @@ class ChannelBridgeTest {
                         ),
                     scope = GlobalScope
                 )
-            channel.use { it.join() }
+            channel.useAsync { it.join() }
         }
 }

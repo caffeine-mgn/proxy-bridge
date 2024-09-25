@@ -7,20 +7,17 @@ import pw.binom.atomic.AtomicBoolean
 import pw.binom.atomic.AtomicLong
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
-import pw.binom.io.AsyncChannel
-import pw.binom.io.ByteBuffer
-import pw.binom.io.http.websocket.Message
+import pw.binom.io.*
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
-import pw.binom.io.use
-import pw.binom.io.useAsync
+import pw.binom.io.http.websocket.WebSocketInput
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
 class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection) : AsyncChannel {
 
-    private var currentMessage: Message? = null
+    private var currentMessage: WebSocketInput? = null
 
     companion object {
         private const val MAX_PING_BYTES = Long.SIZE_BYTES
@@ -66,13 +63,13 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
         return now.elapsedNow()
     }
 
-    override suspend fun read(dest: ByteBuffer): Int {
+    override suspend fun read(dest: ByteBuffer): DataTransferSize {
         while (true) {
             var currentMessage = currentMessage
             if (currentMessage == null) {
                 if (connectionClosed.getValue()) {
                     connection.asyncCloseAnyway()
-                    return 0
+                    return DataTransferSize.CLOSED
                 }
                 val msg = connection.read()
                 if (msg.isCloseMessage) {
@@ -118,11 +115,11 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
         }
     }
 
-    override suspend fun write(data: ByteBuffer): Int {
+    override suspend fun write(data: ByteBuffer): DataTransferSize {
         val wrote = data.remaining
         connection.write(MessageType.BINARY).useAsync { msg ->
             msg.writeFully(data)
         }
-        return wrote
+        return DataTransferSize.ofSize(wrote)
     }
 }

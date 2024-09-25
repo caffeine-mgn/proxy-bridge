@@ -31,11 +31,11 @@ suspend fun AsyncInput.copyTo(
         buffer.clear()
 //        println("reading data from $this. bufferSize: ${buffer.remaining}")
         val length = read(buffer)
-        if (length == 0) {
+        if (length.isNotAvailable) {
             break
         }
-        progress(length)
-        totalLength += length.toLong()
+        progress(length.length)
+        totalLength += length.length.toLong()
         buffer.flip()
 //        val data = buffer.toByteArray().map { it.toUByte().toString().padStart(2, '0') }
 //            .joinToString()

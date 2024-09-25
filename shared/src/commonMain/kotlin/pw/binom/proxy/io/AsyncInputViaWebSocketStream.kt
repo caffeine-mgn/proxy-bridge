@@ -3,12 +3,13 @@ package pw.binom.proxy.io
 import pw.binom.io.AsyncChannel
 import pw.binom.io.AsyncOutput
 import pw.binom.io.ByteBuffer
-import pw.binom.io.http.websocket.Message
+import pw.binom.io.DataTransferSize
+import pw.binom.io.http.websocket.WebSocketInput
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
 
 class AsyncInputViaWebSocketStream(private val connection: WebSocketConnection) : AsyncChannel {
-    private var inputMessage: Message? = null
+    private var inputMessage: WebSocketInput? = null
     override val available: Int
         get() = inputMessage?.available ?: -1
 
@@ -20,7 +21,7 @@ class AsyncInputViaWebSocketStream(private val connection: WebSocketConnection) 
         output?.flush()
     }
 
-    override suspend fun read(dest: ByteBuffer): Int {
+    override suspend fun read(dest: ByteBuffer): DataTransferSize {
         var inputMessage = inputMessage
         if (inputMessage == null) {
             inputMessage = connection.read()
@@ -35,7 +36,7 @@ class AsyncInputViaWebSocketStream(private val connection: WebSocketConnection) 
     }
 
     private var output: AsyncOutput? = null
-    override suspend fun write(data: ByteBuffer): Int {
+    override suspend fun write(data: ByteBuffer): DataTransferSize {
         var output = output
         if (output == null) {
             output = connection.write(MessageType.BINARY)

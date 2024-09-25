@@ -5,7 +5,7 @@ buildscript {
     }
 }
 plugins {
-    kotlin("jvm") version "1.9.24"
+    kotlin("jvm") version "2.0.20"
     id("com.github.gmazzo.buildconfig") version "3.0.3"
 }
 val binomVersion = project.property("binom.version") as String
@@ -32,6 +32,6 @@ dependencies {
     api("org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlinVersion")
     api("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     api("org.jetbrains.kotlin:kotlin-serialization:$kotlinVersion")
-    api("com.bmuschko:gradle-docker-plugin:7.3.0")
+    api("com.bmuschko:gradle-docker-plugin:9.4.0")
     api("net.lingala.zip4j:zip4j:2.9.0")
 }

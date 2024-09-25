@@ -5,7 +5,7 @@ import kotlinx.coroutines.test.runTest
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
-import pw.binom.proxy.client.RuntimeProperties
+import pw.binom.proxy.gateway.properties.RuntimeProperties
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
