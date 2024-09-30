@@ -140,6 +140,7 @@ fun main(args: Array<String>) {
             )
         .filter { it.isNotBlank() }
         .filter { !it.startsWith("#") }
+        .filter { !it.startsWith(";") }
         .forEach {
             val items = it.split('=', limit = 2)
             val key = items[0]
