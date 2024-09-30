@@ -3,8 +3,7 @@ package pw.binom.proxy.server.handlers
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.logger.Logger
-import pw.binom.logger.info
-import pw.binom.proxy.Urls
+import pw.binom.Urls
 import pw.binom.strong.inject
 
 class ExternalHandler : HttpHandler {
@@ -15,7 +14,6 @@ class ExternalHandler : HttpHandler {
     private val clientPoolOutputHandler by inject<ClientPoolOutputHandler>()
     private val logger by Logger.ofThisOrGlobal
     override suspend fun handle(exchange: HttpServerExchange) {
-        logger.info("Request!!! ${exchange.requestMethod} ${exchange.requestURI}")
         val path = exchange.requestURI.path
         when {
             path.isMatch(Urls.CONTROL) -> clientControlHandler.handle(exchange)

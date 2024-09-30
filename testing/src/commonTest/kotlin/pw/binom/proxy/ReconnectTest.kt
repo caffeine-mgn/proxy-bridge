@@ -5,14 +5,14 @@ import kotlinx.coroutines.test.runTest
 import pw.binom.io.use
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
-import pw.binom.proxy.gateway.properties.RuntimeProperties
+import pw.binom.gateway.properties.GatewayRuntimeProperties
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
 class ReconnectTest : BaseTest() {
     @Test
     fun unknownHost() = testing {
-        prepareNetwork(RuntimeProperties.TransportType.WS) { client ->
+        prepareNetwork(GatewayRuntimeProperties.TransportType.WS) { client ->
         }
     }
 
@@ -25,7 +25,7 @@ class ReconnectTest : BaseTest() {
             delay(1.seconds)
             val node = ports.createNode(
                 nd = nd,
-                transportType = RuntimeProperties.TransportType.WS,
+                transportType = GatewayRuntimeProperties.TransportType.WS,
                 config = { it.copy(reconnectTimeout = 1.seconds) })
             delay(2.seconds)
             val http = ports.createHttpClient(nd)

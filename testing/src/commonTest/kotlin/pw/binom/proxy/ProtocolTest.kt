@@ -4,7 +4,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import pw.binom.url.toURL
 import kotlin.test.Ignore
 import kotlin.test.Test
-import pw.binom.proxy.gateway.properties.RuntimeProperties as ClientRuntimeProperties
+import pw.binom.gateway.properties.GatewayRuntimeProperties as ClientRuntimeProperties
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProtocolTest : BaseTest() {

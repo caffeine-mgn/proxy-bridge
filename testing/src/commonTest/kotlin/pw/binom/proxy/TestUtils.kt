@@ -14,11 +14,12 @@ import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
-import pw.binom.proxy.gateway.properties.RuntimeProperties
-import pw.binom.proxy.gateway.startProxyClient
+import pw.binom.gateway.properties.GatewayRuntimeProperties
+import pw.binom.gateway.startProxyClient
 import pw.binom.proxy.server.ExternalWebServerService
 import pw.binom.proxy.server.InternalWebServerService
 import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.server.services.ServerControlService
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import pw.binom.url.toURL
@@ -34,6 +35,8 @@ class Server(
         get() = context.inject<ExternalWebServerService>().service.port
     val internalPort
         get() = context.inject<InternalWebServerService>().service.port
+
+    val controlService by context.inject<ServerControlService>()
 
     override suspend fun asyncClose() {
         context.destroy()
@@ -142,9 +145,9 @@ class Context(
         suspend fun createGateway(
             networkManager: NetworkManager,
             server: Server,
-            properties: (RuntimeProperties) -> RuntimeProperties = { it },
+            properties: (GatewayRuntimeProperties) -> GatewayRuntimeProperties = { it },
         ): Gateway {
-            val config = RuntimeProperties(url = "http://127.0.0.1:${server.externalPort}".toURL())
+            val config = GatewayRuntimeProperties(url = "http://127.0.0.1:${server.externalPort}".toURL())
             return createGateway(
                 networkManager = networkManager,
                 properties = properties(config)
@@ -153,7 +156,7 @@ class Context(
 
         suspend fun createGateway(
             networkManager: NetworkManager,
-            properties: RuntimeProperties,
+            properties: GatewayRuntimeProperties,
         ): Gateway {
             val context = withContext(networkManager) {
                 startProxyClient(

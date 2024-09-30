@@ -4,7 +4,7 @@ import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptTcp
 import pw.binom.proxy.server.ClientService
-import pw.binom.proxy.Urls
+import pw.binom.Urls
 import pw.binom.strong.inject
 
 class ClientTransportTcpHandler : HttpHandler {

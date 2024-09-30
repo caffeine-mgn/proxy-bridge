@@ -10,8 +10,10 @@ import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
 import pw.binom.proxy.server.handlers.*
 import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.server.services.GatewayClientService
 import pw.binom.proxy.server.services.ServerControlService
 import pw.binom.signal.Signal
+import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 
@@ -29,12 +31,14 @@ suspend fun startProxyNode(
             it.bean { ClientTransportWsHandler() }
             it.bean { ClientService() }
             it.bean { ProxyHandler() }
+            it.bean { LocalEventSystem() }
             it.bean { InternalHandler() }
             it.bean { ClientPoolOutputHandler() }
             it.bean { ClientPoolInputHandler() }
             it.bean { InternalWebServerService() }
             it.bean { ExternalWebServerService() }
             it.bean { BinomMetrics }
+            it.bean { GatewayClientService() }
             it.bean { ServerControlService() }
             it.bean { PrometheusController() }
         }

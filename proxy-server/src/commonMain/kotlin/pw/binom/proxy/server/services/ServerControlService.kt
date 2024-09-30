@@ -6,9 +6,6 @@ import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.date.DateTime
 import pw.binom.io.*
-import pw.binom.io.http.websocket.MessageType
-import pw.binom.io.http.websocket.WebSocketClosedException
-import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -17,9 +14,9 @@ import pw.binom.proxy.*
 import pw.binom.proxy.channels.TransportChannel
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
-import pw.binom.proxy.server.exceptions.ClientMissingException
 import pw.binom.proxy.server.properties.RuntimeClientProperties
 import pw.binom.strong.BeanLifeCycle
+import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
@@ -27,9 +24,18 @@ import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration.Companion.seconds
 
 class ServerControlService {
+
+    interface ChannelState {
+        val channel: TransportChannel
+        var behavior: Behavior?
+        val locked: SpinLock
+        val lastTouch: DateTime
+    }
+
     private val logger by Logger.ofThisOrGlobal
     private val runtimeClientProperties by inject<RuntimeClientProperties>()
-    private var lastConnection: WebSocketConnection? = null
+    private val gatewayClientService by inject<GatewayClientService>()
+    private val eventSystem by inject<EventSystem>()
 
     private var job: Job? = null
 
@@ -38,17 +44,32 @@ class ServerControlService {
             job =
                 GlobalScope.launch {
                     while (isActive) {
-                        delay(5.seconds)
+                        delay(30.seconds)
                         val forRemove = ArrayList<TransportChannel>()
                         channelsLock.synchronize {
                             val it = channels.iterator()
                             while (it.hasNext()) {
                                 val e = it.next()
-                                if (e.value.lastTouch + runtimeClientProperties.channelIdleTime < DateTime.now) {
-                                    forRemove += e.value.channel
-                                    it.remove()
+                                if (e.value.isBusy) {
+                                    continue
                                 }
+                                if (e.value.behavior != null) {
+                                    continue
+                                }
+                                if (e.value.lastTouch + runtimeClientProperties.channelIdleTime >= DateTime.now) {
+                                    continue
+                                }
+                                logger.info("Cleanup channel ${e.value.channel.id}")
+                                forRemove += e.value.channel
+                                it.remove()
                             }
+                        }
+                        forRemove.forEach {
+                            gatewayClientService.sendCmd(
+                                ControlRequestDto(
+                                    closeChannel = ControlRequestDto.CloseChannel(it.id)
+                                )
+                            )
                         }
                         forRemove.forEach {
                             it.asyncCloseAnyway()
@@ -65,7 +86,6 @@ class ServerControlService {
     /**
      * Buffer for write simple commands
      */
-    private val buffer = ByteBuffer(1024 * 2)
     private val channels = HashMap<ChannelId, ChannelWrapper>()
     private var channelIdIterator = 0
     private val proxyWater = HashMap<ChannelId, CancellableContinuation<Unit>>()
@@ -91,11 +111,25 @@ class ServerControlService {
      */
     private val channelsLock = SpinLock()
 
-    private class ChannelWrapper(val channel: TransportChannel) {
-        var role: ChannelRole = ChannelRole.IDLE
-        var changing: Boolean = false
-        val locked = SpinLock()
-        var lastTouch = DateTime.now
+    suspend fun forceClose() {
+        channelsLock.synchronize {
+            val set = channels.map { it.value.channel }
+            channels.clear()
+            set
+        }.forEach {
+            it.asyncCloseAnyway()
+        }
+    }
+
+    fun getChannels() = channelsLock.synchronize {
+        ArrayList<ChannelState>(channels.values)
+    }
+
+    private class ChannelWrapper(override val channel: TransportChannel) : ChannelState {
+        var isBusy: Boolean = false
+        override var behavior: Behavior? = null
+        override val locked = SpinLock()
+        override var lastTouch = DateTime.now
             private set
 
         fun touch() {
@@ -103,38 +137,15 @@ class ServerControlService {
         }
     }
 
-    val isGatewayConnected
-        get() = lastConnection != null
-
-    init {
-        BeanLifeCycle.preDestroy {
-            buffer.close()
-            lastConnection?.asyncCloseAnyway()
-            lastConnection = null
+    private val eventListener by BeanLifeCycle.afterInit {
+        eventSystem.listen(ControlEventDto::class) { event ->
+            eventProcessing(event)
         }
     }
 
-    suspend fun controlProcessing(connection: WebSocketConnection) {
-        lastConnection?.asyncCloseAnyway()
-        lastConnection = connection
-        logger.info("Start processing... lastConnection is set")
-        try {
-            while (true) {
-                val event = try {
-                    connection.read().useAsync {
-                        val packageSize = it.readInt(buffer)
-                        val data = it.readBytes(packageSize)
-                        Dto.decode(ControlEventDto.serializer(), data)
-                    }
-                } catch (e: WebSocketClosedException) {
-                    logger.info("Processing finished")
-                    break
-                }
-                eventProcessing(event)
-            }
-        } catch (e: Throwable) {
-            logger.info("Error on control processing")
-            throw e
+    init {
+        BeanLifeCycle.preDestroy {
+            eventListener.close()
         }
     }
 
@@ -166,7 +177,7 @@ class ServerControlService {
             channelsLock.synchronize {
                 channels.values.find {
                     it.locked.synchronize {
-                        it.role == ChannelRole.IDLE && !it.changing
+                        it.behavior == null && !it.isBusy
                     }
                 }
             }
@@ -175,7 +186,7 @@ class ServerControlService {
             return existChannel
         }
         val newChannelId = ChannelId(lockForIdIterator.synchronize { channelIdIterator++ })
-        send(
+        gatewayClientService.sendCmd(
             ControlRequestDto(
                 emmitChannel = ControlRequestDto.EmmitChannel(
                     id = newChannelId,
@@ -196,9 +207,12 @@ class ServerControlService {
         } ?: throw RuntimeException("Timeout waiting a channel")
     }
 
-    suspend fun connect(host: String, port: Short): TransportChannel {
+    /**
+     * Возвращает новый транспортный поток. В случае успеха помечает поток как занятый.
+     */
+    suspend fun connect(host: String, port: Int): TransportChannel {
         val channel = getOrCreateIdleChannel()
-        send(
+        gatewayClientService.sendCmd(
             ControlRequestDto(
                 proxyConnect = ControlRequestDto.ProxyConnect(
                     id = channel.channel.id,
@@ -209,50 +223,42 @@ class ServerControlService {
         )
         channel.locked.lock()
         channel.touch()
-        channel.changing = true
+        channel.channel.description = "$host:$port"
+        channel.isBusy = true
         try {
             logger.info("Wait until gateway connect to $host:$port...")
-            suspendCancellableCoroutine<Unit> {
+            suspendCancellableCoroutine {
                 it.invokeOnCancellation {
                     channel.locked.synchronize {
-                        channel.changing = false
+                        channel.isBusy = false
                         proxyWaterLock.synchronize { proxyWater.remove(channel.channel.id) }
                     }
                 }
                 proxyWaterLock.synchronize { proxyWater[channel.channel.id] = it }
             }
             logger.info("Gateway connected to $host:$port!")
-            channel.role = ChannelRole.PROXY
             channel.locked.unlock()
             return channel.channel
         } catch (e: Throwable) {
             logger.info("Gateway can't connect to $host:$port!")
             channel.locked.synchronize {
-                channel.changing = false
+                channel.isBusy = false
             }
             throw e
         }
     }
 
-    private suspend fun send(request: ControlRequestDto) {
-        try {
-            val data = Dto.encode(
-                ControlRequestDto.serializer(),
-                request
-            )
-            val connection = lastConnection ?: throw ClientMissingException()
-            connection
-                .write(MessageType.BINARY).useAsync {
-                    it.writeInt(data.size, buffer)
-                    it.writeByteArray(data, buffer)
-                }
-        } catch (e: Throwable) {
-            throw RuntimeException("Can't send cmd $request")
+    fun assignBehavior(channel: TransportChannel, behavior: Behavior) {
+        val wrapper = channelsLock.synchronize {
+            channels[channel.id] ?: throw IllegalStateException("Channel ${channel.id} not found")
+        }
+        wrapper.locked.synchronize {
+            wrapper.behavior = behavior
+            wrapper.isBusy = false
         }
     }
 
-    private fun eventProcessing(eventDto: ControlEventDto) {
-        logger.infoSync("Income event $eventDto")
+    private suspend fun eventProcessing(eventDto: ControlEventDto) {
         when {
             eventDto.proxyConnected != null -> {
                 val channelId = eventDto.proxyConnected!!.channelId
@@ -267,8 +273,7 @@ class ServerControlService {
                 channelsLock.synchronize { channels[channelId] }
                     ?.let {
                         it.locked.synchronize {
-                            it.role = ChannelRole.IDLE
-                            it.changing = false
+                            it.isBusy = false
                         }
                     }
             }
@@ -280,10 +285,9 @@ class ServerControlService {
                     proxyWaterLock.synchronize { proxyWater.remove(channelId) }
                         ?.resumeWithException(EOFException())
                     channel.locked.synchronize {
-                        channel.role = ChannelRole.IDLE
-                        channel.changing = false
+                        channel.isBusy = false
                     }
-                    channel.channel.breakCurrentRole()
+                    returnChannelToPool(channel)
                 }
             }
 
@@ -296,17 +300,26 @@ class ServerControlService {
         }
     }
 
+    private suspend fun returnChannelToPool(channelWrapper: ChannelWrapper) {
+        channelWrapper.locked.synchronize {
+            val behavior = channelWrapper.behavior
+            channelWrapper.behavior = null
+            channelWrapper.isBusy = false
+            channelWrapper.touch()
+            behavior
+        }?.asyncCloseAnyway()
+    }
+
     suspend fun sendToPool(channel: TransportChannel) {
+        if (channel.isClosed) {
+            channelsLock.synchronize { channels.remove(channel.id) }
+            return
+        }
         val channelWrapper = channelsLock.synchronize { channels[channel.id] }
         if (channelWrapper == null) {
             channel.asyncClose()
             return
         }
-        channel.breakCurrentRole()
-        send(ControlRequestDto(resetChannel = ControlRequestDto.ResetChannel(channel.id)))
-        channelWrapper.locked.synchronize {
-            channelWrapper.role = ChannelRole.IDLE
-            channelWrapper.changing = false
-        }
+        returnChannelToPool(channelWrapper)
     }
 }

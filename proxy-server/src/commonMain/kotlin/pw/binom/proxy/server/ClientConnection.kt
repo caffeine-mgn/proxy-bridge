@@ -14,7 +14,7 @@ import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.warn
-import pw.binom.proxy.Codes
+import pw.binom.Codes
 import pw.binom.proxy.ControlResponseCodes
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException

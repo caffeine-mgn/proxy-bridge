@@ -15,13 +15,13 @@ import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
 import pw.binom.network.TcpServerConnection
-import pw.binom.proxy.gateway.properties.RuntimeProperties
-import pw.binom.proxy.gateway.startProxyClient
+import pw.binom.gateway.properties.GatewayRuntimeProperties
+import pw.binom.gateway.startProxyClient
 import pw.binom.proxy.server.startProxyNode
 import pw.binom.strong.Strong
 import pw.binom.url.toURL
 import kotlin.time.Duration.Companion.seconds
-import pw.binom.proxy.gateway.properties.RuntimeProperties as ClientRuntimeProperties
+import pw.binom.gateway.properties.GatewayRuntimeProperties as ClientRuntimeProperties
 import pw.binom.proxy.server.properties.RuntimeClientProperties as NodeRuntimeProperties
 
 suspend fun HttpClient.checkIsOk() {
@@ -85,7 +85,7 @@ class Ports {
     suspend fun createNode(
         nd: NetworkManager,
         transportType: ClientRuntimeProperties.TransportType,
-        config: (RuntimeProperties) -> RuntimeProperties = { it },
+        config: (GatewayRuntimeProperties) -> GatewayRuntimeProperties = { it },
     ) = startProxyClient(properties = config(clientConfig(transportType)), networkManager = nd)
 
     suspend fun createServer(

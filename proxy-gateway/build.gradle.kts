@@ -8,7 +8,7 @@ plugins {
     id("kotlinx-serialization")
     id("com.github.johnrengelman.shadow")
 }
-val nativeEntryPoint = "pw.binom.proxy.client.main"
+val nativeEntryPoint = "pw.binom.gateway.main"
 kotlin {
     linuxX64 {
         binaries {
@@ -38,6 +38,7 @@ kotlin {
                 api("pw.binom.io:signal:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:process:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:properties-serialization:${pw.binom.Versions.BINOM_VERSION}")
                 api(
                     "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
                 )
@@ -46,8 +47,17 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
+                implementation(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
+                implementation("pw.binom.io:testing:${pw.binom.Versions.BINOM_VERSION}")
+                implementation("pw.binom.io:coroutines:${pw.binom.Versions.BINOM_VERSION}")
+            }
+        }
+        val jvmTest by getting {
+            dependsOn(commonTest)
+            dependencies {
+                api(kotlin("test"))
             }
         }
     }
@@ -62,7 +72,7 @@ tasks {
             it.name.endsWith(".DSA") || it.name.endsWith(".SF") || it.name.endsWith(".kotlin_module")
         }
         manifest {
-            attributes("Main-Class" to "pw.binom.proxy.client.MainJvm")
+            attributes("Main-Class" to "pw.binom.gateway.MainKt")
         }
     }
     val linkMingw = this.getByName("linkReleaseExecutableMingwX64")

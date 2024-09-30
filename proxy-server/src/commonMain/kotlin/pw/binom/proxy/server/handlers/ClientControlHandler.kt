@@ -6,21 +6,24 @@ import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptWebsocket
 import pw.binom.logger.Logger
+import pw.binom.logger.info
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
 import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.server.services.GatewayClientService
 import pw.binom.proxy.server.services.ServerControlService
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 
 class ClientControlHandler : HttpHandler, MetricProvider, Strong.DestroyableBean {
-    private val clientService by inject<ClientService>()
-    private val networkManager by inject<NetworkManager>()
-    private val properties by inject<RuntimeClientProperties>()
-    private val controlService by inject<ServerControlService>()
+    //    private val clientService by inject<ClientService>()
+//    private val networkManager by inject<NetworkManager>()
+//    private val properties by inject<RuntimeClientProperties>()
+//    private val controlService by inject<ServerControlService>()
+    private val gatewayClientService by inject<GatewayClientService>()
     private val logger by Logger.ofThisOrGlobal
     private var clientCounter = 0
     private val clients = HashSet<WebSocketConnection>()
@@ -30,8 +33,9 @@ class ClientControlHandler : HttpHandler, MetricProvider, Strong.DestroyableBean
     private val controlConnectionCounter = metricProvider.gaugeLong(name = "ws_control")
 
     override suspend fun handle(exchange: HttpServerExchange) {
+        logger.info("Income control connection")
         val connection = exchange.acceptWebsocket()
-        controlService.controlProcessing(connection)
+        gatewayClientService.controlProcessing(connection)
         return
         /*
         val clientId = ++clientCounter

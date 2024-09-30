@@ -1,9 +1,6 @@
 package pw.binom.proxy.channels
 
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.supervisorScope
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.io.AsyncChannel
 import pw.binom.io.ByteBuffer
@@ -14,10 +11,9 @@ import pw.binom.io.http.websocket.WebSocketInput
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.proxy.BridgeJob
 import pw.binom.proxy.ChannelId
-import pw.binom.proxy.ChannelRole
-import pw.binom.proxy.StreamBridge
+import pw.binom.StreamBridge
+import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.proxy.io.copyTo
 import kotlin.coroutines.resume
 
@@ -27,35 +23,66 @@ class WSSpitChannel(
     val logger: Logger = Logger.getLogger("WSSpitChannel"),
 ) : TransportChannel {
 
+    override var description: String? = null
+    override val isClosed: Boolean
+        get() = closed.getValue()
+
     private var currentMessage: WebSocketInput? = null
 
     private var holder: CancellableContinuation<Unit>? = null
     private val closed = AtomicBoolean(false)
     private var connectCopyJob: Deferred<StreamBridge.ReasonForStopping>? = null
+    private var connectCopyJob1: Deferred<StreamBridge.ReasonForStopping>? = null
+    private var remoteConnection: AsyncChannel? = null
 
     override fun toString(): String = "WSSpitChannel($connection)"
+    /*
+        override suspend fun breakCurrentRole() {
+            val connectCopyJob0 = connectCopyJob
+            val connectCopyJob1 = connectCopyJob1
+            val description = description
+            val remoteConnection = remoteConnection
+            logger.infoSync("WSSpitChannel: stop connectCopyJob0=${connectCopyJob0?.hashCode()} $id $description")
+            logger.infoSync("WSSpitChannel: stop connectCopyJob1=${connectCopyJob1?.hashCode()} $id $description")
+            connectCopyJob0?.cancel()
+            connectCopyJob1?.cancel()
+            if (remoteConnection != null) {
+                logger.info("WSSpitChannel: Closing $remoteConnection")
+                remoteConnection.asyncCloseAnyway()
+            } else {
+                logger.info("WSSpitChannel: Can't close remote connection: no remote connection")
+            }
 
-    override fun breakCurrentRole() {
-        connectCopyJob?.cancel()
-        connectCopyJob = null
-    }
+            this.description = null
+            this.connectCopyJob = null
+            this.connectCopyJob1 = null
+            this.remoteConnection = null
 
-    override suspend fun connectWith(
-        other: AsyncChannel,
-        bufferSize: Int,
-    ) = BridgeJob {
-        supervisorScope {
-            StreamBridge.copy(
-                left = this@WSSpitChannel,
-                right = other,
-                bufferSize = bufferSize,
-                leftProvider = {
-                    connectCopyJob = it
-                },
-                logger = logger,
-            ) == StreamBridge.ReasonForStopping.LEFT
         }
-    }
+
+        override suspend fun connectWith(
+            other: AsyncChannel,
+            bufferSize: Int,
+        ) = BridgeJob {
+            remoteConnection = other
+            supervisorScope {
+                StreamBridge.sync(
+                    left = this@WSSpitChannel,
+                    right = other,
+                    bufferSize = bufferSize,
+                    leftProvider = {
+                        logger.infoSync("WSSpitChannel: start connectCopyJob0: ${it.hashCode()} $id $description")
+                        connectCopyJob = it
+                    },
+                    rightProvider = {
+                        logger.infoSync("WSSpitChannel: start connectCopyJob1: ${it.hashCode()} $id $description")
+                        connectCopyJob1 = it
+                    },
+                    logger = logger,
+                ) == StreamBridge.ReasonForStopping.LEFT
+            }
+        }
+    */
 
     override val available: Int
         get() = currentMessage?.available ?: -1
@@ -69,9 +96,14 @@ class WSSpitChannel(
         }
     }
 
+    private fun closeHappened() {
+        holder?.resume(Unit)
+    }
+
     override suspend fun asyncClose() {
         if (closed.compareAndSet(false, true)) {
-            holder?.resume(Unit)
+            closeHappened()
+            logger.info(text = "Closing...", exception = Throwable())
             connection.asyncCloseAnyway()
         }
     }
@@ -84,25 +116,46 @@ class WSSpitChannel(
         while (true) {
             val current = currentMessage
             if (current != null) {
-                val result = current.read(dest)
+                val result = try {
+                    current.read(dest)
+                } catch (e: CancellationException) {
+                    current.asyncClose()
+                    currentMessage = null
+                    logger.info("Reading data cancelled!: ${e.message}")
+                    return DataTransferSize.EMPTY
+                }
                 if (result.isNotAvailable) {
                     currentMessage = null
                     current.asyncClose()
+                    logger.info("Not enough data on current message")
                     continue
                 }
                 if (current.available == 0) {
+                    logger.info("current message is finished with $result")
                     currentMessage = null
                 }
                 return result
             }
             val msg = try {
-                connection.read()
+                logger.info("Try read new message...")
+                val msg = connection.read()
+                msg
+            } catch (e: CancellationException) {
+                // cancelled reading
+                logger.info("Cancel reading 222: ${e.message}")
+                return DataTransferSize.EMPTY
+            } catch (e: WebSocketClosedException) {
+                closeHappened()
+                closed.setValue(true)
+                return DataTransferSize.CLOSED
             } catch (e: Throwable) {
+                logger.info(text = "Can't read next message. Exception happened.", exception = e)
                 asyncClose()
                 return DataTransferSize.CLOSED
             }
             when (msg.type) {
                 MessageType.CLOSE -> {
+                    logger.info("Was read close message")
                     msg.asyncCloseAnyway()
                     asyncClose()
                     return DataTransferSize.CLOSED
@@ -119,9 +172,13 @@ class WSSpitChannel(
 
                 else -> {
                     currentMessage = msg
-                    val result = msg.read(dest)
+                    val result = try {
+                        msg.read(dest)
+                    } catch (e: CancellationException) {
+                        logger.info("Cancel reading 111: ${e.message}")
+                        return DataTransferSize.EMPTY
+                    }
                     if (result.isNotAvailable) {
-                        logger.info("!!!!!")
                         currentMessage = null
                         continue
                     }
@@ -142,9 +199,14 @@ class WSSpitChannel(
         } else {
             logger.info("Send ${data.remaining} bytes")
 //            logger.info("write ${data.toByteArray().toHexString()}")
-            connection.write(MessageType.BINARY).useAsync {
-                val e = DataTransferSize.ofSize(it.writeFully(data))
-                e
+            try {
+                connection.write(MessageType.BINARY).useAsync {
+                    val e = DataTransferSize.ofSize(it.writeFully(data))
+                    e
+                }
+            } catch (e: WebSocketClosedException) {
+                asyncCloseAnyway()
+                DataTransferSize.CLOSED
             }
         }
 

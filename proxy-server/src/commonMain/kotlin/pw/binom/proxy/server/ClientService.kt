@@ -11,7 +11,7 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.CompositeChannelManager
 import pw.binom.proxy.ControlClient
-import pw.binom.proxy.extract
+import pw.binom.extract
 import pw.binom.proxy.server.exceptions.ClientMissingException
 import pw.binom.proxy.server.properties.RuntimeClientProperties
 import pw.binom.strong.Strong

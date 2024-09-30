@@ -2,6 +2,7 @@ package pw.binom.proxy
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
+import pw.binom.ArgCounter
 import pw.binom.proxy.serialization.ShortSerialization
 
 @OptIn(ExperimentalSerializationApi::class)

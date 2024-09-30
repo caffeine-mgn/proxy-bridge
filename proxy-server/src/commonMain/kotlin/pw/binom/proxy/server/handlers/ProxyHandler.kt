@@ -1,8 +1,9 @@
 package pw.binom.proxy.server.handlers
 
-import pw.binom.*
+import pw.binom.gateway.GatewayClient
 import pw.binom.io.AsyncChannel
-import pw.binom.io.http.emptyHeaders
+import pw.binom.io.http.Headers
+import pw.binom.io.http.headersOf
 import pw.binom.io.httpClient.BaseHttpClient
 import pw.binom.io.httpClient.ConnectionFactory
 import pw.binom.io.httpClient.RequestHook
@@ -13,6 +14,7 @@ import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.network.NetworkManager
+import pw.binom.proxy.behaviors.TcpBridgeBehavior
 import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.server.ProxedFactory
 import pw.binom.proxy.server.properties.RuntimeClientProperties
@@ -26,6 +28,7 @@ class ProxyHandler : HttpHandler {
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<RuntimeClientProperties>()
     private val controlService by inject<ServerControlService>()
+    private val gatewayClient by inject<GatewayClient>()
     private val logger by Logger.ofThisOrGlobal
 
     override suspend fun handle(exchange: HttpServerExchange) {
@@ -110,7 +113,7 @@ class ProxyHandler : HttpHandler {
         logger.info("User connected")
         val items = exchange.requestURI.toString().split(':', limit = 2)
         val host = items[0]
-        val port = items[1].toShort()
+        val port = items[1].toInt()
 
         val channel =
             try {
@@ -119,95 +122,50 @@ class ProxyHandler : HttpHandler {
                     port = port,
                 )
             } catch (e: ClientMissingException) {
-                exchange.startResponse(404)
+                exchange.startResponse(404, headersOf(Headers.CONNECTION to Headers.CLOSE))
                 return
             } catch (e: Throwable) {
                 logger.info(text = "Can't connect to $host:$port", exception = e)
-                exchange.startResponse(500, emptyHeaders())
+                exchange.startResponse(500, headersOf(Headers.CONNECTION to Headers.CLOSE))
                 return
             }
-        exchange.startResponse(200, emptyHeaders())
+        logger.info("Channel connected! Try return code 200")
+        exchange.startResponse(200, headersOf(Headers.CONNECTION to Headers.CLOSE))
         val incomeChannel =
             AsyncChannel.create(
                 input = exchange.input,
                 output = exchange.output
             )
-
+        val behavior = TcpBridgeBehavior.create(
+            from = channel,
+            tcp = incomeChannel,
+            client = gatewayClient,
+        )
+        controlService.assignBehavior(channel = channel, behavior = behavior)
+        try {
+            behavior.run()
+        } finally {
+            controlService.sendToPool(channel)
+        }
+        /*
+        TcpBridgeBehavior.create()
         try {
             val channelStopped = channel.connectWith(
                 other = incomeChannel,
                 bufferSize = DEFAULT_BUFFER_SIZE,
             ).start()
             println("channelStopped=$channelStopped")
-            if (!channelStopped) {
+            if (channelStopped) {
+                println("Sending channel to pool")
                 controlService.sendToPool(channel)
             }
             incomeChannel.flush()
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            throw e
         } finally {
             logger.info("proxy request finished!")
         }
-
-        /*
-                logger.info("Address: $host:$port")
-
-                val connectionInfo =
-                    try {
-                        clientService.connectTo(
-                            host = host,
-                            port = port
-                        )
-                    } catch (e: UnknownHostException) {
-                        exchange.startResponse(404)
-                        return
-                    } catch (e: ClientMissingException) {
-                        exchange.startResponse(503)
-                        return
-                    }
-                logger.info("Connected!")
-                val input = exchange.input
-                exchange.startResponse(200, emptyHeaders())
-                val output = exchange.output
-                logger.info("Try init connect on remote client!")
-                val localChannel =
-                    AsyncChannel.create(
-                        input = input,
-                        output = output
-                    )
-                val bridge =
-                    ChannelBridge.create(
-                        local = localChannel,
-                        remote = connectionInfo.second,
-                        bufferSize = runtimeProperties.bufferSize,
-                        logger = Logger.getLogger("Node Transport #${connectionInfo.first}"),
-                        localName = "node",
-                        id = connectionInfo.first,
-                        scope = networkManager
-                    )
-                bridge.useAsync {
-                    it.join()
-                }
-                */
-//        val reversJob = GlobalScope.launch(coroutineContext) {
-//            while (true) {
-//                connectionInfo.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
-//                    logger.debug("server<-remote $it")
-//                }
-//            }
-//        }
-//        try {
-//            while (true) {
-//                input.copyTo(connectionInfo, bufferSize = runtimeProperties.bufferSize) {
-//                    logger.debug("server->remote $it")
-//                }
-//            }
-//        } catch (e: SocketClosedException) {
-//            // Do nothing
-//        } catch (e: Throwable) {
-//            logger.warn(text = "Error on passing data from input to output", exception = e)
-//        } finally {
-//            logger.info("request finished!!!")
-//            reversJob.cancel(kotlinx.coroutines.CancellationException("Can't copy tcp->client"))
-//            connectionInfo.asyncCloseAnyway()
-//        }
+        */
     }
 }

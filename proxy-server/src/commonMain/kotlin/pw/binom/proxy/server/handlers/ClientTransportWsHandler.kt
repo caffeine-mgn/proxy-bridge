@@ -11,7 +11,7 @@ import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.proxy.ChannelId
-import pw.binom.proxy.Urls
+import pw.binom.Urls
 import pw.binom.proxy.channels.WSSpitChannel
 import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.server.properties.RuntimeClientProperties

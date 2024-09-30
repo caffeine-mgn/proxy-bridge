@@ -1,7 +1,7 @@
 package pw.binom.proxy
 
 import pw.binom.io.socket.UnknownHostException
-import pw.binom.proxy.gateway.properties.RuntimeProperties
+import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.url.toURL
 import kotlin.test.Test
 import kotlin.test.fail
@@ -9,7 +9,7 @@ import kotlin.test.fail
 class UnknownHostTest : BaseTest() {
     @Test
     fun unknownHost() = testing {
-        prepareNetwork(RuntimeProperties.TransportType.WS) { client ->
+        prepareNetwork(GatewayRuntimeProperties.TransportType.WS) { client ->
             try {
                 client.connect(method = "GET", uri = "https://olololo/".toURL())
                     .getResponse()
@@ -23,7 +23,7 @@ class UnknownHostTest : BaseTest() {
 
     @Test
     fun reconnectAfterUnknownHost() = testing {
-        prepareNetwork(RuntimeProperties.TransportType.WS) { client ->
+        prepareNetwork(GatewayRuntimeProperties.TransportType.WS) { client ->
             try {
                 client.connect(method = "GET", uri = "https://olololo/".toURL())
                     .getResponse()

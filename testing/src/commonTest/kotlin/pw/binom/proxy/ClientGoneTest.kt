@@ -4,7 +4,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.supervisorScope
 import pw.binom.io.IOException
 import pw.binom.io.useAsync
-import pw.binom.proxy.gateway.properties.RuntimeProperties
+import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.url.toURL
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,7 +14,7 @@ class ClientGoneTest : BaseTest() {
     @Test
     fun test() = testing {
         val port = Ports()
-        port.instance(RuntimeProperties.TransportType.WS).useAsync {
+        port.instance(GatewayRuntimeProperties.TransportType.WS).useAsync {
             supervisorScope {
 //            it.server.destroy()
                 delay(1.seconds)

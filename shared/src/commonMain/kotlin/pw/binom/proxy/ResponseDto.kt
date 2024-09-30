@@ -1,6 +1,7 @@
 package pw.binom.proxy
 
 import kotlinx.serialization.Serializable
+import pw.binom.ArgCounter
 import pw.binom.proxy.serialization.ShortSerialization
 
 @Serializable
