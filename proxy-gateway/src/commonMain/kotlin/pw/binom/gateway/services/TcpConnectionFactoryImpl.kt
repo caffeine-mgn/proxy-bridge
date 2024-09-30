@@ -8,18 +8,22 @@ import pw.binom.network.NetworkManager
 import pw.binom.network.tcpConnect
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.gateway.utils.tcpConnectViaHttpProxy
+import pw.binom.logger.Logger
+import pw.binom.logger.info
 import pw.binom.strong.inject
 import pw.binom.url.isWildcardMatch
 
 class TcpConnectionFactoryImpl : TcpConnectionFactory {
     private val runtimeProperties by inject<GatewayRuntimeProperties>()
     private val networkManager by inject<NetworkManager>()
+    private val logger by Logger.ofThisOrGlobal
     override suspend fun connect(host: String, port: Int): AsyncChannel {
         val address = DomainSocketAddress(
             host = host,
             port = port,
         )
-        return runtimeProperties.proxy?.let PROXY@{ proxy ->
+
+        val proxyConnect = runtimeProperties.proxy?.let PROXY@{ proxy ->
             proxy.noProxy?.let { noProxy ->
                 if (noProxy.any { host.isWildcardMatch(it) }) {
                     return@PROXY null
@@ -47,7 +51,13 @@ class TcpConnectionFactoryImpl : TcpConnectionFactory {
                 },
                 readBufferSize = proxy.bufferSize,
             )
-        } ?: networkManager
+        }
+        if (proxyConnect != null) {
+            logger.info("Connect to $host:$port using proxy")
+            return proxyConnect
+        }
+        logger.info("Connect to $host:$port without proxy")
+        return networkManager
             .tcpConnect(
                 address = DomainSocketAddress(
                     host = host,

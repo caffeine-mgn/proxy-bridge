@@ -103,7 +103,7 @@ class WSSpitChannel(
     override suspend fun asyncClose() {
         if (closed.compareAndSet(false, true)) {
             closeHappened()
-            logger.info(text = "Closing...", exception = Throwable())
+//            logger.info(text = "Closing...", exception = Throwable())
             connection.asyncCloseAnyway()
         }
     }
@@ -132,6 +132,7 @@ class WSSpitChannel(
                 }
                 if (current.available == 0) {
                     logger.info("current message is finished with $result")
+                    current.asyncClose()
                     currentMessage = null
                 }
                 return result
