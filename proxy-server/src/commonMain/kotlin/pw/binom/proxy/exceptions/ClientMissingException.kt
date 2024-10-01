@@ -1,3 +1,3 @@
-package pw.binom.proxy.server.exceptions
+package pw.binom.proxy.exceptions
 
 class ClientMissingException : RuntimeException()

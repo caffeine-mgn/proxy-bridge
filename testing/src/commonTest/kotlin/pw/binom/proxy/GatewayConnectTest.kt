@@ -3,13 +3,12 @@ package pw.binom.proxy
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Contextual
 import pw.binom.io.httpClient.addHeader
 import pw.binom.io.socket.InetSocketAddress
 import pw.binom.io.use
 import pw.binom.io.useAsync
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.services.ServerControlService
 import pw.binom.strong.inject
 import pw.binom.testing.Testing
 import pw.binom.testing.shouldBeTrue

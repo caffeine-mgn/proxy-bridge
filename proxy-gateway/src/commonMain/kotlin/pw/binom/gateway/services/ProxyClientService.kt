@@ -16,6 +16,7 @@ import pw.binom.proxy.dto.ControlRequestDto
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.io.ClosedException
 import pw.binom.logger.info
+import pw.binom.network.NetworkManager
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
@@ -29,6 +30,7 @@ class ProxyClientService : ProxyClient {
     private val logger by Logger.ofThisOrGlobal
     private val runtimeProperties by inject<GatewayRuntimeProperties>()
     private val httpClient by inject<HttpClient>()
+    private val networkManager by inject<NetworkManager>()
     private val lock = SpinLock()
     private val eventSystem by inject<EventSystem>()
     private var currentClient: ProxyClientWebSocket? = null
@@ -46,7 +48,7 @@ class ProxyClientService : ProxyClient {
             val dispatcher = coroutineContext[CoroutineDispatcher]
             val interceptor = coroutineContext[ContinuationInterceptor]
 
-            GlobalScope.launch(dispatcher!! + interceptor!! + CoroutineName("gateway-control-connect")) {
+            GlobalScope.launch(networkManager + CoroutineName("gateway-control-connect")) {
                 while (isActive && !closing.getValue()) {
                     val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
                     val connection =
@@ -56,6 +58,10 @@ class ProxyClientService : ProxyClient {
                                 uri = url
                             ).start(bufferSize = runtimeProperties.bufferSize)
                         } catch (e: SocketConnectException) {
+                            logger.info(text = "Can't connect to $url. Socket Closed. Retry in ${runtimeProperties.reconnectDelay}")
+                            delay(runtimeProperties.reconnectDelay)
+                            continue
+                        } catch (e: Throwable) {
                             logger.info(text = "Can't connect to $url. Retry in ${runtimeProperties.reconnectDelay}")
                             delay(runtimeProperties.reconnectDelay)
                             continue
@@ -66,15 +72,18 @@ class ProxyClientService : ProxyClient {
                         lock.synchronize {
                             currentClient = client
                         }
-                        while (!closing.getValue()) {
-                            eventSystem.dispatch(client.receiveCommand())
+                        while (!closing.getValue() && isActive) {
+                            logger.info("Reading cmd")
+                            val cmd = client.receiveCommand()
+                            logger.info("Cmd was read: $cmd. Try dispatch")
+                            eventSystem.dispatch(cmd)
+                            logger.info("Event dispatched")
                         }
                     } catch (e: ClosedException) {
                         logger.info(text = "Connection lost. Retry reconnect in ${runtimeProperties.reconnectDelay}")
                         delay(runtimeProperties.reconnectDelay)
                     } catch (e: Throwable) {
-                        e.printStackTrace()
-                        throw e
+                        logger.info(text = "Can't receive command from server", exception = e)
                     }
                 }
             }

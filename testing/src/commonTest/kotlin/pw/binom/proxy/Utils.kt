@@ -17,12 +17,11 @@ import pw.binom.network.NetworkManager
 import pw.binom.network.TcpServerConnection
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.gateway.startProxyClient
-import pw.binom.proxy.server.startProxyNode
 import pw.binom.strong.Strong
 import pw.binom.url.toURL
 import kotlin.time.Duration.Companion.seconds
 import pw.binom.gateway.properties.GatewayRuntimeProperties as ClientRuntimeProperties
-import pw.binom.proxy.server.properties.RuntimeClientProperties as NodeRuntimeProperties
+import pw.binom.proxy.properties.ProxyProperties as NodeRuntimeProperties
 
 suspend fun HttpClient.checkIsOk() {
     connect(method = "GET", uri = "https://www.google.com/".toURL())

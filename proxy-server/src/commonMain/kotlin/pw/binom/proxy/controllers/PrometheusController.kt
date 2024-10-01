@@ -1,4 +1,4 @@
-package pw.binom.proxy.server
+package pw.binom.proxy.controllers
 
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.prometheus.AbstractPrometheusHandler

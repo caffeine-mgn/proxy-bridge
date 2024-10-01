@@ -40,10 +40,10 @@ class TcpBridgeBehavior private constructor(
     private var remoteInterrupted = false
 
     override val description
-        get() = "tcp-$host:$port ${input.getValue()}/${output.getValue()}"
+        get() = "tcp-$host:$port input: ${input.getValue()}, output: ${output.getValue()}"
 
-    private val input = AtomicLong(0)
     private val output = AtomicLong(0)
+    private val input = AtomicLong(0)
 
     override suspend fun run() {
         lock.lock()
@@ -56,10 +56,10 @@ class TcpBridgeBehavior private constructor(
             exceptionHappened = { lock.unlock() },
             syncStarted = { lock.unlock() },
             transferToLeft = {
-                input.addAndGet(it.toLong())
+                output.addAndGet(it.toLong())
             },
             transferToRight = {
-                output.addAndGet(it.toLong())
+                input.addAndGet(it.toLong())
             },
         )
 

@@ -1,6 +1,7 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
 import pw.binom.concurrency.SpinLock
+import pw.binom.io.http.forEachHeader
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
@@ -10,11 +11,7 @@ import pw.binom.logger.info
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
-import pw.binom.network.NetworkManager
-import pw.binom.proxy.server.ClientService
-import pw.binom.proxy.server.properties.RuntimeClientProperties
-import pw.binom.proxy.server.services.GatewayClientService
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.services.GatewayClientService
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 
@@ -34,6 +31,10 @@ class ClientControlHandler : HttpHandler, MetricProvider, Strong.DestroyableBean
 
     override suspend fun handle(exchange: HttpServerExchange) {
         logger.info("Income control connection")
+        logger.info("Headers:")
+        exchange.requestHeaders.forEachHeader { key, value ->
+            logger.info("    $key: $value")
+        }
         val connection = exchange.acceptWebsocket()
         gatewayClientService.controlProcessing(connection)
         return

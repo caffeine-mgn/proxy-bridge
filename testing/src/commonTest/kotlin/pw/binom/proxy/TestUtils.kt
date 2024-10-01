@@ -16,10 +16,10 @@ import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.gateway.startProxyClient
-import pw.binom.proxy.server.ExternalWebServerService
-import pw.binom.proxy.server.InternalWebServerService
-import pw.binom.proxy.server.properties.RuntimeClientProperties
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.services.ExternalWebServerService
+import pw.binom.proxy.services.InternalWebServerService
+import pw.binom.proxy.properties.ProxyProperties
+import pw.binom.proxy.services.ServerControlService
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import pw.binom.url.toURL
@@ -129,13 +129,13 @@ class Context(
 
         suspend fun startServer(
             networkManager: NetworkManager,
-            config: (RuntimeClientProperties) -> RuntimeClientProperties = { it },
+            config: (ProxyProperties) -> ProxyProperties = { it },
         ): Server {
-            val conf = RuntimeClientProperties(
+            val conf = ProxyProperties(
                 internalBinds = listOf(InetSocketAddress.resolve("127.0.0.1", 0)),
                 externalBinds = listOf(InetSocketAddress.resolve("127.0.0.1", 0)),
             )
-            val context = pw.binom.proxy.server.startProxyNode(
+            val context = startProxyNode(
                 properties = config(conf),
                 networkManager = networkManager,
             )

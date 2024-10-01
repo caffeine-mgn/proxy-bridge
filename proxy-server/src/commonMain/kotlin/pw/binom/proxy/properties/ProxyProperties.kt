@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.properties
+package pw.binom.proxy.properties
 
 import kotlinx.serialization.Serializable
 import pw.binom.*
@@ -9,7 +9,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
-data class RuntimeClientProperties(
+data class ProxyProperties(
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
     @Serializable(DurationSecond::class)
     val remoteClientAwaitTimeout: Duration = 5.seconds,

@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.dto
+package pw.binom.proxy.dto
 
 import kotlinx.serialization.Serializable
 import pw.binom.proxy.ChannelId

@@ -25,6 +25,8 @@ import pw.binom.gateway.services.GatewayControlService
 import pw.binom.gateway.services.TcpConnectionFactoryImpl
 import pw.binom.gateway.services.ProxyClientService
 import pw.binom.io.file.*
+import pw.binom.logger.Logger
+import pw.binom.logger.infoSync
 import pw.binom.properties.IniParser
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.signal.Signal
@@ -111,6 +113,13 @@ suspend fun startProxyClient(
 
 val closed = AtomicBoolean(false)
 
+object SysLogger : InternalLog {
+    val logger by Logger.ofThisOrGlobal
+    override fun log(level: InternalLog.Level, file: String?, line: Int?, method: String?, text: () -> String) {
+        logger.infoSync(text = "$file::$method ${text()}")
+    }
+}
+
 fun main(args: Array<String>) {
     Thread {
         Thread.sleep(1.hours)
@@ -126,8 +135,9 @@ fun main(args: Array<String>) {
             System.gc()
         }
     }.start()
-    val date = "yyyy-MM-dd-HH-mm".toDatePattern().toString(DateTime.now, DateTime.systemZoneOffset)
-    InternalLog.default = GLog(File(Environment.currentExecutionPath).parent!!.relative("$date.glog"))
+//    val date = "yyyy-MM-dd-HH-mm".toDatePattern().toString(DateTime.now, DateTime.systemZoneOffset)
+//    InternalLog.default = GLog(File(Environment.currentExecutionPath).parent!!.relative("$date.glog"))
+//    InternalLog.default = SysLogger
     val argMap = HashMap<String, String?>()
     (args
         .filter { it.startsWith("-D") }

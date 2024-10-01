@@ -1,4 +1,4 @@
-package pw.binom.proxy.server
+package pw.binom.proxy
 
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -8,17 +8,20 @@ import pw.binom.*
 import pw.binom.io.use
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
-import pw.binom.proxy.server.handlers.*
-import pw.binom.proxy.server.properties.RuntimeClientProperties
-import pw.binom.proxy.server.services.GatewayClientService
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.controllers.*
+import pw.binom.proxy.properties.ProxyProperties
+import pw.binom.proxy.server.ClientService
+import pw.binom.proxy.services.ExternalWebServerService
+import pw.binom.proxy.services.InternalWebServerService
+import pw.binom.proxy.services.GatewayClientService
+import pw.binom.proxy.services.ServerControlService
 import pw.binom.signal.Signal
 import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 
 suspend fun startProxyNode(
-    properties: RuntimeClientProperties,
+    properties: ProxyProperties,
     networkManager: NetworkManager,
 ): Strong {
     val baseConfig =
@@ -44,7 +47,7 @@ suspend fun startProxyNode(
             it.bean { PrometheusController() }
         }
     println("Starting node")
-    return Strong.create(baseConfig, BaseConfig)
+    return Strong.create(baseConfig)
 }
 
 fun main(args: Array<String>) {
@@ -53,7 +56,7 @@ fun main(args: Array<String>) {
             val items = it.removePrefix("-D").split('=', limit = 2)
             items[0] to items[1]
         }
-    val properties = Properties.decodeFromStringMap(RuntimeClientProperties.serializer(), params)
+    val properties = Properties.decodeFromStringMap(ProxyProperties.serializer(), params)
 
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->

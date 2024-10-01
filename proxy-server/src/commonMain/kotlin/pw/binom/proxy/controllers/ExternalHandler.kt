@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
@@ -6,6 +6,9 @@ import pw.binom.logger.Logger
 import pw.binom.Urls
 import pw.binom.strong.inject
 
+/**
+ * Принимает входящие подключение из внешней сети
+ */
 class ExternalHandler : HttpHandler {
     private val clientControlHandler by inject<ClientControlHandler>()
     private val clientTransportTcpHandler by inject<ClientTransportTcpHandler>()

@@ -1,5 +1,7 @@
 package pw.binom.gateway.services
 
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import pw.binom.*
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
@@ -72,7 +74,9 @@ class ChannelService {
             channelsLock.synchronize {
                 channelBehaviors[channelId] = behavior
             }
-            behavior.run()
+            GlobalScope.launch(networkManager) {
+                behavior.run()
+            }
         }
     }
 

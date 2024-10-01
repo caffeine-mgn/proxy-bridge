@@ -1,17 +1,17 @@
-package pw.binom.proxy.server
+package pw.binom.proxy.services
 
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServer2
 import pw.binom.logger.Logger
 import pw.binom.logger.infoSync
-import pw.binom.proxy.server.handlers.ExternalHandler
-import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.controllers.ExternalHandler
+import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.strong.inject
 
 class ExternalWebServerService : AbstractWebServerService() {
     private val logger by Logger.ofThisOrGlobal
 
-    private val properties by inject<RuntimeClientProperties>()
+    private val properties by inject<ProxyProperties>()
 
     override val handler: HttpHandler
         get() = externalHandler

@@ -1,4 +1,4 @@
-package pw.binom.proxy.server
+package pw.binom.proxy
 
 object MainJvm {
     @JvmStatic

@@ -7,7 +7,7 @@ plugins {
     id("org.hidetake.ssh") version "2.11.2"
 //    id("pw.binom.strong") version "1.0.0-SNAPSHOT"
 }
-val nativeEntryPoint = "pw.binom.proxy.server.main"
+val nativeEntryPoint = "pw.binom.proxy.main"
 description = "proxy-node"
 kotlin {
     linuxX64 {
@@ -66,7 +66,7 @@ tasks {
         exclude("META-INF/*.RSA")
         exclude("META-INF/*.txt")
         manifest {
-            attributes("Main-Class" to "pw.binom.proxy.server.MainJvm")
+            attributes("Main-Class" to "pw.binom.proxy.MainJvm")
         }
     }
 }

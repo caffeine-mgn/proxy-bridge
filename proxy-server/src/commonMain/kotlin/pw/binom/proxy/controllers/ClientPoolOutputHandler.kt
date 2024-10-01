@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
 import pw.binom.io.http.Encoding
 import pw.binom.io.http.Headers

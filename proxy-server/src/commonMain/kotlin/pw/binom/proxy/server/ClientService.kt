@@ -12,18 +12,19 @@ import pw.binom.logger.info
 import pw.binom.proxy.CompositeChannelManager
 import pw.binom.proxy.ControlClient
 import pw.binom.extract
-import pw.binom.proxy.server.exceptions.ClientMissingException
-import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.exceptions.ClientMissingException
+import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+@Deprecated(message = "Not use it")
 class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
     private var existClient: ControlClient? = null
     private val waters = HashSet<Water>()
     private val waterLock = SpinLock()
-    private val properties by inject<RuntimeClientProperties>()
+    private val properties by inject<ProxyProperties>()
     private val logger by Logger.ofThisOrGlobal
     private val connectionWater =
         HashMap<Int, CancellableContinuation<Pair<AsyncChannel, CancellableContinuation<Unit>>>>()

@@ -1,10 +1,12 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
-import pw.binom.proxy.server.PrometheusController
 import pw.binom.strong.inject
 
+/**
+ * Принимает входящие подключения из внутренней сети
+ */
 class InternalHandler : HttpHandler {
     private val proxyHandler by inject<ProxyHandler>()
     private val serviceInfoHandler by inject<ServiceInfoHandler>()

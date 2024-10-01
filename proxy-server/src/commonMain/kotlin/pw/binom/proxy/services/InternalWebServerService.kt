@@ -1,15 +1,15 @@
-package pw.binom.proxy.server
+package pw.binom.proxy.services
 
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServer2
 import pw.binom.logger.Logger
 import pw.binom.logger.infoSync
-import pw.binom.proxy.server.handlers.InternalHandler
-import pw.binom.proxy.server.properties.RuntimeClientProperties
+import pw.binom.proxy.controllers.InternalHandler
+import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.strong.inject
 
 class InternalWebServerService : AbstractWebServerService() {
-    private val properties by inject<RuntimeClientProperties>()
+    private val properties by inject<ProxyProperties>()
     private val internalHandler by inject<InternalHandler>()
     private val logger by Logger.ofThisOrGlobal
     override val handler: HttpHandler

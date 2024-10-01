@@ -37,12 +37,15 @@ class ProxyClientWebSocket(
 
     override suspend fun receiveCommand(): ControlRequestDto =
         try {
-            connection.read().useAsync {
+            logger.info("Try to read command...")
+            val cmd = connection.read().useAsync {
                 val len = it.readInt(cmdBuffer)
                 val data = it.readByteArray(len, cmdBuffer)
                 Dto.decode(ControlRequestDto.serializer(), data)
             }
-        } catch (e:WebSocketClosedException){
+            logger.info("Command was read")
+            cmd
+        } catch (e: WebSocketClosedException) {
             throw ClosedException()
         }
 

@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.services
+package pw.binom.proxy.services
 
 import kotlinx.coroutines.isActive
 import pw.binom.atomic.AtomicBoolean
@@ -77,7 +77,7 @@ class GatewayClientService : GatewayClient, MetricProvider {
 
     override suspend fun sendCmd(request: ControlRequestDto) {
         logger.info("Send cmd $request")
-        getClient().sendCmd(request)
+        val client = getClient().sendCmd(request)
     }
 
     override suspend fun receiveEvent(): ControlEventDto {

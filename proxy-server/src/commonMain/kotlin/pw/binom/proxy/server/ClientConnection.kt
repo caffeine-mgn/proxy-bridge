@@ -19,6 +19,7 @@ import pw.binom.proxy.ControlResponseCodes
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+@Deprecated(message = "Not use it")
 class ClientConnection(
     private val connection: WebSocketConnection,
     private val logger: Logger,

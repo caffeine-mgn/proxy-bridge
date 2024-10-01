@@ -1,4 +1,4 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
 import pw.binom.io.http.Headers
 import pw.binom.io.http.forEachHeader
@@ -14,13 +14,13 @@ import pw.binom.proxy.ChannelId
 import pw.binom.Urls
 import pw.binom.proxy.channels.WSSpitChannel
 import pw.binom.proxy.server.ClientService
-import pw.binom.proxy.server.properties.RuntimeClientProperties
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.properties.ProxyProperties
+import pw.binom.proxy.services.ServerControlService
 import pw.binom.strong.inject
 
 class ClientTransportWsHandler : HttpHandler, MetricProvider {
     private val clientService by inject<ClientService>()
-    private val runtimeClientProperties by inject<RuntimeClientProperties>()
+    private val proxyProperties by inject<ProxyProperties>()
     private val logger by Logger.ofThisOrGlobal
     private val metricProvider = MetricProviderImpl()
     override val metrics: List<MetricUnit> by metricProvider
@@ -58,7 +58,7 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
         try {
             val channel = WSSpitChannel(
                 id = ChannelId(id),
-                connection = exchange.acceptWebsocket(bufferSize = runtimeClientProperties.bufferSize),
+                connection = exchange.acceptWebsocket(bufferSize = proxyProperties.bufferSize),
                 logger = Logger.getLogger("SERVER")
             )
             controlService.newChannel(channel)

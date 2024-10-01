@@ -1,5 +1,6 @@
-package pw.binom.proxy.server.handlers
+package pw.binom.proxy.controllers
 
+import pw.binom.exceptions.TimeoutException
 import pw.binom.gateway.GatewayClient
 import pw.binom.io.AsyncChannel
 import pw.binom.io.http.Headers
@@ -7,6 +8,8 @@ import pw.binom.io.http.headersOf
 import pw.binom.io.httpClient.BaseHttpClient
 import pw.binom.io.httpClient.ConnectionFactory
 import pw.binom.io.httpClient.RequestHook
+import pw.binom.io.httpClient.protocol.ConnectFactory2
+import pw.binom.io.httpClient.protocol.ProtocolSelector
 import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
 import pw.binom.io.httpServer.HttpHandler
@@ -20,16 +23,16 @@ import pw.binom.network.NetworkManager
 import pw.binom.proxy.behaviors.TcpBridgeBehavior
 import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.server.ProxedFactory
-import pw.binom.proxy.server.properties.RuntimeClientProperties
-import pw.binom.proxy.server.SingleProtocolSelector
-import pw.binom.proxy.server.exceptions.ClientMissingException
-import pw.binom.proxy.server.services.ServerControlService
+import pw.binom.proxy.properties.ProxyProperties
+import pw.binom.proxy.exceptions.ClientMissingException
+import pw.binom.proxy.services.ServerControlService
 import pw.binom.strong.inject
+import pw.binom.url.URL
 
 class ProxyHandler : HttpHandler, MetricProvider {
     private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
-    private val runtimeProperties by inject<RuntimeClientProperties>()
+    private val runtimeProperties by inject<ProxyProperties>()
     private val controlService by inject<ServerControlService>()
     private val gatewayClient by inject<GatewayClient>()
     private val logger by Logger.ofThisOrGlobal
@@ -42,6 +45,10 @@ class ProxyHandler : HttpHandler, MetricProvider {
             "CONNECT" -> tcp(exchange)
             else -> httpRequest(exchange)
         }
+    }
+
+    class SingleProtocolSelector(val factory: ConnectFactory2) : ProtocolSelector {
+        override fun find(url: URL) = factory
     }
 
     val httpClient by lazy {
@@ -127,6 +134,10 @@ class ProxyHandler : HttpHandler, MetricProvider {
                     host = host,
                     port = port,
                 )
+            } catch (e: TimeoutException) {
+                logger.info("Timeout connect to $host:$port")
+                exchange.startResponse(504, headersOf(Headers.CONNECTION to Headers.CLOSE))
+                return
             } catch (e: ClientMissingException) {
                 exchange.startResponse(404, headersOf(Headers.CONNECTION to Headers.CLOSE))
                 return

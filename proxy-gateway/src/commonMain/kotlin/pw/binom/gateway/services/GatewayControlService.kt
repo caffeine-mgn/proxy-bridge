@@ -35,7 +35,10 @@ class GatewayControlService {
                 val channelId = cmd.emmitChannel!!.id
                 val type = cmd.emmitChannel!!.type
                 try {
-                    channelService.createChannel(channelId = channelId, type = type)
+                    logger.info("Emitting channel $channelId")
+                    val e = channelService.createChannel(channelId = channelId, type = type)
+                    logger.info("Channel was emitted")
+                    e
                 } catch (e: Throwable) {
                     proxyClient.sendEvent(
                         ControlEventDto(
