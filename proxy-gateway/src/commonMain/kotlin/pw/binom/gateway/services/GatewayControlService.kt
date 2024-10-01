@@ -53,11 +53,22 @@ class GatewayControlService {
             }
 
             cmd.proxyConnect != null -> {
-                channelService.connect(
-                    channelId = cmd.proxyConnect!!.id,
-                    host = cmd.proxyConnect!!.host,
-                    port = cmd.proxyConnect!!.port
-                )
+                try {
+                    channelService.connect(
+                        channelId = cmd.proxyConnect!!.id,
+                        host = cmd.proxyConnect!!.host,
+                        port = cmd.proxyConnect!!.port
+                    )
+                } catch (e: Throwable) {
+                    proxyClient.sendEvent(
+                        ControlEventDto(
+                            proxyError = ControlEventDto.ProxyError(
+                                channelId = cmd.proxyConnect!!.id,
+                                msg = e.message ?: e.toString()
+                            )
+                        )
+                    )
+                }
             }
 
             cmd.resetChannel != null -> {

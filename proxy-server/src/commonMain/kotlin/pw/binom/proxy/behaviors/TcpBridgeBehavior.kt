@@ -2,6 +2,7 @@ package pw.binom.proxy.behaviors
 
 import kotlinx.coroutines.Deferred
 import pw.binom.*
+import pw.binom.atomic.AtomicLong
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.gateway.GatewayClient
@@ -13,17 +14,23 @@ class TcpBridgeBehavior private constructor(
     val channel: TransportChannel,
     val tcpChannel: AsyncChannel,
     val client: GatewayClient,
+    val host: String,
+    val port: Int,
 ) : Behavior {
     companion object {
         fun create(
             from: TransportChannel,
             tcp: AsyncChannel,
             client: GatewayClient,
+            host: String,
+            port: Int,
         ): TcpBridgeBehavior =
             TcpBridgeBehavior(
                 channel = from,
                 tcpChannel = tcp,
                 client = client,
+                host = host,
+                port = port,
             )
     }
 
@@ -31,6 +38,12 @@ class TcpBridgeBehavior private constructor(
     private var leftJob: Deferred<StreamBridge.ReasonForStopping>? = null
     private var rightJob: Deferred<StreamBridge.ReasonForStopping>? = null
     private var remoteInterrupted = false
+
+    override val description
+        get() = "tcp-$host:$port ${input.getValue()}/${output.getValue()}"
+
+    private val input = AtomicLong(0)
+    private val output = AtomicLong(0)
 
     override suspend fun run() {
         lock.lock()
@@ -42,6 +55,12 @@ class TcpBridgeBehavior private constructor(
             rightProvider = { rightJob = it },
             exceptionHappened = { lock.unlock() },
             syncStarted = { lock.unlock() },
+            transferToLeft = {
+                input.addAndGet(it.toLong())
+            },
+            transferToRight = {
+                output.addAndGet(it.toLong())
+            },
         )
 
         if (remoteInterrupted) {

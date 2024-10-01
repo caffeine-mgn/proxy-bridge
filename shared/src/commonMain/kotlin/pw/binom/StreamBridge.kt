@@ -49,6 +49,7 @@ object StreamBridge {
         right: AsyncOutput,
         buffer: ByteBuffer,
         sizeProvider: ((ULong) -> Unit) = {},
+        transferProvider: ((Int) -> Unit) = {},
         logger: Logger = StreamBridge.logger,
     ): ReasonForStopping {
 //        logger.info("$left->$right")
@@ -79,6 +80,7 @@ object StreamBridge {
 //                delay(0.1.seconds)
                 val wroteSize = right.writeFully(buffer)
                 length += wroteSize.toULong()
+                transferProvider(wroteSize)
                 logger.info("send $wroteSize")
 //                logger.info("right write ok ${right.hashCode()}")
             } catch (e: Throwable) {
@@ -102,6 +104,8 @@ object StreamBridge {
         syncStarted: (() -> Unit)? = null,
         exceptionHappened: (() -> Unit)? = null,
         logger: Logger = StreamBridge.logger,
+        transferToLeft: ((Int) -> Unit)? = null,
+        transferToRight: ((Int) -> Unit)? = null,
     ) = coroutineScope {
         val bufferLeftToRight = ByteBuffer(bufferSize)
         val bufferRightToLeft = ByteBuffer(bufferSize)
@@ -119,6 +123,9 @@ object StreamBridge {
                             leftToRightSizeProvider?.invoke(size)
                         },
                         logger = Logger.getLogger("${logger.pkg} $left->$right"),
+                        transferProvider = {
+                            transferToRight?.invoke(it)
+                        }
                     )
                     rightToLeft?.cancel(ChannelBreak("Finish copy $left->$right"))
                     lock.synchronize {
@@ -138,6 +145,9 @@ object StreamBridge {
                             rightToLeftSizeProvider?.invoke(size)
                         },
                         logger = Logger.getLogger("${logger.pkg} $right->$left"),
+                        transferProvider = {
+                            transferToLeft?.invoke(it)
+                        }
                     )
                     leftToRight.cancel(ChannelBreak("Finish copy $right->$left"))
                     lock.synchronize {

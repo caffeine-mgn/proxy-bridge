@@ -13,6 +13,9 @@ import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.logger.Logger
 import pw.binom.logger.info
+import pw.binom.metric.MetricProvider
+import pw.binom.metric.MetricProviderImpl
+import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
 import pw.binom.proxy.behaviors.TcpBridgeBehavior
 import pw.binom.proxy.server.ClientService
@@ -23,13 +26,16 @@ import pw.binom.proxy.server.exceptions.ClientMissingException
 import pw.binom.proxy.server.services.ServerControlService
 import pw.binom.strong.inject
 
-class ProxyHandler : HttpHandler {
+class ProxyHandler : HttpHandler, MetricProvider {
     private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<RuntimeClientProperties>()
     private val controlService by inject<ServerControlService>()
     private val gatewayClient by inject<GatewayClient>()
     private val logger by Logger.ofThisOrGlobal
+    private val metricProvider = MetricProviderImpl()
+    override val metrics: List<MetricUnit> by metricProvider
+    private val connectCount = metricProvider.gaugeLong(name = "proxy_connect_count")
 
     override suspend fun handle(exchange: HttpServerExchange) {
         when (exchange.requestMethod) {
@@ -140,11 +146,20 @@ class ProxyHandler : HttpHandler {
             from = channel,
             tcp = incomeChannel,
             client = gatewayClient,
+            host = host,
+            port = port,
         )
-        controlService.assignBehavior(channel = channel, behavior = behavior)
+        connectCount.inc()
+        try {
+            controlService.assignBehavior(channel = channel, behavior = behavior)
+        } catch (e: Throwable) {
+            connectCount.dec()
+            throw e
+        }
         try {
             behavior.run()
         } finally {
+            connectCount.dec()
             controlService.sendToPool(channel)
         }
         /*

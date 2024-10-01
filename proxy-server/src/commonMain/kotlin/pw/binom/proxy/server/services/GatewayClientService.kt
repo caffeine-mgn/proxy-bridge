@@ -9,6 +9,9 @@ import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.infoSync
+import pw.binom.metric.MetricProvider
+import pw.binom.metric.MetricProviderImpl
+import pw.binom.metric.MetricUnit
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
 import pw.binom.strong.BeanLifeCycle
@@ -16,12 +19,21 @@ import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
 import kotlin.coroutines.coroutineContext
 
-class GatewayClientService : GatewayClient {
+class GatewayClientService : GatewayClient, MetricProvider {
 
     private var lastConnection: GatewayClient? = null
     private val eventSystem by inject<EventSystem>()
     private val logger by Logger.ofThisOrGlobal
     private val closing = AtomicBoolean(false)
+    private val metricProvider = MetricProviderImpl()
+    override val metrics: List<MetricUnit> by metricProvider
+    private val hasActiveConnect = metricProvider.gaugeLong("active_gateway") {
+        if (lastConnection != null) {
+            1L
+        } else {
+            0L
+        }
+    }
 
     init {
         BeanLifeCycle.preDestroy {
@@ -49,6 +61,8 @@ class GatewayClientService : GatewayClient {
                 eventProcessing(event)
             }
         } catch (e: Throwable) {
+            lastConnection?.asyncCloseAnyway()
+            lastConnection = null
             logger.info("Error on control processing")
             throw e
         }

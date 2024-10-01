@@ -71,35 +71,38 @@ tasks {
         exclude {
             it.name.endsWith(".DSA") || it.name.endsWith(".SF") || it.name.endsWith(".kotlin_module")
         }
+        exclude("META-INF/*.SF")
+        exclude("META-INF/*.DSA")
+        exclude("META-INF/*.RSA")
+        exclude("META-INF/*.txt")
         manifest {
-            attributes("Main-Class" to "pw.binom.gateway.MainKt")
+            attributes("Main-Class" to "pw.binom.gateway.MainJvm")
         }
     }
     val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
     register("deploy2", Copy::class.java) {
-        dependsOn(linkMingw)
+//        dependsOn(linkMingw)
         dependsOn(shadowJar)
         from(
-            file("build/bin/mingwX64/releaseExecutable"),
+//            file("build/bin/mingwX64/releaseExecutable"),
             file("build/libs/proxy-client.jar")
         )
         into(file("/home/subochev/Nextcloud/tmp/dddd"))
     }
     val batFile = buildDir.resolve("run-jvm.bat")
-    val genBat =
-        register("genBat") {
-            outputs.file(batFile)
-            doLast {
-                batFile
-                    .writeText(
-                        "C:\\Users\\SubochevAV\\jvms\\jdk-17.0.2\\bin\\java -jar proxy-client.jar -Durl=http://r2d3.entry.binom.pw -Dproxy.address=webproxy.isb:8080 -Dproxy.auth.basicAuth.user=subochevav -Dproxy.auth.basicAuth.password=droVosek3192 -DtransportType=WS"
-                    )
-            }
+    val generateBatchFile by creating {
+        outputs.file(batFile)
+        doLast {
+            batFile
+                .writeText(
+                    "C:\\Users\\SubochevAV\\jvms\\jdk-17.0.2\\bin\\java -jar proxy-client.jar"
+                )
         }
+    }
 
-    register("deploy") {
+    val deploy by creating {
         dependsOn(shadowJar)
-        dependsOn(genBat)
+        dependsOn(generateBatchFile)
         inputs.file(shadowJar.archiveFile)
         inputs.file(batFile)
         doLast {

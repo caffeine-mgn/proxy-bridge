@@ -5,15 +5,19 @@ import pw.binom.*
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.date.DateTime
-import pw.binom.io.*
+import pw.binom.io.ClosedException
+import pw.binom.io.EOFException
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.logger.infoSync
-import pw.binom.proxy.*
+import pw.binom.metric.MetricProvider
+import pw.binom.metric.MetricProviderImpl
+import pw.binom.metric.MetricUnit
+import pw.binom.proxy.ChannelId
 import pw.binom.proxy.channels.TransportChannel
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
+import pw.binom.proxy.server.dto.ChannelStateInfo
 import pw.binom.proxy.server.properties.RuntimeClientProperties
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
@@ -23,7 +27,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration.Companion.seconds
 
-class ServerControlService {
+class ServerControlService : MetricProvider {
 
     interface ChannelState {
         val channel: TransportChannel
@@ -32,10 +36,23 @@ class ServerControlService {
         val lastTouch: DateTime
     }
 
+    private val metricProvider = MetricProviderImpl()
+    override val metrics: List<MetricUnit> by metricProvider
     private val logger by Logger.ofThisOrGlobal
     private val runtimeClientProperties by inject<RuntimeClientProperties>()
     private val gatewayClientService by inject<GatewayClientService>()
     private val eventSystem by inject<EventSystem>()
+    private val channelCount = metricProvider.gaugeLong(name = "channel_total") {
+        channelsLock.synchronize {
+            channels.size.toLong()
+        }
+    }
+    private val activeChannelCount = metricProvider.gaugeLong(name = "channel_active") {
+        channelsLock.synchronize {
+            channels.count { it.value.behavior != null }.toLong()
+        }
+    }
+    private val timeoutCounter = metricProvider.counterLong("channel_timeout_counter")
 
     private var job: Job? = null
 
@@ -121,6 +138,15 @@ class ServerControlService {
         }
     }
 
+    fun getChannelsState() = channelsLock.synchronize {
+        channels.map {
+            ChannelStateInfo(
+                id = it.key,
+                behavior = it.value.behavior?.description
+            )
+        }
+    }
+
     fun getChannels() = channelsLock.synchronize {
         ArrayList<ChannelState>(channels.values)
     }
@@ -195,7 +221,7 @@ class ServerControlService {
             )
         )
         logger.info("Wait new channel $newChannelId...")
-        return withTimeoutOrNull(10.seconds) {
+        val result = withTimeoutOrNull(10.seconds) {
             val e = suspendCancellableCoroutine {
                 it.invokeOnCancellation {
                     channelWaterLock.synchronize { channelWater.remove(newChannelId) }
@@ -204,7 +230,12 @@ class ServerControlService {
             }
             logger.info("Channel got $newChannelId")
             e
-        } ?: throw RuntimeException("Timeout waiting a channel")
+        }
+        if (result == null) {
+            timeoutCounter.inc()
+            throw RuntimeException("Timeout waiting a channel")
+        }
+        return result
     }
 
     /**

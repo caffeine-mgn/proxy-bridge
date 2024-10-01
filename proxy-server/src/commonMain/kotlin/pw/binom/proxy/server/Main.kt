@@ -32,6 +32,7 @@ suspend fun startProxyNode(
             it.bean { ClientService() }
             it.bean { ProxyHandler() }
             it.bean { LocalEventSystem() }
+            it.bean { ServiceInfoHandler() }
             it.bean { InternalHandler() }
             it.bean { ClientPoolOutputHandler() }
             it.bean { ClientPoolInputHandler() }

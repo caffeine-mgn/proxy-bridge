@@ -1,9 +1,6 @@
 package pw.binom.gateway.behaviors
 
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
 import pw.binom.*
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
@@ -19,6 +16,8 @@ class ConnectTcpBehavior private constructor(
     private val from: TransportChannel,
     private val tcpChannel: AsyncChannel,
     private val client: ProxyClient,
+    val host: String,
+    val port: Int,
 ) : Behavior {
     companion object {
         suspend fun start(
@@ -72,7 +71,13 @@ class ConnectTcpBehavior private constructor(
                     )
                 )
             )
-            return ConnectTcpBehavior(tcpChannel = tcpChannel, from = from, client = client)
+            return ConnectTcpBehavior(
+                tcpChannel = tcpChannel,
+                from = from,
+                client = client,
+                host = host,
+                port = port,
+            )
         }
     }
 
@@ -80,6 +85,8 @@ class ConnectTcpBehavior private constructor(
     private var leftJob: Deferred<StreamBridge.ReasonForStopping>? = null
     private var rightJob: Deferred<StreamBridge.ReasonForStopping>? = null
     private var remoteInterrupted = false
+    override val description: String
+        get() = "tcp-$host:$port"
 
 
     override suspend fun run() {
