@@ -50,67 +50,17 @@ class ServerControlService : MetricProvider {
     private val networkManager by inject<NetworkManager>()
     private val gatewayClientService by inject<GatewayClientService>()
     private val eventSystem by inject<EventSystem>()
-    private var lastLock2 by AtomicReference<String?>(null)
-    private var lastLock3 by AtomicReference<String?>(null)
 
-    private inline fun SpinLock.lock(name: String) {
-        if (!lock(10.seconds)) {
-            logger.infoSync("Can't lock $name")
-            lock()
-        }
-    }
-
-    @OptIn(ExperimentalContracts::class)
-    private inline fun <T> SpinLock.synchronize2(func: () -> T): T {
-        contract {
-            callsInPlace(func, InvocationKind.EXACTLY_ONCE)
-        }
-        try {
-            val s = Throwable().stackTraceToString()
-            if (!lock(10.seconds)) {
-                logger.infoSync("111Error! Can't lock. Already locked")
-                logger.infoSync("111Current:\n$s")
-                logger.infoSync("111Lock:\n$lastLock2")
-                lock()
-            }
-            lastLock2 = s
-            return func()
-        } finally {
-            lastLock2 = null
-            unlock()
-        }
-    }
-
-    @OptIn(ExperimentalContracts::class)
-    private inline fun <T> SpinLock.synchronize3(func: () -> T): T {
-        contract {
-            callsInPlace(func, InvocationKind.EXACTLY_ONCE)
-        }
-        try {
-            val s = Throwable().stackTraceToString()
-            if (!lock(10.seconds)) {
-                logger.infoSync("222Error! Can't lock. Already locked")
-                logger.infoSync("222Current:\n$s")
-                logger.infoSync("222Lock:\n$lastLock3")
-                lock()
-            }
-            lastLock3 = s
-            return func()
-        } finally {
-            lastLock3 = null
-            unlock()
-        }
-    }
 
     private val channelCount = metricProvider.gaugeLong(name = "channel_total") {
-        channelsLock.synchronize2 {
+        channelsLock.synchronize {
             channels.size.toLong()
         }
     }
     private val activeChannelCount = metricProvider.gaugeLong(name = "channel_active") {
-        channelsLock.synchronize2 {
+        channelsLock.synchronize {
             channels.count {
-                it.value.locked.synchronize3 {
+                it.value.locked.synchronize {
                     it.value.behavior != null
                 }
             }
@@ -127,7 +77,7 @@ class ServerControlService : MetricProvider {
                     while (isActive) {
                         delay(30.seconds)
                         val forRemove = ArrayList<TransportChannel>()
-                        channelsLock.synchronize2 {
+                        channelsLock.synchronize {
                             val it = channels.iterator()
                             while (it.hasNext()) {
                                 val e = it.next()
@@ -195,7 +145,7 @@ class ServerControlService : MetricProvider {
     private val channelsLock = SpinLock()
 
     suspend fun forceClose() {
-        channelsLock.synchronize2 {
+        channelsLock.synchronize {
             val set = channels.map { it.value.channel }
             channels.clear()
             set
@@ -204,16 +154,16 @@ class ServerControlService : MetricProvider {
         }
     }
 
-    fun getChannelsState() = channelsLock.synchronize2 {
+    fun getChannelsState() = channelsLock.synchronize {
         channels.map {
             ChannelStateInfo(
                 id = it.key,
-                behavior = it.value.locked.synchronize3 { it.value.behavior?.description },
+                behavior = it.value.locked.synchronize { it.value.behavior?.description },
             )
         }
     }
 
-    fun getChannels() = channelsLock.synchronize2 {
+    fun getChannels() = channelsLock.synchronize {
         ArrayList<ChannelState>(channels.values)
     }
 
@@ -251,10 +201,10 @@ class ServerControlService : MetricProvider {
             return
         }
         val wrapper = ChannelWrapper(channel)
-        channelsLock.synchronize2 { channels[channel.id] = wrapper }
+        channelsLock.synchronize { channels[channel.id] = wrapper }
         val context = coroutineContext
         water.resume(wrapper) { ex, value, ctx ->
-            channelsLock.synchronize2 { channels.remove(channel.id) }
+            channelsLock.synchronize { channels.remove(channel.id) }
             GlobalScope.launch(context + CoroutineName("Closing channel ${channel.id}")) {
                 channel.asyncCloseAnyway()
             }
@@ -262,16 +212,16 @@ class ServerControlService : MetricProvider {
     }
 
     fun channelClosed(channelId: ChannelId) {
-        channelsLock.synchronize2 { channels.remove(channelId) }
+        channelsLock.synchronize { channels.remove(channelId) }
         channelWaterLock.synchronize { channelWater.remove(channelId) }?.resumeWithException(ClosedException())
         proxyWaterLock.synchronize { proxyWater.remove(channelId) }?.resumeWithException(ClosedException())
     }
 
     private suspend fun getOrCreateIdleChannel(): ChannelWrapper {
         val existChannel =
-            channelsLock.synchronize2 {
+            channelsLock.synchronize {
                 channels.values.firstOrNull {
-                    it.locked.synchronize3 {
+                    it.locked.synchronize {
                         it.behavior == null && !it.isBusy
                     }
                 }
@@ -330,7 +280,7 @@ class ServerControlService : MetricProvider {
             logger.info("Wait until gateway connect to $host:$port...")
             suspendCancellableCoroutine {
                 it.invokeOnCancellation {
-                    channel.locked.synchronize3 {
+                    channel.locked.synchronize {
                         channel.isBusy = false
                     }
                     proxyWaterLock.synchronize { proxyWater.remove(channel.channel.id) }
@@ -341,7 +291,7 @@ class ServerControlService : MetricProvider {
             return channel.channel
         } catch (e: Throwable) {
             logger.info("Gateway can't connect to $host:$port!")
-            channel.locked.synchronize3 {
+            channel.locked.synchronize {
                 channel.isBusy = false
             }
             throw e
@@ -349,10 +299,10 @@ class ServerControlService : MetricProvider {
     }
 
     fun assignBehavior(channel: TransportChannel, behavior: Behavior) {
-        val wrapper = channelsLock.synchronize2 {
+        val wrapper = channelsLock.synchronize {
             channels[channel.id] ?: throw IllegalStateException("Channel ${channel.id} not found")
         }
-        wrapper.locked.synchronize3 {
+        wrapper.locked.synchronize {
             wrapper.behavior = behavior
             wrapper.isBusy = false
         }
@@ -370,9 +320,9 @@ class ServerControlService : MetricProvider {
                 val msg = eventDto.proxyError!!.msg
                 proxyWaterLock.synchronize { proxyWater.remove(channelId) }
                     ?.resumeWithException(msg?.let { RuntimeException(it) } ?: UnknownHostException())
-                channelsLock.synchronize2 { channels[channelId] }
+                channelsLock.synchronize { channels[channelId] }
                     ?.let {
-                        it.locked.synchronize3 {
+                        it.locked.synchronize {
                             it.isBusy = false
                         }
                     }
@@ -384,7 +334,7 @@ class ServerControlService : MetricProvider {
                 if (channel != null) {
                     proxyWaterLock.synchronize { proxyWater.remove(channelId) }
                         ?.resumeWithException(EOFException())
-                    channel.locked.synchronize3 {
+                    channel.locked.synchronize {
                         channel.isBusy = false
                     }
                     returnChannelToPool(channel)
@@ -401,7 +351,7 @@ class ServerControlService : MetricProvider {
     }
 
     private suspend fun returnChannelToPool(channelWrapper: ChannelWrapper) {
-        channelWrapper.locked.synchronize3 {
+        channelWrapper.locked.synchronize {
             val behavior = channelWrapper.behavior
             channelWrapper.behavior = null
             channelWrapper.isBusy = false
@@ -412,10 +362,10 @@ class ServerControlService : MetricProvider {
 
     suspend fun sendToPool(channel: TransportChannel) {
         if (channel.isClosed) {
-            channelsLock.synchronize2 { channels.remove(channel.id) }
+            channelsLock.synchronize { channels.remove(channel.id) }
             return
         }
-        val channelWrapper = channelsLock.synchronize2 { channels[channel.id] }
+        val channelWrapper = channelsLock.synchronize { channels[channel.id] }
         if (channelWrapper == null) {
             channel.asyncClose()
             return
