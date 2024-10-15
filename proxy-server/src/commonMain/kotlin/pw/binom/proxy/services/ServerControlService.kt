@@ -122,7 +122,13 @@ class ServerControlService : MetricProvider {
     private val channels = HashMap<ChannelId, ChannelWrapper>()
     private var channelIdIterator = 0
     private val proxyWater = HashMap<ChannelId, CancellableContinuation<Unit>>()
-    private val channelWater = HashMap<ChannelId, CancellableContinuation<ChannelWrapper>>()
+    private val channelWater = HashMap<ChannelId, ChannelWater>()
+
+    private class ChannelWater(
+        val con: CancellableContinuation<ChannelWrapper>,
+    ) {
+        val startWait = DateTime.now
+    }
 
     /**
      * Lock for [channelIdIterator]
@@ -194,6 +200,25 @@ class ServerControlService : MetricProvider {
         }
     }
 
+    suspend fun channelFailShot(id: ChannelId) {
+        val needRetry = channelWaterLock.synchronize {
+            val water = channelWater[id] ?: return
+            DateTime.now - water.startWait < 10.seconds
+        }
+
+        if (needRetry) {
+            logger.info("Send retry for channel $id")
+            gatewayClientService.sendCmd(
+                ControlRequestDto(
+                    emmitChannel = ControlRequestDto.EmmitChannel(
+                        id = id,
+                        type = TransportType.WS_SPLIT,
+                    )
+                )
+            )
+        }
+    }
+
     suspend fun newChannel(channel: TransportChannel) {
         val water = channelWaterLock.synchronize { channelWater.remove(channel.id) }
         if (water == null) {
@@ -203,7 +228,7 @@ class ServerControlService : MetricProvider {
         val wrapper = ChannelWrapper(channel)
         channelsLock.synchronize { channels[channel.id] = wrapper }
         val context = coroutineContext
-        water.resume(wrapper) { ex, value, ctx ->
+        water.con.resume(wrapper) { ex, value, ctx ->
             channelsLock.synchronize { channels.remove(channel.id) }
             GlobalScope.launch(context + CoroutineName("Closing channel ${channel.id}")) {
                 channel.asyncCloseAnyway()
@@ -213,7 +238,7 @@ class ServerControlService : MetricProvider {
 
     fun channelClosed(channelId: ChannelId) {
         channelsLock.synchronize { channels.remove(channelId) }
-        channelWaterLock.synchronize { channelWater.remove(channelId) }?.resumeWithException(ClosedException())
+        channelWaterLock.synchronize { channelWater.remove(channelId) }?.con?.resumeWithException(ClosedException())
         proxyWaterLock.synchronize { proxyWater.remove(channelId) }?.resumeWithException(ClosedException())
     }
 
@@ -245,7 +270,7 @@ class ServerControlService : MetricProvider {
                 it.invokeOnCancellation {
                     channelWaterLock.synchronize { channelWater.remove(newChannelId) }
                 }
-                channelWaterLock.synchronize { channelWater[newChannelId] = it }
+                channelWaterLock.synchronize { channelWater[newChannelId] = ChannelWater(it) }
             }
             logger.info("Channel got $newChannelId")
             e
@@ -345,6 +370,7 @@ class ServerControlService : MetricProvider {
                 val channelId = eventDto.channelEmmitError!!.channelId
                 val msg = eventDto.channelEmmitError!!.msg
                 channelWaterLock.synchronize { channelWater.remove(channelId) }
+                    ?.con
                     ?.resumeWithException(RuntimeException(msg ?: "Unknown error"))
             }
         }

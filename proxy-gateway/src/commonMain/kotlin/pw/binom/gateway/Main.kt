@@ -122,7 +122,7 @@ object SysLogger : InternalLog {
 
 fun main(args: Array<String>) {
     Thread {
-        Thread.sleep(1.hours)
+        Thread.sleep(7.hours)
         println("Goodbay. time to die")
         InternalLog.info(file = "main") { "Goodbay. time to die" }
         closed.setValue(true)

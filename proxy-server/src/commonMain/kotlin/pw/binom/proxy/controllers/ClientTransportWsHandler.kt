@@ -27,30 +27,33 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
     private val controlService by inject<ServerControlService>()
     private val controlConnectionCounter = metricProvider.gaugeLong(name = "ws_transport")
     private val connectError = metricProvider.counterLong(name = "ws_transport_error")
+    private val retryChannelCounter = metricProvider.counterLong(name = "ws_transport_retry")
 
     override suspend fun handle(exchange: HttpServerExchange) {
         val id = exchange.getPathVariables(Urls.TRANSPORT_WS)["id"]?.toIntOrNull()
 //        val id = exchange.requestURI.query?.find("id")?.toIntOrNull()
         if (id == null) {
-            exchange.startResponse(401)
+            exchange.startResponse(404)
             connectError.inc()
             return
         }
         val upgrade = exchange.requestHeaders[Headers.UPGRADE]?.lastOrNull()
         if (!upgrade.equals(Headers.WEBSOCKET, ignoreCase = true)) {
-            connectError.inc()
+            retryChannelCounter.inc()
             logger.info("Invalid web socket header!")
-            logger.info("Method: ${exchange.requestMethod}")
+            logger.info("Method: ${exchange.requestMethod} ${exchange.requestURI}")
             logger.info("Headers:")
             exchange.requestHeaders.forEachHeader { key, value ->
                 logger.info("  $key: $value")
             }
             exchange.startResponse(401)
+            controlService.channelFailShot(ChannelId(id))
             return
         }
         if (exchange.requestMethod != "GET") {
             connectError.inc()
             exchange.startResponse(401)
+            controlService.channelFailShot(ChannelId(id))
             return
         }
 
