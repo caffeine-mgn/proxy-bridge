@@ -126,6 +126,7 @@ class ServerControlService : MetricProvider {
 
     private class ChannelWater(
         val con: CancellableContinuation<ChannelWrapper>,
+        var channelId: ChannelId,
     ) {
         val startWait = DateTime.now
     }
@@ -201,22 +202,10 @@ class ServerControlService : MetricProvider {
     }
 
     suspend fun channelFailShot(id: ChannelId) {
-        val needRetry = channelWaterLock.synchronize {
-            val water = channelWater[id] ?: return
-            DateTime.now - water.startWait < 10.seconds
+        val water = channelWaterLock.synchronize {
+            channelWater.remove(id) ?: return
         }
-
-        if (needRetry) {
-            logger.info("Send retry for channel $id")
-            gatewayClientService.sendCmd(
-                ControlRequestDto(
-                    emmitChannel = ControlRequestDto.EmmitChannel(
-                        id = id,
-                        type = TransportType.WS_SPLIT,
-                    )
-                )
-            )
-        }
+        water.con.resumeWithException(RuntimeException("Fail shot $id"))
     }
 
     suspend fun newChannel(channel: TransportChannel) {
@@ -267,10 +256,11 @@ class ServerControlService : MetricProvider {
         logger.info("Wait new channel $newChannelId...")
         val result = withTimeoutOrNull(10.seconds) {
             val e = suspendCancellableCoroutine {
+                val water = ChannelWater(con=it, channelId = newChannelId)
                 it.invokeOnCancellation {
-                    channelWaterLock.synchronize { channelWater.remove(newChannelId) }
+                    channelWaterLock.synchronize { channelWater.remove(water.channelId) }
                 }
-                channelWaterLock.synchronize { channelWater[newChannelId] = ChannelWater(it) }
+                channelWaterLock.synchronize { channelWater[newChannelId] = water }
             }
             logger.info("Channel got $newChannelId")
             e
