@@ -7,4 +7,6 @@ import pw.binom.proxy.ChannelId
 class ChannelStateInfo(
     val id: ChannelId,
     val behavior: String?,
+    val input:Long,
+    val output:Long,
 )

@@ -15,6 +15,8 @@ import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.io.ClosedException
+import pw.binom.io.http.Headers
+import pw.binom.io.httpClient.addHeader
 import pw.binom.logger.info
 import pw.binom.network.NetworkManager
 import pw.binom.strong.BeanLifeCycle
@@ -56,7 +58,13 @@ class ProxyClientService : ProxyClient {
                             logger.info("Try connect to $url")
                             httpClient.connectWebSocket(
                                 uri = url
-                            ).start(bufferSize = runtimeProperties.bufferSize)
+                            ).also {
+                                it.addHeader("X-trace", "ee12b3")
+                                it.addHeader(
+                                    Headers.USER_AGENT,
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.197 Safari/537.36"
+                                )
+                            }.start(bufferSize = runtimeProperties.bufferSize)
                         } catch (e: SocketConnectException) {
                             logger.info(text = "Can't connect to $url. Socket Closed. Retry in ${runtimeProperties.reconnectDelay}")
                             delay(runtimeProperties.reconnectDelay)

@@ -8,4 +8,6 @@ interface TransportChannel : AsyncChannel {
     val id: ChannelId
     var description: String?
     val isClosed: Boolean
+    val input: Long
+    val output: Long
 }

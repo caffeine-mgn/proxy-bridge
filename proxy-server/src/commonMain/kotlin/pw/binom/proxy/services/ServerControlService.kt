@@ -2,7 +2,6 @@ package pw.binom.proxy.services
 
 import kotlinx.coroutines.*
 import pw.binom.*
-import pw.binom.atomic.AtomicReference
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.date.DateTime
@@ -12,7 +11,7 @@ import pw.binom.io.EOFException
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.logger.infoSync
+import pw.binom.logger.warn
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
@@ -26,12 +25,11 @@ import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
-import kotlin.contracts.ExperimentalContracts
-import kotlin.contracts.InvocationKind
-import kotlin.contracts.contract
+import pw.binom.uuid.nextUuid
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class ServerControlService : MetricProvider {
@@ -51,6 +49,8 @@ class ServerControlService : MetricProvider {
     private val gatewayClientService by inject<GatewayClientService>()
     private val eventSystem by inject<EventSystem>()
 
+    private val reemmitCounterSuccess = metricProvider.counterLong("channel_re_emmit_success")
+    private val remitCounterFail = metricProvider.counterLong("channel_re_emmit_fail")
 
     private val channelCount = metricProvider.gaugeLong(name = "channel_total") {
         channelsLock.synchronize {
@@ -166,6 +166,8 @@ class ServerControlService : MetricProvider {
             ChannelStateInfo(
                 id = it.key,
                 behavior = it.value.locked.synchronize { it.value.behavior?.description },
+                output = it.value.channel.output,
+                input = it.value.channel.input,
             )
         }
     }
@@ -205,7 +207,47 @@ class ServerControlService : MetricProvider {
         val water = channelWaterLock.synchronize {
             channelWater.remove(id) ?: return
         }
-        water.con.resumeWithException(RuntimeException("Fail shot $id"))
+        if (DateTime.now - water.startWait < 10.seconds) {
+            try {
+//                val newId = lockForIdIterator.synchronize { channelIdIterator++ }
+                val newId = ChannelId(Random.nextUuid().toShortString())
+                water.channelId = newId
+                gatewayClientService.sendCmd(
+                    ControlRequestDto(
+                        emmitChannel = ControlRequestDto.EmmitChannel(
+                            id = water.channelId,
+                            type = TransportType.WS_SPLIT,
+                        )
+                    )
+                )
+                channelWaterLock.synchronize {
+                    channelWater[water.channelId] = water
+                }
+                reemmitCounterSuccess.inc()
+            } catch (e: Throwable) {
+                remitCounterFail.inc()
+                logger.warn("Can't re-emmit channel. old id: $id, new id: ${water.channelId}")
+                forceCloseChannel(water)
+            }
+        } else {
+            remitCounterFail.inc()
+            forceCloseChannel(water)
+        }
+    }
+
+    private suspend fun forceCloseChannel(water: ChannelWater) {
+        water.con.resumeWithException(RuntimeException("Force close channel ${water.channelId}"))
+        try {
+            gatewayClientService.sendCmd(
+                ControlRequestDto(
+                    closeChannel = ControlRequestDto.CloseChannel(
+                        id = water.channelId,
+                    )
+                )
+            )
+        } catch (e: Throwable) {
+            // Do nothing
+        }
     }
 
     suspend fun newChannel(channel: TransportChannel) {
@@ -244,7 +286,8 @@ class ServerControlService : MetricProvider {
             existChannel.touch()
             return existChannel
         }
-        val newChannelId = ChannelId(lockForIdIterator.synchronize { channelIdIterator++ })
+//        val newChannelId = ChannelId(lockForIdIterator.synchronize { channelIdIterator++ })
+        val newChannelId = ChannelId(Random.nextUuid().toShortString())
         gatewayClientService.sendCmd(
             ControlRequestDto(
                 emmitChannel = ControlRequestDto.EmmitChannel(
@@ -256,7 +299,7 @@ class ServerControlService : MetricProvider {
         logger.info("Wait new channel $newChannelId...")
         val result = withTimeoutOrNull(10.seconds) {
             val e = suspendCancellableCoroutine {
-                val water = ChannelWater(con=it, channelId = newChannelId)
+                val water = ChannelWater(con = it, channelId = newChannelId)
                 it.invokeOnCancellation {
                     channelWaterLock.synchronize { channelWater.remove(water.channelId) }
                 }

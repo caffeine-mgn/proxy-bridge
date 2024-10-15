@@ -47,7 +47,7 @@ class Context : AsyncCloseable {
         }
     }
 
-    fun transport(id: ChannelId = ChannelId(0), func: suspend AsyncChannel.() -> Unit) {
+    fun transport(id: ChannelId = ChannelId(""), func: suspend AsyncChannel.() -> Unit) {
         transportChannel = VirtualTransportChannel.create(id = id, func = func)
     }
 

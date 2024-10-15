@@ -13,6 +13,7 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.ChannelId
 import pw.binom.StreamBridge
+import pw.binom.atomic.AtomicLong
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.proxy.io.copyTo
 import kotlin.coroutines.resume
@@ -26,6 +27,14 @@ class WSSpitChannel(
     override var description: String? = null
     override val isClosed: Boolean
         get() = closed.getValue()
+
+    private val internalInput = AtomicLong(0)
+    private val internalOutput = AtomicLong(0)
+
+    override val input: Long
+        get() = internalInput.getValue()
+    override val output: Long
+        get() = internalOutput.getValue()
 
     private var currentMessage: WebSocketInput? = null
 
@@ -183,6 +192,7 @@ class WSSpitChannel(
                         currentMessage = null
                         continue
                     }
+                    internalInput.addAndGet(result.length.toLong())
                     if (msg.available == 0) {
                         currentMessage = null
                         msg.asyncClose()
@@ -200,7 +210,7 @@ class WSSpitChannel(
         } else {
             logger.info("Send ${data.remaining} bytes")
 //            logger.info("write ${data.toByteArray().toHexString()}")
-            try {
+            val w = try {
                 connection.write(MessageType.BINARY).useAsync {
                     val e = DataTransferSize.ofSize(it.writeFully(data))
                     e
@@ -209,6 +219,10 @@ class WSSpitChannel(
                 asyncCloseAnyway()
                 DataTransferSize.CLOSED
             }
+            if (w.isAvailable) {
+                internalOutput.addAndGet(w.length.toLong())
+            }
+            w
         }
 
 }

@@ -17,6 +17,8 @@ import pw.binom.proxy.ProxyClient
 import pw.binom.proxy.channels.TransportChannel
 import pw.binom.proxy.channels.WSSpitChannel
 import pw.binom.gateway.properties.GatewayRuntimeProperties
+import pw.binom.io.http.Headers
+import pw.binom.io.httpClient.addHeader
 import pw.binom.strong.inject
 
 class ChannelService {
@@ -36,11 +38,16 @@ class ChannelService {
     suspend fun createChannel(channelId: ChannelId, type: TransportType): TransportChannel {
         val newChannel = when (type) {
             TransportType.WS_SPLIT -> {
-                val transportUrl = runtimeProperties.url.addPath(Urls.TRANSPORT_WS.toPath { channelId.id.toString() })
+                val transportUrl = runtimeProperties.url.addPath(Urls.TRANSPORT_WS.toPath { channelId.asString })
                 val transportConnection = httpClient.connectWebSocket(
                     uri = transportUrl,
-                    masking = runtimeProperties.wsMasking,
-                ).start(bufferSize = runtimeProperties.bufferSize)
+                ).also {
+                    it.headers.add("X-trace", channelId.asString)
+                    it.addHeader(
+                        Headers.USER_AGENT,
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.197 Safari/537.36"
+                    )
+                }.start(bufferSize = runtimeProperties.bufferSize)
                 WSSpitChannel(
                     id = channelId,
                     connection = transportConnection.connection,

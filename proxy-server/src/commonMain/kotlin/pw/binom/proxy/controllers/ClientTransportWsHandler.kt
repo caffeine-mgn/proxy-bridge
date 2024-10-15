@@ -30,9 +30,16 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
     private val retryChannelCounter = metricProvider.counterLong(name = "ws_transport_retry")
 
     override suspend fun handle(exchange: HttpServerExchange) {
-        val id = exchange.getPathVariables(Urls.TRANSPORT_WS)["id"]?.toIntOrNull()
+        val id = exchange.requestHeaders["X-trace"]?.firstOrNull()
+//        val id = exchange.getPathVariables(Urls.TRANSPORT_WS)["id"]
 //        val id = exchange.requestURI.query?.find("id")?.toIntOrNull()
         if (id == null) {
+            logger.info("Missing id")
+            logger.info("Method: ${exchange.requestMethod} ${exchange.requestURI}")
+            logger.info("Headers:")
+            exchange.requestHeaders.forEachHeader { key, value ->
+                logger.info("  $key: $value")
+            }
             exchange.startResponse(404)
             connectError.inc()
             return
@@ -46,7 +53,11 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
             exchange.requestHeaders.forEachHeader { key, value ->
                 logger.info("  $key: $value")
             }
-            exchange.startResponse(401)
+            exchange.response().also {
+                it.status = 200
+                it.send("OK")
+            }
+//            exchange.startResponse(200)
             controlService.channelFailShot(ChannelId(id))
             return
         }

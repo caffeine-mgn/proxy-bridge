@@ -5,7 +5,7 @@ import pw.binom.proxy.ChannelId
 import pw.binom.proxy.channels.TransportChannel
 
 object VirtualTransportChannel {
-    fun create(id: ChannelId = ChannelId(0), func: suspend AsyncChannel.() -> Unit): TransportChannel =
+    fun create(id: ChannelId = ChannelId(""), func: suspend AsyncChannel.() -> Unit): TransportChannel =
         VirtualChannelImpl(
             channel = VirtualChannel.create(func),
             id = id

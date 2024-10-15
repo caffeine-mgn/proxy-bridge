@@ -72,7 +72,7 @@ class ConnectTcpBehaviorTest {
     @Test
     fun closeNowTest() = Testing.async {
         Context.use {
-            val channelId = ChannelId(Random.nextInt())
+            val channelId = ChannelId(Random.nextInt().toString())
             transport(channelId) { readByteArray(10) }
             test("send empty") {
                 tcpOneConnect { }
