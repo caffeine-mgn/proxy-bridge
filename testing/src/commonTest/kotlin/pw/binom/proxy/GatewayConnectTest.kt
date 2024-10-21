@@ -8,6 +8,7 @@ import pw.binom.io.socket.InetSocketAddress
 import pw.binom.io.use
 import pw.binom.io.useAsync
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
+import pw.binom.proxy.services.GatewayClientService
 import pw.binom.proxy.services.ServerControlService
 import pw.binom.strong.inject
 import pw.binom.testing.Testing
@@ -22,7 +23,7 @@ class GatewayConnectTest {
     fun connectTest() = Testing.async(dispatchTimeoutMs = 30.minutes) {
         Context.TestUtils.context {
 //                InternalLog.default = SysLogger
-            wait { server.context.inject<ServerControlService>().service.isGatewayConnected }
+            wait { server.context.inject<GatewayClientService>().service.isActive }
             test("get url") {
                 server.controlService.getChannels().isEmpty().shouldBeTrue()
                 println("Try to get again")
@@ -36,9 +37,9 @@ class GatewayConnectTest {
 //                client.getText(url = "https://yandex.com")
                 println("Message got!")
                 delay(1.seconds)
-                server.controlService.getChannels().forEach {
-                    println("1 Channel: ${it.role} ${it.channel}")
-                }
+//                server.controlService.getChannels().forEach {
+//                    println("1 Channel: ${it.role} ${it.channel}")
+//                }
                 repeat(3) {
                     println("------------------------")
                 }
@@ -46,9 +47,9 @@ class GatewayConnectTest {
                 val v = client.getText(url = "https://yandex.ru")
                 println("Message got! $v")
                 delay(1.seconds)
-                server.controlService.getChannels().forEach {
-                    println("2 Channel: ${it.role} ${it.channel}")
-                }
+//                server.controlService.getChannels().forEach {
+//                    println("2 Channel: ${it.role} ${it.channel}")
+//                }
             }
             server
             delay(1.seconds)
@@ -61,20 +62,19 @@ class GatewayConnectTest {
             Context.TestUtils.context {
                 MultiFixedSizeThreadNetworkDispatcher(4).use { nd ->
                     var port: Int = 0
-
-                    GlobalScope.launch {
-                        nd.bindTcp(InetSocketAddress.resolve(host = "127.0.0.1", port = 0)).use { server ->
+                    nd.bindTcp(InetSocketAddress.resolve(host = "127.0.0.1", port = 0)).use { server ->
+                        GlobalScope.launch {
                             println("Client connected")
                             port = server.port
                             server.accept().closeAnyway()
                         }
                     }
                     wait { port != 0 }
-                    wait { server.context.inject<ServerControlService>().service.isGatewayConnected }
+                    wait { server.context.inject<GatewayClientService>().service.isActive }
 
                     try {
                         client.getText(method = "GET", "https://127.0.0.1:$port")
-                    } catch (e:Throwable){
+                    } catch (e: Throwable) {
                         println("ERROROROR on getText")
                     }
                 }

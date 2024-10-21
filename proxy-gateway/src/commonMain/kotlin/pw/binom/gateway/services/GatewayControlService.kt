@@ -60,7 +60,8 @@ class GatewayControlService {
                     channelService.connect(
                         channelId = cmd.proxyConnect!!.id,
                         host = cmd.proxyConnect!!.host,
-                        port = cmd.proxyConnect!!.port
+                        port = cmd.proxyConnect!!.port,
+                        compressLevel = cmd.proxyConnect!!.compressLevel,
                     )
                 } catch (e: Throwable) {
                     proxyClient.sendEvent(

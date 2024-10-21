@@ -127,12 +127,13 @@ class ProxyHandler : HttpHandler, MetricProvider {
         val items = exchange.requestURI.toString().split(':', limit = 2)
         val host = items[0]
         val port = items[1].toInt()
-
+        val compressLevel = runtimeProperties.tcpCompressLevel
         val channel =
             try {
                 controlService.connect(
                     host = host,
                     port = port,
+                    compressLevel = compressLevel,
                 )
             } catch (e: TimeoutException) {
                 logger.info("Timeout connect to $host:$port")
@@ -159,6 +160,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
             client = gatewayClient,
             host = host,
             port = port,
+            compressLevel = compressLevel,
         )
         connectCount.inc()
         try {

@@ -3,7 +3,6 @@ package pw.binom
 import pw.binom.io.*
 import pw.binom.network.SocketClosedException
 import pw.binom.proxy.readBinary
-import pw.binom.proxy.testChannel
 import pw.binom.proxy.writeBinary
 import pw.binom.testing.Testing
 import pw.binom.testing.shouldContentEquals

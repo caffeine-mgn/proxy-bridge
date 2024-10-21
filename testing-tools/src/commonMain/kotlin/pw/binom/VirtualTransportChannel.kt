@@ -19,6 +19,10 @@ object VirtualTransportChannel {
         override var description: String? = null
         override val isClosed: Boolean
             get() = channel.isClosed
+        override val input: Long
+            get() = 0
+        override val output: Long
+            get() = 0
 //        override suspend fun breakCurrentRole() {
 //            TODO()
 //        }

@@ -12,6 +12,7 @@ import pw.binom.testing.*
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTime
 
 class ConnectTcpBehaviorTest {
     /**
@@ -95,21 +96,28 @@ class ConnectTcpBehaviorTest {
             var socketClosed = false
             tcpOneConnect {
                 try {
+                    println("Try read 10 bytes")
                     readByteArray(10)
                 } catch (e: SocketClosedException) {
+                    println("Socket closed")
                     socketClosed = true
                 }
             }
             transport { readByteArray(10) }
+            transportChannel!!.isClosed
             val e = connect().shouldNotNull()
             GlobalScope.launch {
-                delay(1.seconds)
+                delay(2.seconds)
                 println("Send interrupted...")
                 e.asyncClose()
             }
-            e.run()
+            val t = measureTime {
+                e.run()
+            }
+            println("t====$t")
             delay(1.seconds)
             socketClosed.shouldBeTrue()
+            println("transportChannel!!.isClosed=${transportChannel!!.isClosed}")
             client.eventCount shouldEquals 0
         }
     }

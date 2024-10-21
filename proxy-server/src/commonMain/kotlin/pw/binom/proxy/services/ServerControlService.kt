@@ -318,7 +318,11 @@ class ServerControlService : MetricProvider {
     /**
      * Возвращает новый транспортный поток. В случае успеха помечает поток как занятый.
      */
-    suspend fun connect(host: String, port: Int): TransportChannel {
+    suspend fun connect(
+        host: String,
+        port: Int,
+        compressLevel:Int,
+    ): TransportChannel {
         val channel = getOrCreateIdleChannel()
         gatewayClientService.sendCmd(
             ControlRequestDto(
@@ -326,6 +330,7 @@ class ServerControlService : MetricProvider {
                     id = channel.channel.id,
                     host = host,
                     port = port,
+                    compressLevel = compressLevel,
                 )
             )
         )

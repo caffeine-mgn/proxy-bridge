@@ -66,6 +66,7 @@ class ChannelService {
         channelId: ChannelId,
         host: String,
         port: Int,
+        compressLevel: Int,
     ) {
         val channel =
             channelsLock.synchronize { channels[channelId] } ?: throw RuntimeException("Channel $channelId not found")
@@ -75,6 +76,7 @@ class ChannelService {
             host = host,
             port = port,
             tcpConnectionFactory = tcpConnectionFactory,
+            compressLevel = compressLevel,
         )
         channel.description = "$host:$port"
         if (behavior != null) {

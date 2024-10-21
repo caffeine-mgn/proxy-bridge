@@ -19,7 +19,8 @@ class Context : AsyncCloseable {
     val client = TestingProxyClient()
     private val nm = MultiFixedSizeThreadNetworkDispatcher(4)
     val transport = DefaultTcpConnectionFactory(nm = nm)
-    private var transportChannel: TransportChannel? = null
+    var transportChannel: TransportChannel? = null
+    private set
     private var server: TcpServerConnection? = null
     private val counter = CountWater(0)
     override suspend fun asyncClose() {
@@ -59,6 +60,7 @@ class Context : AsyncCloseable {
             host = host,
             port = port,
             tcpConnectionFactory = transport,
+            compressLevel = 0,
         )
     }
 

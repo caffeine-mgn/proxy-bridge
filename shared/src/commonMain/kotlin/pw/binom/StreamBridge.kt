@@ -79,6 +79,7 @@ object StreamBridge {
             try {
 //                delay(0.1.seconds)
                 val wroteSize = right.writeFully(buffer)
+                right.flush()
                 length += wroteSize.toULong()
                 transferProvider(wroteSize)
                 logger.info("send $wroteSize")

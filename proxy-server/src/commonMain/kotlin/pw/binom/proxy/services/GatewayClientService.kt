@@ -35,6 +35,9 @@ class GatewayClientService : GatewayClient, MetricProvider {
         }
     }
 
+    val isActive
+        get() = lastConnection != null
+
     init {
         BeanLifeCycle.preDestroy {
             closing.setValue(true)

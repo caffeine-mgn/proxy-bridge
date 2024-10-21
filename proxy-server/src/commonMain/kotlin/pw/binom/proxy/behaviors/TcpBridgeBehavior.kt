@@ -3,6 +3,8 @@ package pw.binom.proxy.behaviors
 import kotlinx.coroutines.Deferred
 import pw.binom.*
 import pw.binom.atomic.AtomicLong
+import pw.binom.compression.zlib.AsyncGZIPInput
+import pw.binom.compression.zlib.AsyncGZIPOutput
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.gateway.GatewayClient
@@ -24,10 +26,18 @@ class TcpBridgeBehavior private constructor(
             client: GatewayClient,
             host: String,
             port: Int,
+            compressLevel: Int,
         ): TcpBridgeBehavior =
             TcpBridgeBehavior(
                 channel = from,
-                tcpChannel = tcp,
+                tcpChannel = if (compressLevel <= 0) {
+                    tcp
+                } else {
+                    AsyncChannel.create(
+                        input = AsyncGZIPInput(stream = tcp, bufferSize = DEFAULT_BUFFER_SIZE),
+                        output = AsyncGZIPOutput(stream = tcp, bufferSize = DEFAULT_BUFFER_SIZE),
+                    )
+                },
                 client = client,
                 host = host,
                 port = port,

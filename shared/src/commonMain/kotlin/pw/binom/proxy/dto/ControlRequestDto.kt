@@ -29,6 +29,7 @@ data class ControlRequestDto(
         val id: ChannelId,
         val host: String,
         val port: Int,
+        val compressLevel: Int,
     )
 
     @Serializable

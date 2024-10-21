@@ -29,4 +29,5 @@ data class ProxyProperties(
     ),
     @Serializable(DurationSecond::class)
     val pingInterval: Duration = 30.seconds,
+    val tcpCompressLevel: Int = 0
 )

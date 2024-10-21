@@ -25,6 +25,7 @@ kotlin {
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:file:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:metric:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:compression:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:validate:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:thread:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:socket:${pw.binom.Versions.BINOM_VERSION}")
@@ -42,6 +43,7 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
+                api(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
                 api("pw.binom.io:testing:${pw.binom.Versions.BINOM_VERSION}")
