@@ -1,6 +1,6 @@
 package pw.binom.gateway.behaviors
 
-import pw.binom.gateway.services.TcpConnectionFactory
+import pw.binom.*
 import pw.binom.io.AsyncChannel
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.socket.DomainSocketAddress

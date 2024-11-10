@@ -5,11 +5,13 @@ import pw.binom.*
 import pw.binom.io.socket.InetSocketAddress
 import pw.binom.proxy.serialization.DurationSecond
 import pw.binom.proxy.serialization.InetNetworkAddressSerializer
+import pw.binom.validate.annotations.LessOrEquals
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 data class ProxyProperties(
+    @LessOrEquals("65535")
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
     @Serializable(DurationSecond::class)
     val remoteClientAwaitTimeout: Duration = 5.seconds,

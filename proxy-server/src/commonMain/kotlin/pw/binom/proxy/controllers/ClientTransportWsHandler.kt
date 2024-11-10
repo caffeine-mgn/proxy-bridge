@@ -10,25 +10,28 @@ import pw.binom.logger.info
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
-import pw.binom.proxy.ChannelId
-import pw.binom.Urls
-import pw.binom.proxy.channels.WSSpitChannel
-import pw.binom.proxy.server.ClientService
+import pw.binom.proxy.TransportChannelId
 import pw.binom.proxy.properties.ProxyProperties
-import pw.binom.proxy.services.ServerControlService
+//import pw.binom.proxy.services.WebSocketChannelProviderImpl
 import pw.binom.strong.inject
 
+/**
+ * Принимает входящие WS подключения
+ */
 class ClientTransportWsHandler : HttpHandler, MetricProvider {
-    private val clientService by inject<ClientService>()
+
     private val proxyProperties by inject<ProxyProperties>()
     private val logger by Logger.ofThisOrGlobal
     private val metricProvider = MetricProviderImpl()
     override val metrics: List<MetricUnit> by metricProvider
-    private val controlService by inject<ServerControlService>()
     private val controlConnectionCounter = metricProvider.gaugeLong(name = "ws_transport")
     private val connectError = metricProvider.counterLong(name = "ws_transport_error")
     private val retryChannelCounter = metricProvider.counterLong(name = "ws_transport_retry")
-
+//    private val webSocketChannelProviderImpl by inject<WebSocketChannelProviderImpl>()
+    override suspend fun handle(exchange: HttpServerExchange) {
+        TODO("Not yet implemented")
+    }
+/*
     override suspend fun handle(exchange: HttpServerExchange) {
         val id = exchange.requestHeaders["X-trace"]?.firstOrNull()
 //        val id = exchange.getPathVariables(Urls.TRANSPORT_WS)["id"]
@@ -58,25 +61,22 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
                 it.send("OK")
             }
 //            exchange.startResponse(200)
-            controlService.channelFailShot(ChannelId(id))
+            webSocketChannelProviderImpl.channelFailShot(TransportChannelId(id))
             return
         }
         if (exchange.requestMethod != "GET") {
             connectError.inc()
             exchange.startResponse(401)
-            controlService.channelFailShot(ChannelId(id))
+            webSocketChannelProviderImpl.channelFailShot(TransportChannelId(id))
             return
         }
 
         controlConnectionCounter.inc()
         try {
-            val channel = WSSpitChannel(
-                id = ChannelId(id),
-                connection = exchange.acceptWebsocket(bufferSize = proxyProperties.bufferSize),
-                logger = Logger.getLogger("SERVER")
+            webSocketChannelProviderImpl.incomeConnection(
+                id = TransportChannelId(id),
+                connection = exchange.acceptWebsocket(bufferSize = proxyProperties.bufferSize)
             )
-            controlService.newChannel(channel)
-            channel.awaitClose()
         } finally {
             controlConnectionCounter.dec()
         }
@@ -109,4 +109,5 @@ class ClientTransportWsHandler : HttpHandler, MetricProvider {
 //            }
 //        }
     }
+    */
 }

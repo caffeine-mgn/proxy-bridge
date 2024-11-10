@@ -5,7 +5,7 @@ buildscript {
     }
 }
 plugins {
-    kotlin("jvm") version "2.0.20"
+    kotlin("jvm") version "2.0.21"
     id("com.github.gmazzo.buildconfig") version "3.0.3"
 }
 val binomVersion = project.property("binom.version") as String

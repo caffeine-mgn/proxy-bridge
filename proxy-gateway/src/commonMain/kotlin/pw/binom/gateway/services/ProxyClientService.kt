@@ -10,15 +10,19 @@ import pw.binom.io.httpClient.connectWebSocket
 import pw.binom.logger.Logger
 import pw.binom.network.SocketConnectException
 import pw.binom.proxy.ProxyClient
-import pw.binom.proxy.ProxyClientWebSocket
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.io.ClosedException
 import pw.binom.io.http.Headers
 import pw.binom.io.httpClient.addHeader
+import pw.binom.io.useAsync
 import pw.binom.logger.info
+import pw.binom.logger.infoSync
 import pw.binom.network.NetworkManager
+import pw.binom.proxy.TransportChannelId
+import pw.binom.proxy.FrameProxyClient
+import pw.binom.services.VirtualChannelService
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
@@ -35,7 +39,8 @@ class ProxyClientService : ProxyClient {
     private val networkManager by inject<NetworkManager>()
     private val lock = SpinLock()
     private val eventSystem by inject<EventSystem>()
-    private var currentClient: ProxyClientWebSocket? = null
+    private var currentClient: ProxyClient? = null
+    private val virtualChannelService by inject<VirtualChannelService>()
 
     init {
         BeanLifeCycle.preDestroy {
@@ -46,10 +51,11 @@ class ProxyClientService : ProxyClient {
                 current
             }?.asyncClose()
         }
+        logger.infoSync("Created")
         BeanLifeCycle.afterInit {
-            val dispatcher = coroutineContext[CoroutineDispatcher]
-            val interceptor = coroutineContext[ContinuationInterceptor]
-
+//            val dispatcher = coroutineContext[CoroutineDispatcher]
+//            val interceptor = coroutineContext[ContinuationInterceptor]
+            logger.info("Starting control...")
             GlobalScope.launch(networkManager + CoroutineName("gateway-control-connect")) {
                 while (isActive && !closing.getValue()) {
                     val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
@@ -66,7 +72,7 @@ class ProxyClientService : ProxyClient {
                                 )
                             }.start(bufferSize = runtimeProperties.bufferSize)
                         } catch (e: SocketConnectException) {
-                            logger.info(text = "Can't connect to $url. Socket Closed. Retry in ${runtimeProperties.reconnectDelay}")
+                            logger.info(text = "Can't connect to $url. $e in ${runtimeProperties.reconnectDelay}")
                             delay(runtimeProperties.reconnectDelay)
                             continue
                         } catch (e: Throwable) {
@@ -75,20 +81,32 @@ class ProxyClientService : ProxyClient {
                             continue
                         }
                     try {
+                        WebSocketProcessing(
+                            connection = connection,
+                            income = virtualChannelService.income,
+                            outcome = virtualChannelService.outcome,
+                        ).useAsync {
+                            it.processing(networkManager)
+                        }
+
                         logger.info("Success connected")
-                        val client = ProxyClientWebSocket(connection.connection)
+                        val client = FrameProxyClient(
+                            WsFrameChannel(
+                                con = connection.connection,
+                                channelId = TransportChannelId("CONTROL"),
+                            )
+                        )
                         lock.synchronize {
                             currentClient = client
                         }
                         while (!closing.getValue() && isActive) {
-                            logger.info("Reading cmd")
                             val cmd = client.receiveCommand()
-                            logger.info("Cmd was read: $cmd. Try dispatch")
                             eventSystem.dispatch(cmd)
-                            logger.info("Event dispatched")
                         }
                     } catch (e: ClosedException) {
+                        currentClient?.asyncCloseAnyway()
                         logger.info(text = "Connection lost. Retry reconnect in ${runtimeProperties.reconnectDelay}")
+                        e.printStackTrace()
                         delay(runtimeProperties.reconnectDelay)
                     } catch (e: Throwable) {
                         logger.info(text = "Can't receive command from server", exception = e)

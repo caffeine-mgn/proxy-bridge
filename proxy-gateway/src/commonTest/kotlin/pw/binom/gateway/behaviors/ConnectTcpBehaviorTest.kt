@@ -7,7 +7,7 @@ import pw.binom.*
 import pw.binom.gateway.Context
 import pw.binom.io.writeByteArray
 import pw.binom.network.SocketClosedException
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.testing.*
 import kotlin.random.Random
 import kotlin.test.Test
@@ -73,7 +73,7 @@ class ConnectTcpBehaviorTest {
     @Test
     fun closeNowTest() = Testing.async {
         Context.use {
-            val channelId = ChannelId(Random.nextInt().toString())
+            val channelId = TransportChannelId(Random.nextInt().toString())
             transport(channelId) { readByteArray(10) }
             test("send empty") {
                 tcpOneConnect { }

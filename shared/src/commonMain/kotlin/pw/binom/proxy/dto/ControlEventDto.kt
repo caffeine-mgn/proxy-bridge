@@ -1,7 +1,7 @@
 package pw.binom.proxy.dto
 
 import kotlinx.serialization.Serializable
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.validate.annotations.OneOf
 
 @OneOf(
@@ -20,21 +20,21 @@ data class ControlEventDto(
 
     @Serializable
     data class ChannelEmmitError(
-        val channelId: ChannelId,
+        val channelId: TransportChannelId,
         val msg: String?,
     )
 
     @Serializable
-    data class ChanelEof(val channelId: ChannelId)
+    data class ChanelEof(val channelId: TransportChannelId)
 
     @Serializable
     data class ProxyConnected(
-        val channelId: ChannelId,
+        val channelId: TransportChannelId,
     )
 
     @Serializable
     data class ProxyError(
-        val channelId: ChannelId,
+        val channelId: TransportChannelId,
         val msg: String?,
     )
 }

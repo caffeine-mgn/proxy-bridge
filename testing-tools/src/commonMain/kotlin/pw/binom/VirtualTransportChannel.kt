@@ -1,11 +1,11 @@
 package pw.binom
 
 import pw.binom.io.AsyncChannel
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.proxy.channels.TransportChannel
 
 object VirtualTransportChannel {
-    fun create(id: ChannelId = ChannelId(""), func: suspend AsyncChannel.() -> Unit): TransportChannel =
+    fun create(id: TransportChannelId = TransportChannelId(""), func: suspend AsyncChannel.() -> Unit): TransportChannel =
         VirtualChannelImpl(
             channel = VirtualChannel.create(func),
             id = id
@@ -13,7 +13,7 @@ object VirtualTransportChannel {
 
     private class VirtualChannelImpl(
         private val channel: VirtualChannel,
-        override val id: ChannelId
+        override val id: TransportChannelId
     ) : TransportChannel, AsyncChannel by channel {
         override fun toString(): String = "TestTransportChannel($id)"
         override var description: String? = null

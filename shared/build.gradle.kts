@@ -21,11 +21,13 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
+                api("pw.binom.io:strong:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:http:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:file:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:metric:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:compression:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:coroutines:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:validate:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:thread:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:socket:${pw.binom.Versions.BINOM_VERSION}")

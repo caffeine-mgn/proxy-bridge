@@ -10,12 +10,13 @@ import pw.binom.io.socket.UnknownHostException
 import pw.binom.proxy.ProxyClient
 import pw.binom.proxy.channels.TransportChannel
 import pw.binom.proxy.dto.ControlEventDto
-import pw.binom.gateway.services.TcpConnectionFactory
 import pw.binom.io.AsyncChannel
+import pw.binom.io.ByteBuffer
+import pw.binom.io.useAsync
 import pw.binom.network.SocketConnectException
-
+/*
 class ConnectTcpBehavior private constructor(
-    private val from: TransportChannel,
+    private val from: FrameChannel,
     private val tcpChannel: AsyncChannel,
     private val client: ProxyClient,
     val host: String,
@@ -24,7 +25,7 @@ class ConnectTcpBehavior private constructor(
     companion object {
         suspend fun start(
             client: ProxyClient,
-            from: TransportChannel,
+            from: FrameChannel,
             host: String,
             port: Int,
             tcpConnectionFactory: TcpConnectionFactory,
@@ -103,20 +104,25 @@ class ConnectTcpBehavior private constructor(
     override val description: String
         get() = "tcp-$host:$port"
 
+    private var stream: ClosableAsyncChannel? = null
 
     override suspend fun run() {
         lock.lock()
         leftJob = null
         rightJob = null
-        val copyResult = StreamBridge.sync(
-            left = from,
-            right = tcpChannel,
-            bufferSize = DEFAULT_BUFFER_SIZE,
-            rightProvider = { rightJob = it },
-            leftProvider = { leftJob = it },
-            syncStarted = { lock.unlock() },
-            exceptionHappened = { lock.unlock() }
-        )
+
+        val copyResult = ClosableAsyncChannel(stream = from, closeStream = {}).useAsync { left ->
+            stream = left
+            StreamBridge.sync(
+                left = left,
+                right = tcpChannel,
+                bufferSize = DEFAULT_BUFFER_SIZE,
+                rightProvider = { rightJob = it },
+                leftProvider = { leftJob = it },
+                syncStarted = { lock.unlock() },
+                exceptionHappened = { lock.unlock() }
+            )
+        }
         if (remoteInterrupted) {
             val e = StreamBridge.ChannelBreak("Remote interrupted")
             leftJob?.cancel(e)
@@ -136,17 +142,19 @@ class ConnectTcpBehavior private constructor(
     }
 
     override suspend fun asyncClose() {
-        val leftJob: Deferred<StreamBridge.ReasonForStopping>?
-        val rightJob: Deferred<StreamBridge.ReasonForStopping>?
+//        val leftJob: Deferred<StreamBridge.ReasonForStopping>?
+//        val rightJob: Deferred<StreamBridge.ReasonForStopping>?
         lock.synchronize {
             remoteInterrupted = true
-            leftJob = this.leftJob
-            rightJob = this.rightJob
-            this.leftJob = null
-            this.rightJob = null
-        }
-        val e = StreamBridge.ChannelBreak("Remote interrupted")
-        leftJob?.cancel(e)
-        rightJob?.cancel(e)
+//            leftJob = this.leftJob
+//            rightJob = this.rightJob
+//            this.leftJob = null
+//            this.rightJob = null
+            stream//?.asyncClose()
+        }?.asyncClose()
+//        val e = StreamBridge.ChannelBreak("Remote interrupted")
+//        leftJob?.cancel(e)
+//        rightJob?.cancel(e)
     }
 }
+*/

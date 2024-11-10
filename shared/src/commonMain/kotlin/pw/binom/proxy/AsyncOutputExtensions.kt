@@ -10,6 +10,7 @@ suspend fun AsyncOutput.flushPackage(buffer: ByteBuffer) {
         buffer.flip()
         writeFully(buffer)
         buffer.clear()
+        flush()
     }
 }
 
@@ -18,6 +19,7 @@ suspend fun AsyncOutput.flushPackageIfNeed(buffer: ByteBuffer, size: Int) {
         buffer.flip()
         writeFully(buffer)
         buffer.clear()
+        flush()
     }
 }
 

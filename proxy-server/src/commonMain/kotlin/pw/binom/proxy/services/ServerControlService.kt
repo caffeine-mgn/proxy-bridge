@@ -9,6 +9,7 @@ import pw.binom.exceptions.TimeoutException
 import pw.binom.io.ClosedException
 import pw.binom.io.EOFException
 import pw.binom.io.socket.UnknownHostException
+import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.warn
@@ -16,7 +17,7 @@ import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.proxy.channels.TransportChannel
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
@@ -25,20 +26,23 @@ import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
+import pw.binom.subchannel.TcpExchange
+import pw.binom.subchannel.WorkerChanelClient
 import pw.binom.uuid.nextUuid
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
-
+/*
 class ServerControlService : MetricProvider {
 
     interface ChannelState {
-        val channel: TransportChannel
-        var behavior: Behavior?
+        val id: TransportChannelId
+        val channel: FrameChannel
         val locked: SpinLock
         val lastTouch: DateTime
+        val description: String?
     }
 
     private val metricProvider = MetricProviderImpl()
@@ -48,20 +52,19 @@ class ServerControlService : MetricProvider {
     private val networkManager by inject<NetworkManager>()
     private val gatewayClientService by inject<GatewayClientService>()
     private val eventSystem by inject<EventSystem>()
-
-    private val reemmitCounterSuccess = metricProvider.counterLong("channel_re_emmit_success")
-    private val remitCounterFail = metricProvider.counterLong("channel_re_emmit_fail")
+    private val channelProvider by inject<ChannelProvider>()
 
     private val channelCount = metricProvider.gaugeLong(name = "channel_total") {
         channelsLock.synchronize {
             channels.size.toLong()
         }
     }
+
     private val activeChannelCount = metricProvider.gaugeLong(name = "channel_active") {
         channelsLock.synchronize {
             channels.count {
                 it.value.locked.synchronize {
-                    it.value.behavior != null
+                    it.value.isBusy
                 }
             }
         }.toLong()
@@ -76,7 +79,7 @@ class ServerControlService : MetricProvider {
                 GlobalScope.launch(networkManager) {
                     while (isActive) {
                         delay(30.seconds)
-                        val forRemove = ArrayList<TransportChannel>()
+                        val forRemove = ArrayList<ChannelWrapper>()
                         channelsLock.synchronize {
                             val it = channels.iterator()
                             while (it.hasNext()) {
@@ -85,14 +88,13 @@ class ServerControlService : MetricProvider {
                                 try {
                                     when {
                                         e.value.isBusy -> continue
-                                        e.value.behavior != null -> continue
                                         e.value.lastTouch + proxyProperties.channelIdleTime >= DateTime.now -> continue
                                     }
                                 } finally {
                                     e.value.locked.unlock()
                                 }
-                                logger.info("Cleanup channel ${e.value.channel.id}")
-                                forRemove += e.value.channel
+                                logger.info("Cleanup channel ${e.value.id}")
+                                forRemove += e.value
                                 it.remove()
                             }
                         }
@@ -108,7 +110,7 @@ class ServerControlService : MetricProvider {
                             )
                         }
                         forRemove.forEach {
-                            it.asyncCloseAnyway()
+                            it.channel.asyncCloseAnyway()
                         }
                     }
 
@@ -119,14 +121,14 @@ class ServerControlService : MetricProvider {
     /**
      * Buffer for write simple commands
      */
-    private val channels = HashMap<ChannelId, ChannelWrapper>()
+    private val channels = HashMap<TransportChannelId, ChannelWrapper>()
     private var channelIdIterator = 0
-    private val proxyWater = HashMap<ChannelId, CancellableContinuation<Unit>>()
-    private val channelWater = HashMap<ChannelId, ChannelWater>()
+    private val proxyWater = HashMap<TransportChannelId, CancellableContinuation<Unit>>()
+    private val channelWater = HashMap<TransportChannelId, ChannelWater>()
 
     private class ChannelWater(
         val con: CancellableContinuation<ChannelWrapper>,
-        var channelId: ChannelId,
+        var channelId: TransportChannelId,
     ) {
         val startWait = DateTime.now
     }
@@ -165,9 +167,9 @@ class ServerControlService : MetricProvider {
         channels.map {
             ChannelStateInfo(
                 id = it.key,
-                behavior = it.value.locked.synchronize { it.value.behavior?.description },
-                output = it.value.channel.output,
-                input = it.value.channel.input,
+                behavior = it.value.locked.synchronize { it.value.description },
+                output = it.value.channel.write,
+                input = it.value.channel.read,
             )
         }
     }
@@ -176,12 +178,13 @@ class ServerControlService : MetricProvider {
         ArrayList<ChannelState>(channels.values)
     }
 
-    private class ChannelWrapper(override val channel: TransportChannel) : ChannelState {
+    private class ChannelWrapper(channel: FrameChannel, override val id: TransportChannelId) : ChannelState {
+        override val channel = FrameChannelWithCounter(channel)
         var isBusy: Boolean = false
-        override var behavior: Behavior? = null
         override val locked = SpinLock()
         override var lastTouch = DateTime.now
             private set
+        override var description: String? = null
 
         fun touch() {
             lastTouch = DateTime.now
@@ -203,71 +206,24 @@ class ServerControlService : MetricProvider {
         }
     }
 
-    suspend fun channelFailShot(id: ChannelId) {
-        val water = channelWaterLock.synchronize {
-            channelWater.remove(id) ?: return
-        }
-        if (DateTime.now - water.startWait < 10.seconds) {
-            try {
-//                val newId = lockForIdIterator.synchronize { channelIdIterator++ }
-                val newId = ChannelId(Random.nextUuid().toShortString())
-                water.channelId = newId
-                gatewayClientService.sendCmd(
-                    ControlRequestDto(
-                        emmitChannel = ControlRequestDto.EmmitChannel(
-                            id = water.channelId,
-                            type = TransportType.WS_SPLIT,
-                        )
-                    )
-                )
-                channelWaterLock.synchronize {
-                    channelWater[water.channelId] = water
-                }
-                reemmitCounterSuccess.inc()
-            } catch (e: Throwable) {
-                remitCounterFail.inc()
-                logger.warn("Can't re-emmit channel. old id: $id, new id: ${water.channelId}")
-                forceCloseChannel(water)
-            }
-        } else {
-            remitCounterFail.inc()
-            forceCloseChannel(water)
-        }
-    }
-
-    private suspend fun forceCloseChannel(water: ChannelWater) {
-        water.con.resumeWithException(RuntimeException("Force close channel ${water.channelId}"))
-        try {
-            gatewayClientService.sendCmd(
-                ControlRequestDto(
-                    closeChannel = ControlRequestDto.CloseChannel(
-                        id = water.channelId,
-                    )
-                )
-            )
-        } catch (e: Throwable) {
-            // Do nothing
-        }
-    }
-
-    suspend fun newChannel(channel: TransportChannel) {
-        val water = channelWaterLock.synchronize { channelWater.remove(channel.id) }
+    suspend fun connectProcessing(id: TransportChannelId, channel: VirtualChannelManager) {
+        val water = channelWaterLock.synchronize { channelWater.remove(id) }
         if (water == null) {
             channel.asyncCloseAnyway()
             return
         }
-        val wrapper = ChannelWrapper(channel)
-        channelsLock.synchronize { channels[channel.id] = wrapper }
+        val wrapper = ChannelWrapper(id = id, channel = TODO())
+        channelsLock.synchronize { channels[id] = wrapper }
         val context = coroutineContext
         water.con.resume(wrapper) { ex, value, ctx ->
-            channelsLock.synchronize { channels.remove(channel.id) }
-            GlobalScope.launch(context + CoroutineName("Closing channel ${channel.id}")) {
+            channelsLock.synchronize { channels.remove(id) }
+            GlobalScope.launch(context + CoroutineName("Closing channel ${id}")) {
                 channel.asyncCloseAnyway()
             }
         }
     }
 
-    fun channelClosed(channelId: ChannelId) {
+    fun channelClosed(channelId: TransportChannelId) {
         channelsLock.synchronize { channels.remove(channelId) }
         channelWaterLock.synchronize { channelWater.remove(channelId) }?.con?.resumeWithException(ClosedException())
         proxyWaterLock.synchronize { proxyWater.remove(channelId) }?.resumeWithException(ClosedException())
@@ -278,7 +234,7 @@ class ServerControlService : MetricProvider {
             channelsLock.synchronize {
                 channels.values.firstOrNull {
                     it.locked.synchronize {
-                        it.behavior == null && !it.isBusy
+                        !it.isBusy
                     }
                 }
             }
@@ -287,12 +243,13 @@ class ServerControlService : MetricProvider {
             return existChannel
         }
 //        val newChannelId = ChannelId(lockForIdIterator.synchronize { channelIdIterator++ })
-        val newChannelId = ChannelId(Random.nextUuid().toShortString())
+        val newChannelId = TransportChannelId(Random.nextUuid().toShortString())
         gatewayClientService.sendCmd(
             ControlRequestDto(
                 emmitChannel = ControlRequestDto.EmmitChannel(
                     id = newChannelId,
                     type = TransportType.WS_SPLIT,
+                    bufferSize = PackageSize(proxyProperties.bufferSize - 2),
                 )
             )
         )
@@ -321,13 +278,25 @@ class ServerControlService : MetricProvider {
     suspend fun connect(
         host: String,
         port: Int,
-        compressLevel:Int,
-    ): TransportChannel {
+    ): TcpExchange {
+        val channel = this.channelProvider.getNewChannel()
+        try {
+            return WorkerChanelClient(channel).useAsync { worker ->
+                worker.startTcp(
+                    host = host,
+                    port = port,
+                )
+            }
+        } catch (e: Throwable) {
+            channel.asyncCloseAnyway()
+            throw e
+        }
+        /*
         val channel = getOrCreateIdleChannel()
         gatewayClientService.sendCmd(
             ControlRequestDto(
                 proxyConnect = ControlRequestDto.ProxyConnect(
-                    id = channel.channel.id,
+                    id = channel.id,
                     host = host,
                     port = port,
                     compressLevel = compressLevel,
@@ -336,22 +305,16 @@ class ServerControlService : MetricProvider {
         )
         channel.locked.synchronize {
             channel.touch()
-            channel.channel.description = "$host:$port"
+            channel.description = "$host:$port"
             channel.isBusy = true
         }
         try {
             logger.info("Wait until gateway connect to $host:$port...")
-            suspendCancellableCoroutine {
-                it.invokeOnCancellation {
-                    channel.locked.synchronize {
-                        channel.isBusy = false
-                    }
-                    proxyWaterLock.synchronize { proxyWater.remove(channel.channel.id) }
-                }
-                proxyWaterLock.synchronize { proxyWater[channel.channel.id] = it }
-            }
             logger.info("Gateway connected to $host:$port!")
-            return channel.channel
+            channel.isBusy = true
+            return CloseWaterFrameChannel(channel.channel) {
+                returnChannelToPool(channel)
+            }//.withLogger("$host:$port")
         } catch (e: Throwable) {
             logger.info("Gateway can't connect to $host:$port!")
             channel.locked.synchronize {
@@ -359,16 +322,7 @@ class ServerControlService : MetricProvider {
             }
             throw e
         }
-    }
-
-    fun assignBehavior(channel: TransportChannel, behavior: Behavior) {
-        val wrapper = channelsLock.synchronize {
-            channels[channel.id] ?: throw IllegalStateException("Channel ${channel.id} not found")
-        }
-        wrapper.locked.synchronize {
-            wrapper.behavior = behavior
-            wrapper.isBusy = false
-        }
+        */
     }
 
     private suspend fun eventProcessing(eventDto: ControlEventDto) {
@@ -414,14 +368,12 @@ class ServerControlService : MetricProvider {
         }
     }
 
-    private suspend fun returnChannelToPool(channelWrapper: ChannelWrapper) {
+    private fun returnChannelToPool(channelWrapper: ChannelWrapper) {
         channelWrapper.locked.synchronize {
-            val behavior = channelWrapper.behavior
-            channelWrapper.behavior = null
             channelWrapper.isBusy = false
+            channelWrapper.description = null
             channelWrapper.touch()
-            behavior
-        }?.asyncCloseAnyway()
+        }
     }
 
     suspend fun sendToPool(channel: TransportChannel) {
@@ -437,3 +389,4 @@ class ServerControlService : MetricProvider {
         returnChannelToPool(channelWrapper)
     }
 }
+*/

@@ -1,5 +1,13 @@
 package pw.binom.proxy
 
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.io.ByteBuffer
@@ -13,6 +21,11 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
+import kotlin.coroutines.resume
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+import kotlin.time.measureTime
 
 class ProxyClientWebSocket(
     val connection: WebSocketConnection
@@ -20,7 +33,29 @@ class ProxyClientWebSocket(
     private val logger by Logger.ofThisOrGlobal
     private val cmdBuffer = ByteBuffer(DEFAULT_BUFFER_SIZE)
     private val eventBuffer = ByteBuffer(DEFAULT_BUFFER_SIZE)
+    private val pingBuffer = ByteBuffer(8)
     private val closed = AtomicBoolean(false)
+    private var pongWaiter: CancellableContinuation<Unit>? = null
+
+    private val pingJob = GlobalScope.launch {
+        while (coroutineContext.isActive) {
+            delay(10.seconds)
+            val pingStart = TimeSource.Monotonic.markNow()
+            connection.write(MessageType.PING).useAsync {
+                it.writeInt(Random.nextInt(), pingBuffer)
+            }
+            val isOk = withTimeoutOrNull(10.seconds) {
+                suspendCancellableCoroutine<Unit> { pongWaiter = it }
+            } != null
+            if (!isOk) {
+                logger.info("Ping timeout!")
+                asyncClose()
+            } else {
+//                logger.info("Ping OK. timing: ${pingStart.elapsedNow()}")
+            }
+        }
+    }
+
     override suspend fun sendEvent(event: ControlEventDto) {
         try {
             logger.info("Send event $event")
@@ -35,26 +70,57 @@ class ProxyClientWebSocket(
         }
     }
 
-    override suspend fun receiveCommand(): ControlRequestDto =
+    override suspend fun receiveCommand(): ControlRequestDto {
         try {
-            logger.info("Try to read command...")
-            val cmd = connection.read().useAsync {
-                val len = it.readInt(cmdBuffer)
-                val data = it.readByteArray(len, cmdBuffer)
-                Dto.decode(ControlRequestDto.serializer(), data)
+            while (true) {
+                val msg = connection.read()
+                when (msg.type) {
+                    MessageType.PING -> msg.useAsync { input ->
+                        connection.write(MessageType.PONG).useAsync { output ->
+                            input.copyTo(output)
+                        }
+                    }
+
+                    MessageType.PONG -> {
+                        msg.asyncClose()
+                        pongWaiter?.resume(Unit)
+                        pongWaiter = null
+                    }
+
+                    MessageType.CLOSE -> {
+                        logger.info("Received close command")
+                        msg.asyncClose()
+                        asyncClose()
+                        throw ClosedException()
+                    }
+
+                    else -> return msg.useAsync {
+                        val len = it.readInt(cmdBuffer)
+                        val data = it.readByteArray(len, cmdBuffer)
+                        Dto.decode(ControlRequestDto.serializer(), data)
+                    }
+
+                }
+
             }
-            logger.info("Command was read")
-            cmd
+        } catch (e: ClosedException) {
+            asyncClose()
+            throw e
         } catch (e: WebSocketClosedException) {
+            e.printStackTrace()
+            asyncClose()
             throw ClosedException()
         }
+    }
 
     override suspend fun asyncClose() {
         if (!closed.compareAndSet(false, true)) {
             return
         }
+        pingJob.cancel()
         eventBuffer.close()
         cmdBuffer.close()
+        pingBuffer.close()
         connection.asyncCloseAnyway()
     }
 }

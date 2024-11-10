@@ -11,7 +11,7 @@ import pw.binom.io.http.websocket.WebSocketInput
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.StreamBridge
 import pw.binom.atomic.AtomicLong
 import pw.binom.io.http.websocket.WebSocketClosedException
@@ -19,7 +19,7 @@ import pw.binom.proxy.io.copyTo
 import kotlin.coroutines.resume
 
 class WSSpitChannel(
-    override val id: ChannelId,
+    override val id: TransportChannelId,
     val connection: WebSocketConnection,
     val logger: Logger = Logger.getLogger("WSSpitChannel"),
 ) : TransportChannel {
@@ -122,6 +122,10 @@ class WSSpitChannel(
     }
 
     override suspend fun read(dest: ByteBuffer): DataTransferSize {
+        return internalRead(dest)
+    }
+
+    private suspend fun internalRead(dest: ByteBuffer): DataTransferSize {
         while (true) {
             val current = currentMessage
             if (current != null) {
@@ -136,23 +140,20 @@ class WSSpitChannel(
                 if (result.isNotAvailable) {
                     currentMessage = null
                     current.asyncClose()
-                    logger.info("Not enough data on current message")
                     continue
                 }
                 if (current.available == 0) {
-                    logger.info("current message is finished with $result")
                     current.asyncClose()
                     currentMessage = null
                 }
                 return result
             }
             val msg = try {
-                logger.info("Try read new message...")
                 val msg = connection.read()
                 msg
             } catch (e: CancellationException) {
                 // cancelled reading
-                logger.info("Cancel reading 222: ${e.message}")
+                logger.info("Cancel reading: ${e.message}")
                 return DataTransferSize.EMPTY
             } catch (e: WebSocketClosedException) {
                 closeHappened()
@@ -205,10 +206,10 @@ class WSSpitChannel(
 
     override suspend fun write(data: ByteBuffer): DataTransferSize =
         if (!data.hasRemaining) {
-            logger.info("Send ${data.remaining} bytes")
+//            logger.info("Send ${data.remaining} bytes")
             DataTransferSize.EMPTY
         } else {
-            logger.info("Send ${data.remaining} bytes")
+//            logger.info("Send ${data.remaining} bytes")
 //            logger.info("write ${data.toByteArray().toHexString()}")
             val w = try {
                 connection.write(MessageType.BINARY).useAsync {

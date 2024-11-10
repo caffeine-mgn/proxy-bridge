@@ -43,12 +43,32 @@ class GatewayClientWebSocket(val connection: WebSocketConnection) : GatewayClien
 
     override suspend fun receiveEvent(): ControlEventDto {
         try {
-            val event = connection.read().useAsync {
-                val packageSize = it.readInt(buffer)
-                val data = it.readBytes(packageSize)
-                Dto.decode(ControlEventDto.serializer(), data)
+            while (true) {
+                val msg = connection.read()
+                when (msg.type) {
+                    MessageType.PING -> msg.useAsync { input ->
+                        connection.write(MessageType.PONG).useAsync { output ->
+                            input.copyTo(output)
+                        }
+                    }
+
+                    MessageType.CLOSE -> {
+                        msg.asyncClose()
+                        throw ClosedException()
+                    }
+
+                    else -> {
+                        return msg.useAsync {
+                            val packageSize = it.readInt(buffer)
+                            val data = it.readBytes(packageSize)
+                            Dto.decode(ControlEventDto.serializer(), data)
+                        }
+                    }
+                }
+
             }
-            return event
+        } catch (e: ClosedException) {
+            throw e
         } catch (e: WebSocketClosedException) {
             logger.info("Control channel closed")
             throw ClosedException()

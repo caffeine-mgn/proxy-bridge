@@ -11,7 +11,7 @@ import pw.binom.io.socket.InetSocketAddress
 import pw.binom.io.useAsync
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.TcpServerConnection
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 import pw.binom.coroutines.CountWater
 import pw.binom.proxy.channels.TransportChannel
 
@@ -48,7 +48,7 @@ class Context : AsyncCloseable {
         }
     }
 
-    fun transport(id: ChannelId = ChannelId(""), func: suspend AsyncChannel.() -> Unit) {
+    fun transport(id: TransportChannelId = TransportChannelId(""), func: suspend AsyncChannel.() -> Unit) {
         transportChannel = VirtualTransportChannel.create(id = id, func = func)
     }
 

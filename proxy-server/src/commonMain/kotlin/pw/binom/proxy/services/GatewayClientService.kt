@@ -1,7 +1,9 @@
 package pw.binom.proxy.services
 
 import kotlinx.coroutines.isActive
+import pw.binom.WsFrameChannel
 import pw.binom.atomic.AtomicBoolean
+import pw.binom.gateway.FrameGatewayClient
 import pw.binom.gateway.GatewayClient
 import pw.binom.gateway.GatewayClientWebSocket
 import pw.binom.io.ClosedException
@@ -12,17 +14,20 @@ import pw.binom.logger.infoSync
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
+import pw.binom.proxy.TransportChannelId
 import pw.binom.proxy.dto.ControlEventDto
 import pw.binom.proxy.dto.ControlRequestDto
+import pw.binom.services.VirtualChannelService
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
 import kotlin.coroutines.coroutineContext
-
+/*
 class GatewayClientService : GatewayClient, MetricProvider {
 
     private var lastConnection: GatewayClient? = null
     private val eventSystem by inject<EventSystem>()
+    private val virtualChannelService by inject<VirtualChannelService>()
     private val logger by Logger.ofThisOrGlobal
     private val closing = AtomicBoolean(false)
     private val metricProvider = MetricProviderImpl()
@@ -44,20 +49,28 @@ class GatewayClientService : GatewayClient, MetricProvider {
             lastConnection?.asyncCloseAnyway()
             lastConnection = null
         }
+
+        BeanLifeCycle.afterInit {
+            while (!closing.getValue()){
+                controlProcessing()
+            }
+        }
     }
 
-    suspend fun controlProcessing(connection: WebSocketConnection) {
+    private suspend fun controlProcessing() {
         if (closing.getValue()) {
             return
         }
         lastConnection?.asyncCloseAnyway()
-        val connection = GatewayClientWebSocket(connection)
+        val connection = FrameGatewayClient(
+            virtualChannelService.getSystemChannel()
+        )//GatewayClientWebSocket(connection)
         lastConnection = connection
         try {
             while (coroutineContext.isActive && !closing.getValue()) {
                 val event = try {
                     connection.receiveEvent()
-                } catch (e: ClosedException) {
+                } catch (_: ClosedException) {
                     logger.info("Processing finished")
                     break
                 }
@@ -80,7 +93,7 @@ class GatewayClientService : GatewayClient, MetricProvider {
 
     override suspend fun sendCmd(request: ControlRequestDto) {
         logger.info("Send cmd $request")
-        val client = getClient().sendCmd(request)
+        getClient().sendCmd(request)
     }
 
     override suspend fun receiveEvent(): ControlEventDto {
@@ -91,3 +104,4 @@ class GatewayClientService : GatewayClient, MetricProvider {
         TODO("Not yet implemented")
     }
 }
+*/

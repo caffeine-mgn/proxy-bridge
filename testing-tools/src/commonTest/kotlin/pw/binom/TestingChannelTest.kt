@@ -15,7 +15,7 @@ class TestingChannelTest {
 
     @Test
     fun closeDuringClose() = Testing.async {
-        val channel = VirtualChannel()
+        val channel = AbstractVirtualChannelManager()
         var elfHappened = false
         GlobalScope.launch {
             try {
@@ -33,7 +33,7 @@ class TestingChannelTest {
 
     @Test
     fun closeTestInternal() = Testing.async {
-        val channel = VirtualChannel()
+        val channel = AbstractVirtualChannelManager()
         var elfHappened = false
         GlobalScope.launch {
             channel.internal {
@@ -55,7 +55,7 @@ class TestingChannelTest {
 
     @Test
     fun closeTestExternal() = Testing.async {
-        val channel = VirtualChannel()
+        val channel = AbstractVirtualChannelManager()
         var elfHappened = false
         GlobalScope.launch {
             try {

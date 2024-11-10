@@ -60,17 +60,17 @@ object StreamBridge {
                 left.read(buffer)
             } catch (e: Throwable) {
                 sizeProvider(length)
-                logger.info("left finish by exception: $e")
+//                logger.info("left finish by exception: $e")
                 return ReasonForStopping.LEFT
             }
             if (r.isClosed) {
                 sizeProvider(length)
-                logger.info("left finish by close")
+//                logger.info("left finish by close")
                 return ReasonForStopping.LEFT
             }
             if (r.isEof) {
                 sizeProvider(length)
-                logger.info("left finish by eof")
+//                logger.info("left finish by eof")
                 return ReasonForStopping.LEFT
             }
 //            logger.info("left read ok ${left.hashCode()}")
@@ -82,15 +82,15 @@ object StreamBridge {
                 right.flush()
                 length += wroteSize.toULong()
                 transferProvider(wroteSize)
-                logger.info("send $wroteSize")
+//                logger.info("send $wroteSize")
 //                logger.info("right write ok ${right.hashCode()}")
             } catch (e: Throwable) {
                 sizeProvider(length)
-                logger.info("right finish by exception: $e")
+//                logger.info("right finish by exception: $e")
                 return ReasonForStopping.RIGHT
             }
         }
-        println("Cancelling copy $left->$right")
+//        println("Cancelling copy $left->$right")
         TODO("Cancelled coping $left->$right")
     }
 

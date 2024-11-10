@@ -5,8 +5,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
-import pw.binom.date.DateTime
-import pw.binom.date.format.toDatePattern
+import pw.binom.frame.PackageSize
 import pw.binom.io.ByteBufferFactory
 import pw.binom.io.http.BasicAuth
 import pw.binom.io.http.BearerAuth
@@ -17,23 +16,23 @@ import pw.binom.io.socket.*
 import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
-import pw.binom.process.exitProcess
-import pw.binom.proxy.GLog
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.gateway.services.ChannelService
 import pw.binom.gateway.services.GatewayControlService
+import pw.binom.gateway.services.OneConnectService
 import pw.binom.gateway.services.TcpConnectionFactoryImpl
 import pw.binom.gateway.services.ProxyClientService
 import pw.binom.io.file.*
 import pw.binom.logger.Logger
+import pw.binom.logger.WARNING
 import pw.binom.logger.infoSync
 import pw.binom.properties.IniParser
 import pw.binom.properties.serialization.PropertiesDecoder
+import pw.binom.services.VirtualChannelService
 import pw.binom.signal.Signal
 import pw.binom.strong.*
 import pw.binom.thread.Thread
 import kotlin.coroutines.CoroutineContext
-import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
 fun ServiceProvider<NetworkManager>.asInstance() =
@@ -107,6 +106,13 @@ suspend fun startProxyClient(
             it.bean { BinomMetrics }
             it.bean { LocalEventSystem() }
             it.bean { GatewayControlService() }
+//            it.bean { TcpCommunicatePair() }
+            it.bean { OneConnectService() }
+//            it.bean { CommunicateRepository() }
+            it.bean { VirtualChannelService(PackageSize(properties.bufferSize)) }
+            val pool = ByteBufferPool(size = DEFAULT_BUFFER_SIZE)
+            it.bean { pool }
+            it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
     return Strong.create(baseConfig)
 }
@@ -121,13 +127,14 @@ object SysLogger : InternalLog {
 }
 
 fun main(args: Array<String>) {
-    Thread {
-        Thread.sleep(7.hours)
-        println("Goodbay. time to die")
-        InternalLog.info(file = "main") { "Goodbay. time to die" }
-        closed.setValue(true)
-        exitProcess(0)
-    }.start()
+    Logger.getLogger("Strong.Starter").level = Logger.WARNING
+//    Thread {
+//        Thread.sleep(7.hours)
+//        println("Goodbay. time to die")
+//        InternalLog.info(file = "main") { "Goodbay. time to die" }
+//        closed.setValue(true)
+//        exitProcess(0)
+//    }.start()
     Thread {
         while (!closed.getValue()) {
             Thread.sleep(5.minutes)

@@ -1,11 +1,10 @@
 package pw.binom.proxy.channels
 
 import pw.binom.io.AsyncChannel
-import pw.binom.proxy.BridgeJob
-import pw.binom.proxy.ChannelId
+import pw.binom.proxy.TransportChannelId
 
 interface TransportChannel : AsyncChannel {
-    val id: ChannelId
+    val id: TransportChannelId
     var description: String?
     val isClosed: Boolean
     val input: Long

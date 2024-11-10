@@ -35,7 +35,7 @@ suspend fun AsyncChannel.tcpConnectViaHttpProxy(
     if (auth != null) {
         headersForSend[Headers.PROXY_AUTHORIZATION] = auth.headerValue
     }
-    headersForSend.add(headers)
+    headersForSend += headers
 
     bufferedAsciiWriter(closeParent = false).useAsync { writer ->
         Http11ConnectFactory2.sendRequest(
