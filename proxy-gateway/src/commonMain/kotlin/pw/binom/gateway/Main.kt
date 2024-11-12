@@ -18,15 +18,17 @@ import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
 import pw.binom.gateway.properties.GatewayRuntimeProperties
 import pw.binom.gateway.services.ChannelService
-import pw.binom.gateway.services.GatewayControlService
 import pw.binom.gateway.services.OneConnectService
 import pw.binom.gateway.services.TcpConnectionFactoryImpl
-import pw.binom.gateway.services.ProxyClientService
 import pw.binom.io.file.*
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.logger.infoSync
+import pw.binom.logging.PromTailLogSender
+import pw.binom.logging.PromTailLoggerHandler
 import pw.binom.properties.IniParser
+import pw.binom.properties.LoggerProperties
+import pw.binom.properties.PingProperties
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.services.VirtualChannelService
 import pw.binom.signal.Signal
@@ -35,37 +37,11 @@ import pw.binom.thread.Thread
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.minutes
 
-fun ServiceProvider<NetworkManager>.asInstance() =
-    object : NetworkManager {
-        override fun attach(channel: MulticastUdpSocket): MulticastUdpConnection =
-            service.attach(channel = channel)
-
-        override fun attach(
-            channel: TcpClientSocket,
-            mode: ListenFlags,
-        ): TcpConnection = service.attach(channel = channel, mode = mode)
-
-        override fun attach(channel: TcpNetServerSocket): TcpServerConnection = service.attach(channel)
-
-        override fun attach(channel: UdpNetSocket): UdpConnection = service.attach(channel)
-
-        override fun <R> fold(
-            initial: R,
-            operation: (R, CoroutineContext.Element) -> R,
-        ): R = service.fold(initial = initial, operation = operation)
-
-        override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? = service.get(key)
-
-        override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext = service.minusKey(key)
-
-        override fun wakeup() {
-            service.wakeup()
-        }
-    }
-
 suspend fun startProxyClient(
     properties: GatewayRuntimeProperties,
     networkManager: NetworkManager,
+    loggerProperties: LoggerProperties,
+    pingProperties: PingProperties,
 ): Strong {
     val baseConfig =
         Strong.config {
@@ -102,16 +78,24 @@ suspend fun startProxyClient(
             it.bean { ChannelService() }
             it.bean { TcpConnectionFactoryImpl() }
             it.bean { properties }
-            it.bean { ProxyClientService() }
+            it.bean { pingProperties }
+            it.bean { loggerProperties }
+//            it.bean { ProxyClientService() }
             it.bean { BinomMetrics }
             it.bean { LocalEventSystem() }
-            it.bean { GatewayControlService() }
+//            it.bean { GatewayControlService() }
 //            it.bean { TcpCommunicatePair() }
             it.bean { OneConnectService() }
 //            it.bean { CommunicateRepository() }
             it.bean { VirtualChannelService(PackageSize(properties.bufferSize)) }
             val pool = ByteBufferPool(size = DEFAULT_BUFFER_SIZE)
             it.bean { pool }
+            if (loggerProperties.promtail != null) {
+                it.bean { PromTailLogSender() }
+            }
+            if (loggerProperties.isCustomLogger) {
+                it.bean { PromTailLoggerHandler(tags = mapOf("app" to "proxy-client")) }
+            }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
     return Strong.create(baseConfig)
@@ -169,9 +153,16 @@ fun main(args: Array<String>) {
         GatewayRuntimeProperties.serializer(),
         configRoot,
     )
+    val loggerProperties = PropertiesDecoder.parse(LoggerProperties.serializer(), configRoot)
+    val pingProperties = PropertiesDecoder.parse(PingProperties.serializer(), configRoot)
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
-            val strong = startProxyClient(properties = properties, networkManager = networkManager)
+            val strong = startProxyClient(
+                properties = properties,
+                networkManager = networkManager,
+                loggerProperties = loggerProperties,
+                pingProperties = pingProperties,
+            )
             val mainCoroutineContext = coroutineContext
             Signal.handler {
                 if (it.isInterrupted) {

@@ -32,7 +32,9 @@ kotlin {
                 api("pw.binom.io:thread:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:socket:${pw.binom.Versions.BINOM_VERSION}")
                 api("pw.binom.io:network:${pw.binom.Versions.BINOM_VERSION}")
-//                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
+                api("pw.binom.io:properties-serialization:${pw.binom.Versions.BINOM_VERSION}")
+                api("org.jetbrains.kotlinx:kotlinx-serialization-json:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
                 api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
                 api(
                     "org.jetbrains.kotlinx:kotlinx-serialization-core:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"

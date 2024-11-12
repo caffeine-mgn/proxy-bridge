@@ -20,6 +20,7 @@ import pw.binom.io.useAsync
 import pw.binom.logger.info
 import pw.binom.logger.infoSync
 import pw.binom.network.NetworkManager
+import pw.binom.properties.PingProperties
 import pw.binom.proxy.TransportChannelId
 import pw.binom.proxy.FrameProxyClient
 import pw.binom.services.VirtualChannelService
@@ -31,12 +32,14 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.coroutineContext
 
 @OptIn(ExperimentalStdlibApi::class)
+@Deprecated(message = "Not use it")
 class ProxyClientService : ProxyClient {
     private val closing = AtomicBoolean(false)
     private val logger by Logger.ofThisOrGlobal
     private val runtimeProperties by inject<GatewayRuntimeProperties>()
     private val httpClient by inject<HttpClient>()
     private val networkManager by inject<NetworkManager>()
+    private val pingProperties by inject<PingProperties>()
     private val lock = SpinLock()
     private val eventSystem by inject<EventSystem>()
     private var currentClient: ProxyClient? = null
@@ -81,15 +84,17 @@ class ProxyClientService : ProxyClient {
                             continue
                         }
                     try {
+                        logger.info("Success connected. Starting processing")
                         WebSocketProcessing(
                             connection = connection,
                             income = virtualChannelService.income,
                             outcome = virtualChannelService.outcome,
+                            pingProperties = pingProperties,
                         ).useAsync {
                             it.processing(networkManager)
                         }
 
-                        logger.info("Success connected")
+
                         val client = FrameProxyClient(
                             WsFrameChannel(
                                 con = connection.connection,

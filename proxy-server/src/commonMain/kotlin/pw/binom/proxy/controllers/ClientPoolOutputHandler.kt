@@ -11,6 +11,7 @@ import pw.binom.Urls
 import pw.binom.proxy.server.ClientService
 import pw.binom.strong.inject
 
+@Deprecated(message = "Not use it")
 class ClientPoolOutputHandler : HttpHandler {
 
     private val clientService by inject<ClientService>()

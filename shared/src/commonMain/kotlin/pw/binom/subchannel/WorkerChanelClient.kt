@@ -8,6 +8,7 @@ import pw.binom.io.socket.UnknownHostException
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.infoSync
+import pw.binom.logging.Variables
 import kotlin.time.Duration.Companion.seconds
 
 class WorkerChanelClient(val channel: FrameChannel) : AsyncCloseable {
@@ -38,26 +39,29 @@ class WorkerChanelClient(val channel: FrameChannel) : AsyncCloseable {
     suspend fun startTcp(host: String, port: Int): TcpExchange {
         logger.info("Start tcp exchange for $host:$port")
         try {
-            channel.sendFrame {
-                it.writeByte(START_TCP)
-                it.writeString(host)
-                it.writeInt(port)
-            }.ensureNotClosed { "Can't send message to $channel" }
-            val c = withTimeoutOrNull(10.seconds) {
-                channel.readFrame {
-                    val cmd = it.readByte()
-                    when (cmd) {
-                        CONNECTED -> channel
-                        HOST_NOT_FOUND -> throw UnknownHostException(host)
-                        UNKNOWN_ERROR -> throw RuntimeException(it.readString())
-                        NOT_SUPPORTED -> throw RuntimeException("Not supported")
-                        else -> throw IllegalStateException("Unknown command $cmd (0x${cmd.toUByte().toString(16)}")
+            return Variables.with("address" to "$host:$port") {
+                channel.sendFrame {
+                    it.writeByte(START_TCP)
+                    it.writeString(host)
+                    it.writeInt(port)
+                }.ensureNotClosed { "Can't send message to $channel" }
+                val c = withTimeoutOrNull(10.seconds) {
+                    channel.readFrame {
+                        val cmd = it.readByte()
+                        when (cmd) {
+                            CONNECTED -> channel
+                            HOST_NOT_FOUND -> throw UnknownHostException(host)
+                            UNKNOWN_ERROR -> throw RuntimeException(it.readString())
+                            NOT_SUPPORTED -> throw RuntimeException("Not supported")
+                            else -> throw IllegalStateException("Unknown command $cmd (0x${cmd.toUByte().toString(16)}")
+                        }
                     }
-                }
-            }?.ensureNotClosed() ?: TODO("Timeout on $channel")
-            closed.setValue(true)
-            logger.info("Start TCP session")
-            return TcpExchange(c)
+                }?.ensureNotClosed() ?: TODO("Timeout on $channel")
+                closed.setValue(true)
+                logger.info("Start TCP session")
+
+                TcpExchange(channel = c, host = host, port = port)
+            }
         } catch (e: Throwable) {
             asyncCloseAnyway()
             throw e

@@ -18,7 +18,9 @@ import pw.binom.io.httpClient.connectWebSocket
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
+import pw.binom.logger.warn
 import pw.binom.network.NetworkManager
+import pw.binom.properties.PingProperties
 import pw.binom.services.VirtualChannelService
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.inject
@@ -28,6 +30,7 @@ class OneConnectService {
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<GatewayRuntimeProperties>()
     private val httpClient by inject<HttpClient>()
+    private val pingProperties by inject<PingProperties>()
     private val logger by Logger.ofThisOrGlobal
     private val virtualChannelService by inject<VirtualChannelService>()
 
@@ -37,8 +40,12 @@ class OneConnectService {
     init {
         BeanLifeCycle.afterInit {
             GlobalScope.launch(networkManager + CoroutineName("gateway-control-connect")) {
-                while (!closing.getValue() && isActive) {
-                    processing()
+                try {
+                    while (!closing.getValue() && isActive) {
+                        processing()
+                    }
+                } catch (e: Throwable) {
+                    logger.warn(text = "Missing connect to server", exception = e)
                 }
             }
         }
@@ -49,8 +56,9 @@ class OneConnectService {
 
     private suspend fun processing() {
         val url = "${runtimeProperties.url}${Urls.CONTROL}".toURL()
-        try {
-            val connection = httpClient.connectWebSocket(
+        logger.info("Try to connect!")
+        val connection = try {
+            httpClient.connectWebSocket(
                 uri = url
             ).also {
                 it.addHeader("X-trace", "ee12b3")
@@ -59,18 +67,30 @@ class OneConnectService {
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.197 Safari/537.36"
                 )
             }.start(bufferSize = runtimeProperties.bufferSize)
-
+        } catch (e: Throwable) {
+            logger.info(text = "Can't connect to $url. Retry in ${runtimeProperties.reconnectDelay}", exception = e)
+            delay(runtimeProperties.reconnectDelay)
+            return
+        }
+        logger.info("Connected to $url success")
+        try {
             WebSocketProcessing(
                 connection = connection,
                 income = virtualChannelService.income,
                 outcome = virtualChannelService.outcome,
+                pingProperties = pingProperties,
             ).useAsync {
-                it.processing(networkManager)
+                try {
+                    logger.info("Starting WebSocket processing")
+                    it.processing(networkManager)
+                } catch (e: Throwable) {
+                    logger.info(text = "Error during processing", exception = e)
+                } finally {
+                    logger.info("WebSocket processing finished!")
+                }
             }
         } catch (e: Throwable) {
-            logger.info(text = "Can't connect to $url. Retry in ${runtimeProperties.reconnectDelay}")
-            delay(runtimeProperties.reconnectDelay)
-            return
+            logger.info(text = "Error during close", exception = e)
         }
     }
 }

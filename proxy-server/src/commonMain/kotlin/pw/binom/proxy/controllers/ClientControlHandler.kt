@@ -14,6 +14,7 @@ import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
+import pw.binom.properties.PingProperties
 import pw.binom.services.VirtualChannelService
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.Strong
@@ -30,6 +31,7 @@ class ClientControlHandler : HttpHandler, MetricProvider {
     private val logger by Logger.ofThisOrGlobal
     private var clientCounter = 0
     private val clients = HashSet<WebSocketConnection>()
+    private val pingProperties by inject<PingProperties>()
     private val clientsLock = SpinLock()
     private val metricProvider = MetricProviderImpl()
     override val metrics: List<MetricUnit> by metricProvider
@@ -42,13 +44,20 @@ class ClientControlHandler : HttpHandler, MetricProvider {
 //            logger.info("    $key: $value")
 //        }
 
+        logger.info("Income connect")
         val connection = exchange.acceptWebsocket()
-        WebSocketProcessing(
-            connection = connection,
-            income = virtualChannelService.income,
-            outcome = virtualChannelService.outcome,
-        ).useAsync {
-            it.processing(networkManager)
+        try {
+            WebSocketProcessing(
+                connection = connection,
+                income = virtualChannelService.income,
+                outcome = virtualChannelService.outcome,
+                pingProperties = pingProperties,
+            ).useAsync {
+                logger.info("Start processing")
+                it.processing(networkManager)
+            }
+        } finally {
+            logger.info("Processing finished!")
         }
         return
         /*

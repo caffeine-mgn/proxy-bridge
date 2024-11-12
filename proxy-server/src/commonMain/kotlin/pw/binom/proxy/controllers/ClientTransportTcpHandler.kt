@@ -7,6 +7,7 @@ import pw.binom.proxy.server.ClientService
 import pw.binom.Urls
 import pw.binom.strong.inject
 
+@Deprecated(message = "Not use it")
 class ClientTransportTcpHandler : HttpHandler {
     private val clientService by inject<ClientService>()
     override suspend fun handle(exchange: HttpServerExchange) {

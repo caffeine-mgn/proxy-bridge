@@ -24,6 +24,7 @@ import pw.binom.io.ByteBuffer
 import pw.binom.io.holdState
 import pw.binom.logger.Logger
 import pw.binom.logger.info
+import pw.binom.logging.withVariables
 import pw.binom.readShort
 import pw.binom.writeShort
 import kotlin.coroutines.coroutineContext
@@ -122,7 +123,7 @@ class VirtualChannelManagerImpl2(
     }
 
     private inner class VC(override val id: ChannelId, bufferSize: PackageSize) : VirtualChannel {
-        private val logger = Logger.getLogger("VirtualChannel(${id.raw})")
+        private val logger = Logger.getLogger("VirtualChannel").withVariables("virtual-channel" to id.raw.toString())
         override val bufferSize: PackageSize = bufferSize - 1 - Short.SIZE_BYTES - 1
         private val incomeChannel = Channel<ByteBuffer>(onUndeliveredElement = { it.close() })
         private val notInTimePackages = HashMap<Byte, ByteBuffer>()
@@ -268,6 +269,7 @@ class VirtualChannelManagerImpl2(
         }
 
         override suspend fun asyncClose() {
+            logger.info("Closing channel")
             if (closeSent.compareAndSet(false, true)) {
                 sendClosed(id)
             }

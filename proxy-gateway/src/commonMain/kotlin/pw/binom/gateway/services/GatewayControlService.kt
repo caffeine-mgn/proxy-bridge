@@ -10,6 +10,7 @@ import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
 
+@Deprecated(message = "Not use it")
 class GatewayControlService {
     private val channelService by inject<ChannelService>()
     private val proxyClient by inject<ProxyClient>()

@@ -40,7 +40,7 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class ProxyHandler : HttpHandler, MetricProvider {
-    private val clientService by inject<ClientService>()
+//    private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<ProxyProperties>()
 
