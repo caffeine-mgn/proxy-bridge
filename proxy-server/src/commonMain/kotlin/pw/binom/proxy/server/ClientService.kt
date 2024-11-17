@@ -1,4 +1,5 @@
 package pw.binom.proxy.server
+/*
 
 import kotlinx.coroutines.*
 import pw.binom.concurrency.SpinLock
@@ -158,7 +159,8 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         val channel = compositeChannelManager.getChannel(connectionId)
         logger.info("Transport $connectionId channel connected")
         return connectionId to channel
-        /*
+        */
+/*
         val l = suspendCancellableCoroutine {
             logger.infoSync("wait connection with id=$connectionId")
             it.invokeOnCancellation {
@@ -181,7 +183,8 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
             channel = l.first,
             continuation = l.second,
         )
-         */
+         *//*
+
     }
 
     private var cleanupJob: Job? = null
@@ -211,3 +214,4 @@ class ClientService : Strong.DestroyableBean, Strong.LinkingBean {
         cleanupJob?.cancelAndJoin()
     }
 }
+*/

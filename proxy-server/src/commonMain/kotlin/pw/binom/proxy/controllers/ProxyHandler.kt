@@ -1,8 +1,8 @@
 package pw.binom.proxy.controllers
 
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.FrameAsyncChannelAdapter
-import pw.binom.exceptions.TimeoutException
 import pw.binom.io.AsyncChannel
 import pw.binom.io.http.HashHeaders
 import pw.binom.io.http.Headers
@@ -26,23 +26,26 @@ import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
-import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.server.ProxedFactory
 import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.proxy.exceptions.ClientMissingException
 import pw.binom.proxy.io.copyTo
+import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
 import pw.binom.strong.inject
 import pw.binom.subchannel.TcpExchange
 import pw.binom.subchannel.WorkerChanelClient
+import pw.binom.subchannel.commands.TcpConnectCommand
 import pw.binom.url.URL
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class ProxyHandler : HttpHandler, MetricProvider {
-//    private val clientService by inject<ClientService>()
+    //    private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<ProxyProperties>()
+    private val clientService by inject<ClientService>()
+    private val tcpConnectCommand by inject<TcpConnectCommand>()
 
     //    private val controlService by inject<ServerControlService>()
 //    private val gatewayClient by inject<GatewayClient>()
@@ -74,13 +77,14 @@ class ProxyHandler : HttpHandler, MetricProvider {
         )
         val protocolSelector =
             SingleProtocolSelector(
-                ProxedFactory(protocolSelector = baseProtocolSelector,
+                ProxedFactory(
+                    protocolSelector = baseProtocolSelector,
                     channelProvider = { url ->
                         val channel = connect(
                             host = url.host.domain,
                             port = url.host.port ?: 80,
                         )
-                        FrameAsyncChannelAdapter(channel.channel)
+                        FrameAsyncChannelAdapter(channel.channel())
 //                        FrameAsyncChannelAdapter(TcpCommunicatePair.serverHandshake(channel.channel))
                     })
             )
@@ -169,7 +173,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
                     host = host,
                     port = port,
                 )
-            } catch (e: TimeoutException) {
+            } catch (e: TimeoutCancellationException) {
                 logger.info("Timeout connect to $host:$port")
                 exchange.startResponse(504, headersOf(Headers.CONNECTION to Headers.CLOSE))
                 return
@@ -191,7 +195,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
         connectCount.inc()
         try {
             incomeChannel.useAsync { incomeChannel ->
-                channel.start(incomeChannel)
+                channel.startExchange(incomeChannel)
             }
             logger.info("Proxy finished!")
         } catch (e: Throwable) {
@@ -227,7 +231,12 @@ class ProxyHandler : HttpHandler, MetricProvider {
     suspend fun connect(
         host: String,
         port: Int,
-    ): TcpExchange {
+    ): TcpConnectCommand.TcpClient {
+        return tcpConnectCommand.connect(
+            host = host,
+            port = port,
+        )
+        /*
         val channel = this.virtualChannelService.createChannel()
         try {
             return WorkerChanelClient(channel).useAsync { worker ->
@@ -240,6 +249,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
             channel.asyncCloseAnyway()
             throw e
         }
+        */
         /*
         val channel = getOrCreateIdleChannel()
         gatewayClientService.sendCmd(

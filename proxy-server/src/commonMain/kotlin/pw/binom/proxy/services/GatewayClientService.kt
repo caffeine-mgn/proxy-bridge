@@ -1,5 +1,5 @@
 package pw.binom.proxy.services
-
+/*
 import kotlinx.coroutines.isActive
 import pw.binom.WsFrameChannel
 import pw.binom.atomic.AtomicBoolean
@@ -22,7 +22,7 @@ import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.EventSystem
 import pw.binom.strong.inject
 import kotlin.coroutines.coroutineContext
-/*
+
 class GatewayClientService : GatewayClient, MetricProvider {
 
     private var lastConnection: GatewayClient? = null

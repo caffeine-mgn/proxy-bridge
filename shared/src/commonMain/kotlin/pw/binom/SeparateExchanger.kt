@@ -12,28 +12,6 @@ import pw.binom.io.ByteBuffer
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 
-object SeparateExchanger {
-    /**
-     *
-     */
-    suspend fun exchange(
-        channel1: FrameChannel,
-        channel2: FrameChannel,
-        context: CoroutineContext? = null,
-        channel1Context: CoroutineContext? = null,
-        channel2Context: CoroutineContext? = null,
-    ) {
-        val context = context ?: coroutineContext
-        val copy1to2Job = GlobalScope.launch(context) {
-            channel1.copyTo(destination = channel2, readContext = channel1Context, writeContext = channel2Context)
-        }
-        val copy2to1Job = GlobalScope.launch(context) {
-            channel2.copyTo(destination = channel1, readContext = channel2Context, writeContext = channel1Context)
-        }
-        joinAll(copy1to2Job, copy2to1Job)
-    }
-}
-
 /**
  * Копирует данные из канала [from] в [destination]
  */

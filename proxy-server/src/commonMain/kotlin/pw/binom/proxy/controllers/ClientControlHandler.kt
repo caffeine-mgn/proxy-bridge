@@ -1,7 +1,9 @@
 package pw.binom.proxy.controllers
 
 import pw.binom.WebSocketProcessing
+import pw.binom.atomic.AtomicLong
 import pw.binom.concurrency.SpinLock
+import pw.binom.concurrency.synchronize
 import pw.binom.io.http.forEachHeader
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpServer.HttpHandler
@@ -10,9 +12,14 @@ import pw.binom.io.httpServer.acceptWebsocket
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
+import pw.binom.metric.AsyncMetricVisitor
+import pw.binom.metric.Metric
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
+import pw.binom.metric.MetricVisitor
+import pw.binom.metric.metricOf
+import pw.binom.metric.withField
 import pw.binom.network.NetworkManager
 import pw.binom.properties.PingProperties
 import pw.binom.services.VirtualChannelService
@@ -20,7 +27,7 @@ import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.Strong
 import pw.binom.strong.inject
 
-class ClientControlHandler : HttpHandler, MetricProvider {
+class ClientControlHandler : HttpHandler, Metric {
     //    private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
 
@@ -29,12 +36,31 @@ class ClientControlHandler : HttpHandler, MetricProvider {
 //    private val gatewayClientService by inject<GatewayClientService>()
     private val virtualChannelService by inject<VirtualChannelService>()
     private val logger by Logger.ofThisOrGlobal
-    private var clientCounter = 0
-    private val clients = HashSet<WebSocketConnection>()
-    private val pingProperties by inject<PingProperties>()
+    private val clients = HashSet<WebSocketProcessing>()
+    private val clientsMetrics = HashSet<Metric>()
     private val clientsLock = SpinLock()
+    private val pingProperties by inject<PingProperties>()
     private val metricProvider = MetricProviderImpl()
-    override val metrics: List<MetricUnit> by metricProvider
+    private val connectionCount = AtomicLong(0)
+
+    override fun accept(visitor: MetricVisitor) {
+        metricProvider.accept(visitor)
+        clientsLock.synchronize {
+            clientsMetrics.forEach {
+                it.accept(visitor)
+            }
+        }
+    }
+
+    override suspend fun accept(visitor: AsyncMetricVisitor) {
+        metricProvider.accept(visitor)
+        clientsLock.synchronize {
+            clientsMetrics.forEach {
+                it.accept(visitor)
+            }
+        }
+    }
+
     private val controlConnectionCounter = metricProvider.gaugeLong(name = "ws_control")
 
     override suspend fun handle(exchange: HttpServerExchange) {
@@ -46,18 +72,27 @@ class ClientControlHandler : HttpHandler, MetricProvider {
 
         logger.info("Income connect")
         val connection = exchange.acceptWebsocket()
-        try {
-            WebSocketProcessing(
-                connection = connection,
-                income = virtualChannelService.income,
-                outcome = virtualChannelService.outcome,
-                pingProperties = pingProperties,
-            ).useAsync {
+        WebSocketProcessing(
+            connection = connection,
+            income = virtualChannelService.income,
+            outcome = virtualChannelService.outcome,
+            pingProperties = pingProperties,
+        ).useAsync {
+            val id = connectionCount.addAndGet(1)
+            clientsLock.synchronize {
+                clients += it
+                clientsMetrics += it.withField(name = "connection", value = id.toString())
+            }
+            try {
                 logger.info("Start processing")
                 it.processing(networkManager)
+            } finally {
+                logger.info("Processing finished!")
+                clientsLock.synchronize {
+                    clientsMetrics -= it
+                    clients -= it
+                }
             }
-        } finally {
-            logger.info("Processing finished!")
         }
         return
         /*

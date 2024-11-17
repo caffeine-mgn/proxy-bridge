@@ -1,5 +1,6 @@
 package pw.binom
 
+/*
 import pw.binom.frame.FrameChannel
 import pw.binom.frame.FrameInput
 import pw.binom.frame.FrameOutput
@@ -20,3 +21,4 @@ class CloseWaterFrameChannel<T : FrameChannel>(val other: T, val closeListener: 
         closeListener(other)
     }
 }
+*/

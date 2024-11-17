@@ -17,13 +17,13 @@ kotlin {
             }
         }
     }
-    mingwX64 {
-        binaries {
-            executable {
-                entryPoint = nativeEntryPoint
-            }
-        }
-    }
+//    mingwX64 {
+//        binaries {
+//            executable {
+//                entryPoint = nativeEntryPoint
+//            }
+//        }
+//    }
     jvm {
 //        compilations.all {
 //            kotlinOptions.jvmTarget = "1.8"

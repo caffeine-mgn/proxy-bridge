@@ -15,6 +15,10 @@ interface FrameOutput {
         writeByteArray(data)
     }
 
+    fun writeLong(value: Long) {
+        writeByteArray(value.toByteArray())
+    }
+
     fun writeInt(value: Int) {
         writeByteArray(value.toByteArray())
     }

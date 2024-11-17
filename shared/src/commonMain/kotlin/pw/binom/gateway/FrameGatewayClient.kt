@@ -1,4 +1,5 @@
 package pw.binom.gateway
+/*
 
 import pw.binom.Dto
 import pw.binom.frame.FrameChannel
@@ -38,3 +39,4 @@ class FrameGatewayClient(val channel: FrameChannel) : GatewayClient {
         channel.asyncClose()
     }
 }
+*/

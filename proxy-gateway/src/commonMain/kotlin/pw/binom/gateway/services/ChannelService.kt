@@ -1,5 +1,5 @@
 package pw.binom.gateway.services
-
+/*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -129,4 +129,4 @@ class ChannelService {
         channel?.cancelAndJoin()
     }
 }
-
+*/

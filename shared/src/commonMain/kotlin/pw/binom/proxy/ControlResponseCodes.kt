@@ -1,4 +1,5 @@
 package pw.binom.proxy
+/*
 
 enum class ControlResponseCodes(val code: Byte) {
     OK(code = 0),
@@ -13,3 +14,4 @@ enum class ControlResponseCodes(val code: Byte) {
             byCode[code] ?: throw IllegalArgumentException("Can't find response with code $code")
     }
 }
+*/

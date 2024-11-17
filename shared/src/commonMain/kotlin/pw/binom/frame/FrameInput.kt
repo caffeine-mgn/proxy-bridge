@@ -6,7 +6,8 @@ import pw.binom.io.ByteBuffer
 interface FrameInput {
     fun readByte(): Byte
     fun readBoolean() = readByte() > 0
-    fun readInt(): Int = Int.Companion.fromBytes(readByteArray(4))
+    fun readInt(): Int = Int.fromBytes(readByteArray(4))
+    fun readLong(): Long = Long.fromBytes(readByteArray(8))
     fun readShort(): Short = Short.fromBytes(readByteArray(2))
     fun readByteArray(dest: ByteArray) {
         for (i in 0 until dest.size) {

@@ -16,6 +16,7 @@ class WorkerChanelClient(val channel: FrameChannel) : AsyncCloseable {
         const val CLOSE: Byte = 0x1
         const val START_TCP: Byte = 0x2
         const val FS_ACCESS: Byte = 0xa
+        const val SPEED_TEST: Byte = 0xb
         const val CONNECTED: Byte = 0x3
         const val HOST_NOT_FOUND: Byte = 0x4
         const val UNKNOWN_ERROR: Byte = 0x5
@@ -34,6 +35,17 @@ class WorkerChanelClient(val channel: FrameChannel) : AsyncCloseable {
         }
         closed.setValue(true)
         return FSClient(channel)
+    }
+
+    suspend fun speedTest():SpeedTestClient{
+        channel.sendFrame {
+            it.writeByte(SPEED_TEST)
+        }.ensureNotClosed()
+        if (channel.readFrame { it.readByte() }.valueOrNull == CONNECTED) {
+            TODO()
+        }
+        closed.setValue(true)
+        return SpeedTestClient(channel)
     }
 
     suspend fun startTcp(host: String, port: Int): TcpExchange {

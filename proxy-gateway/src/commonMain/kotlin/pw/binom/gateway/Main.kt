@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
+import pw.binom.config.CommandsConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.ByteBufferFactory
 import pw.binom.io.http.BasicAuth
@@ -17,7 +18,6 @@ import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
 import pw.binom.gateway.properties.GatewayRuntimeProperties
-import pw.binom.gateway.services.ChannelService
 import pw.binom.gateway.services.OneConnectService
 import pw.binom.gateway.services.TcpConnectionFactoryImpl
 import pw.binom.io.file.*
@@ -30,9 +30,11 @@ import pw.binom.properties.IniParser
 import pw.binom.properties.LoggerProperties
 import pw.binom.properties.PingProperties
 import pw.binom.properties.serialization.PropertiesDecoder
+import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
 import pw.binom.signal.Signal
 import pw.binom.strong.*
+import pw.binom.subchannel.commands.TcpConnectCommand
 import pw.binom.thread.Thread
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.minutes
@@ -75,13 +77,14 @@ suspend fun startProxyClient(
                 val nm = inject<NetworkManager>()
                 HttpClient.create(networkDispatcher = nm.asInstance(), proxy = proxyConfig)
             }
-            it.bean { ChannelService() }
+//            it.bean { ChannelService() }
             it.bean { TcpConnectionFactoryImpl() }
             it.bean { properties }
             it.bean { pingProperties }
             it.bean { loggerProperties }
 //            it.bean { ProxyClientService() }
             it.bean { BinomMetrics }
+            it.bean { ClientService() }
             it.bean { LocalEventSystem() }
 //            it.bean { GatewayControlService() }
 //            it.bean { TcpCommunicatePair() }
@@ -98,7 +101,7 @@ suspend fun startProxyClient(
             }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
-    return Strong.create(baseConfig)
+    return Strong.create(baseConfig, CommandsConfig())
 }
 
 val closed = AtomicBoolean(false)

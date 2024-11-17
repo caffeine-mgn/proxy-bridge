@@ -24,6 +24,7 @@ object WorkerChannelServer {
         ) : Income
 
         data object FSAccess : Income
+        data object SpeedTest : Income
 
         data object NotSupported : Income
     }
@@ -43,6 +44,7 @@ object WorkerChannelServer {
                         port = it.readInt(),
                     )
 
+                    WorkerChanelClient.SPEED_TEST -> Income.SpeedTest
                     WorkerChanelClient.FS_ACCESS -> Income.FSAccess
 
                     else -> {
@@ -67,6 +69,7 @@ object WorkerChannelServer {
             }
 
             is Income.FSAccess -> fsAccess(channel = channel, fileSystem = fileSystem)
+            is Income.SpeedTest -> SpeedTestServer.processing(channel = channel)
             is Income.Tcp -> {
                 tcp(
                     channel = channel,

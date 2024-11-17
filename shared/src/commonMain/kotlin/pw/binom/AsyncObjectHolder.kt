@@ -1,6 +1,6 @@
 package pw.binom
 
-import pw.binom.AsyncSyncPoint.Status
+/*
 import pw.binom.concurrency.SpinLock
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
@@ -64,4 +64,5 @@ class AsyncObjectHolder<T>(override val value: T) : Holder<T> {
         }
     }
 }
+*/
 

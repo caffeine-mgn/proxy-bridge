@@ -1,4 +1,5 @@
 package pw.binom.proxy.controllers
+/*
 
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
@@ -24,3 +25,4 @@ class ClientTransportTcpHandler : HttpHandler {
 //        clientService.transportProcessing(id = id) { exchange.acceptTcp() }
     }
 }
+*/

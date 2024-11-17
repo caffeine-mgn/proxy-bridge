@@ -17,13 +17,13 @@ kotlin {
             }
         }
     }
-    mingwX64 {
-        binaries {
-            executable {
-                entryPoint = nativeEntryPoint
-            }
-        }
-    }
+//    mingwX64 {
+//        binaries {
+//            executable {
+//                entryPoint = nativeEntryPoint
+//            }
+//        }
+//    }
     jvm {
 //        compilations.all {
 //            kotlinOptions.jvmTarget = "1.8"
@@ -79,7 +79,7 @@ tasks {
             attributes("Main-Class" to "pw.binom.gateway.MainJvm")
         }
     }
-    val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
+//    val linkMingw = this.getByName("linkReleaseExecutableMingwX64")
     register("deploy2", Copy::class.java) {
 //        dependsOn(linkMingw)
         dependsOn(shadowJar)

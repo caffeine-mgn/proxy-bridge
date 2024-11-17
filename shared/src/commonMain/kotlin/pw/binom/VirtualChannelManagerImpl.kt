@@ -1,5 +1,5 @@
 package pw.binom
-
+/*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -78,4 +78,4 @@ class VirtualChannelManagerImpl(
             other.asyncClose()
         }
     }
-}
+}*/

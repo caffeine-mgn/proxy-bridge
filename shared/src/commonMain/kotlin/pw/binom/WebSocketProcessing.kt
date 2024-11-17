@@ -13,7 +13,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
@@ -21,6 +20,7 @@ import pw.binom.coroutines.AsyncReentrantLock
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.AsyncOutput
 import pw.binom.io.ByteBuffer
+import pw.binom.io.holdState
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.io.http.websocket.WebSocketConnection
@@ -31,6 +31,12 @@ import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.logger.warn
+import pw.binom.metric.AsyncMetricVisitor
+import pw.binom.metric.DurationRollingAverageGauge
+import pw.binom.metric.Metric
+import pw.binom.metric.MetricProvider
+import pw.binom.metric.MetricProviderImpl
+import pw.binom.metric.MetricVisitor
 import pw.binom.network.SocketClosedException
 import pw.binom.properties.PingProperties
 import kotlin.coroutines.CoroutineContext
@@ -38,6 +44,8 @@ import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
+import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
 class WebSocketProcessing(
@@ -45,17 +53,39 @@ class WebSocketProcessing(
     private val income: SendChannel<ByteBuffer>,
     private val outcome: ReceiveChannel<ByteBuffer>,
     private val pingProperties: PingProperties,
-) : AsyncCloseable {
+) : AsyncCloseable, Metric {
     private val readBuffer = ByteBuffer(Int.SIZE_BYTES)
     private val writeBuffer = ByteBuffer(Int.SIZE_BYTES)
     private var writeJob: Job? = null
     private var readJob: Job? = null
     private val logger by Logger.ofThisOrGlobal
     private val sendLock = AsyncReentrantLock()
+    private val metricProvider = MetricProviderImpl()
+
+    override fun accept(visitor: MetricVisitor) {
+        metricProvider.accept(visitor)
+        sendLockTime.accept(visitor)
+    }
+
+    override suspend fun accept(visitor: AsyncMetricVisitor) {
+        metricProvider.accept(visitor)
+        sendLockTime.accept(visitor)
+    }
+
+    private var pingLatency by metricProvider.gaugeDouble("ws_ping_latency")
+    private var pingFailShot by metricProvider.gaugeLong("ws_ping_fail_shot")
+    private val processing = metricProvider.gaugeLong("ws_processing")
+    private val sendLockTime =
+        DurationRollingAverageGauge(name = "ws_send_lock", windowSize = 50, unit = DurationUnit.MILLISECONDS)
+    private val pingLock = SpinLock()
+    private var pingWaiter: CancellableContinuation<Unit>? = null
+    private val SEND_TIMEOUT = 5.seconds
 
 
     suspend fun processing(context: CoroutineContext? = null) {
-        val context = context ?: coroutineContext
+        processing.set(1)
+        try {
+            val context = context ?: coroutineContext
 
 //        val channelTransfer = GlobalScope.launch(context) {
 //            try {
@@ -65,69 +95,73 @@ class WebSocketProcessing(
 //                this@WebSocketProcessing.readJob?.cancel()
 //            }
 //        }
-        val writeJob = GlobalScope.launch(context) {
-            try {
-                writingProcessing()
-            } finally {
-                logger.info("stop writing process")
-                this@WebSocketProcessing.readJob?.cancel()
+            val writeJob = GlobalScope.launch(context) {
+                try {
+                    writingProcessing()
+                } finally {
+                    logger.info("stop writing process")
+                    this@WebSocketProcessing.readJob?.cancel()
+                }
             }
-        }
-        val readJob = GlobalScope.launch(context) {
-            try {
-                readingProcessing()
-            } finally {
-                logger.info("stop reading process")
-                this@WebSocketProcessing.writeJob?.cancel()
+            val readJob = GlobalScope.launch(context) {
+                try {
+                    readingProcessing()
+                } finally {
+                    logger.info("stop reading process")
+                    this@WebSocketProcessing.writeJob?.cancel()
+                }
             }
-        }
 //        this.pingJob = channelTransfer
-        this.writeJob = writeJob
-        this.readJob = readJob
-        val pingResult = runCatching { sendingPing() }
-        val readJobResult = runCatching {
-            readJob.cancelAndJoin()
-        }
-        val writeJobResult = runCatching {
-            writeJob.cancelAndJoin()
-        }
-        logger.info("readJobResult.isSuccess=${readJobResult.isSuccess}")
-        logger.info("writeJobResult.isSuccess=${writeJobResult.isSuccess}")
-        logger.info("pingResult.isSuccess=${pingResult.isSuccess}")
-        if (readJobResult.isFailure) {
-            logger.info("throw error #1")
-            val e = readJobResult.exceptionOrNull()!!
-            if (writeJobResult.isFailure) {
-                logger.info("throw error #2")
-                e.addSuppressed(writeJobResult.exceptionOrNull()!!)
+            this.writeJob = writeJob
+            this.readJob = readJob
+            val pingResult = runCatching { sendingPing() }
+            val readJobResult = runCatching {
+                readJob.cancelAndJoin()
             }
-            throw e
-        }
-        if (writeJobResult.isFailure) {
-            logger.info("throw error #3")
-            throw writeJobResult.exceptionOrNull()!!
+            val writeJobResult = runCatching {
+                writeJob.cancelAndJoin()
+            }
+            logger.info("readJobResult.isSuccess=${readJobResult.isSuccess}")
+            logger.info("writeJobResult.isSuccess=${writeJobResult.isSuccess}")
+            logger.info("pingResult.isSuccess=${pingResult.isSuccess}")
+            if (readJobResult.isFailure) {
+                logger.info("throw error #1")
+                val e = readJobResult.exceptionOrNull()!!
+                if (writeJobResult.isFailure) {
+                    logger.info("throw error #2")
+                    e.addSuppressed(writeJobResult.exceptionOrNull()!!)
+                }
+                throw e
+            }
+            if (writeJobResult.isFailure) {
+                logger.info("throw error #3")
+                throw writeJobResult.exceptionOrNull()!!
+            }
+        } finally {
+            processing.set(0)
         }
     }
-
-    private val pingLock = SpinLock()
-    private var pingWaiter: CancellableContinuation<Unit>? = null
-    private val SEND_TIMEOUT = 5.seconds
 
     private suspend fun sendingPing() {
         ByteBuffer(pingProperties.size).use { pingBuffer ->
             var failPing = 0
+            pingFailShot = 0
             while (coroutineContext.isActive) {
                 delay(pingProperties.interval)
                 try {
-                    sendLock.synchronize(SEND_TIMEOUT) {
-                        connection.write(MessageType.PING).useAsync { msg ->
-                            pingBuffer.clear()
+                    val time = measureTime {
+                        pingBuffer.clear()
+                        pingBuffer.holdState {
                             Random.nextBytes(pingBuffer)
-                            pingBuffer.clear()
-                            msg.writeFully(pingBuffer)
-                            logger.info("Ping send success!")
+                        }
+                        sendLock.synchronize(SEND_TIMEOUT) {
+                            connection.write(MessageType.PING).useAsync { msg ->
+                                msg.writeFully(pingBuffer)
+                                logger.info("Ping send success!")
+                            }
                         }
                     }
+                    sendLockTime.put(time)
                 } catch (e: Throwable) {
                     logger.warn(text = "Can't send ping", exception = e)
                     break
@@ -143,8 +177,10 @@ class WebSocketProcessing(
                     } != null
                 }
                 if (isPingOk) {
+                    pingLatency = latency.inWholeMilliseconds * 0.001
                     logger.info("Ping response OK. latency=$latency")
                     failPing = 0
+                    pingFailShot = 0
                 } else {
                     if (failPing >= pingProperties.pingFailCount) {
                         logger.info("Ping timeout! No time for caution!")
@@ -152,6 +188,7 @@ class WebSocketProcessing(
                     }
                     logger.info("Ping timeout! Wait next ping fail")
                     failPing++
+                    pingFailShot = failPing.toLong()
                 }
             }
         }
@@ -173,13 +210,16 @@ class WebSocketProcessing(
                 val dataForSend = buf.remaining
                 logger.info("Try to send data $dataForSend")
                 try {
-                    sendLock.synchronize(lockingTimeout = SEND_TIMEOUT) {
-                        connection.write(MessageType.BINARY).useAsync { msg ->
-                            msg.writeInt(buf.remaining, buffer = writeBuffer)
-                            logger.info("Outcome ${Int.SIZE_BYTES + buf.remaining} bytes")
-                            msg.writeFully(buf)
+                    val time = measureTime {
+                        sendLock.synchronize(lockingTimeout = SEND_TIMEOUT) {
+                            connection.write(MessageType.BINARY).useAsync { msg ->
+                                msg.writeInt(buf.remaining, buffer = writeBuffer)
+                                logger.info("Outcome ${Int.SIZE_BYTES + buf.remaining} bytes")
+                                msg.writeFully(buf)
+                            }
                         }
                     }
+                    sendLockTime.put(time)
                     logger.info("Data $dataForSend success sent!")
                 } catch (e: Throwable) {
                     logger.info(text = "Can't send data to WS", exception = e)
@@ -217,9 +257,9 @@ class WebSocketProcessing(
             return true
         }
         try {
-            logger.info("Try to send income ${buf.remaining} to channel")
+            logger.info("Try to send income ${buf.remaining} bytes bytes to channel")
             this.income.send(buf)
-            logger.info("Sent income ${buf.remaining} to channel success")
+            logger.info("Sent income ${buf.remaining} bytes to channel success")
         } catch (_: ClosedSendChannelException) {
             logger.warn("Can't read data: ClosedSendChannelException")
             buf.close()
@@ -304,7 +344,6 @@ class WebSocketProcessing(
                 logger.warn(text = "Can't read message: CancellationException", exception = e)
                 return
             }
-            logger.info("Was read success type: ${msg.type}")
             when (msg.type) {
                 MessageType.PING -> if (!readPing(msg)) {
                     logger.info("PING: Returns signal that reading should be stop!")

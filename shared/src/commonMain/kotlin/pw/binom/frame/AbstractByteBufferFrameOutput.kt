@@ -1,8 +1,7 @@
 package pw.binom.frame
 
+import pw.binom.*
 import pw.binom.io.ByteBuffer
-import pw.binom.writeInt
-import pw.binom.writeShort
 
 abstract class AbstractByteBufferFrameOutput : FrameOutput {
     protected abstract val buffer: ByteBuffer
@@ -14,6 +13,10 @@ abstract class AbstractByteBufferFrameOutput : FrameOutput {
 
     override fun writeInt(value: Int) {
         buffer.writeInt(value)
+    }
+
+    override fun writeLong(value: Long) {
+        buffer.writeLong(value)
     }
 
     override fun writeShort(value: Short) {

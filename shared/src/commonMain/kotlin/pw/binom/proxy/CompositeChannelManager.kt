@@ -1,4 +1,5 @@
 package pw.binom.proxy
+/*
 
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -108,3 +109,4 @@ class CompositeChannelManager<T> {
         channelsLock.synchronize { channels.remove(id) }?.second?.let { r.useChannel(it) }
     }
 }
+*/

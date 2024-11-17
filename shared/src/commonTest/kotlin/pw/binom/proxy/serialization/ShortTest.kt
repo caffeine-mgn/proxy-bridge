@@ -35,10 +35,10 @@ class ShortTest {
         assertEquals(value, o)
     }
 
-    @Test
-    fun test() {
-        test(RequestDto.serializer(), RequestDto(connect = RequestDto.Connect(host = "123", port = 11, channelId = 22)))
-    }
+//    @Test
+//    fun test() {
+//        test(RequestDto.serializer(), RequestDto(connect = RequestDto.Connect(host = "123", port = 11, channelId = 22)))
+//    }
 
     @Test
     fun intTest() {

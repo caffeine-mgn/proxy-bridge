@@ -1,4 +1,5 @@
 package pw.binom.proxy
+/*
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -49,3 +50,4 @@ data class RequestDto(
     @Serializable
     data class SetIdle(val channelId: Int)
 }
+*/

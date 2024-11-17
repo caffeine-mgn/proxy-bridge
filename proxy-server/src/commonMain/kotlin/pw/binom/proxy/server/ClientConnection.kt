@@ -1,4 +1,5 @@
 package pw.binom.proxy.server
+/*
 
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -69,7 +70,8 @@ class ClientConnection(
     private var idCounter = 0
     private val waiters = HashMap<Int, CancellableContinuation<Unit>>()
 
-    /*
+    */
+/*
         suspend fun putFile(path: String, file: AsyncInput) {
             val id = idCounter++
             connection.write(MessageType.BINARY).use { msg ->
@@ -87,7 +89,8 @@ class ClientConnection(
                 waiters[id] = it
             }
         }
-    */
+    *//*
+
     suspend fun emmitChannel(channelId: Int) {
         val id = idCounter++
         logger.info("Emmit Channel!")
@@ -148,3 +151,4 @@ class ClientConnection(
         connection.asyncCloseAnyway()
     }
 }
+*/

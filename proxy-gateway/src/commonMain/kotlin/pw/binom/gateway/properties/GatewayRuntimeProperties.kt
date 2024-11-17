@@ -24,7 +24,7 @@ data class GatewayRuntimeProperties(
     val wsMasking: Boolean = true,
     val reconnectTimeout: Duration = 30.seconds,
     val pingInterval: Duration = 50.seconds,
-    val reconnectDelay: Duration = 50.seconds,
+    val reconnectDelay: Duration = 1.seconds,
 ) {
     enum class TransportType {
         TCP_OVER_HTTP,

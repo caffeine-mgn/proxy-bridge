@@ -1,5 +1,5 @@
 package pw.binom
-
+/*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -212,3 +212,4 @@ class WsVirtualChannelManager(
         channelProcessing(id, channel)
     }
 }
+*/

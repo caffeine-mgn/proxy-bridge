@@ -1,5 +1,6 @@
 package pw.binom.proxy
 
+/*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -10,3 +11,4 @@ class RequestDtoTest {
         assertEquals(11, g.size)
     }
 }
+*/

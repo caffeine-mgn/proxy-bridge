@@ -11,8 +11,13 @@ class InternalHandler : HttpHandler {
     private val proxyHandler by inject<ProxyHandler>()
     private val serviceInfoHandler by inject<ServiceInfoHandler>()
     private val prometheusController by inject<PrometheusController>()
+    private val benchmarkHandler by inject<BenchmarkHandler>()
 
     override suspend fun handle(exchange: HttpServerExchange) {
+        if (exchange.requestMethod == "POST" && exchange.requestURI.toString() == "/benchmark") {
+            benchmarkHandler.handle(exchange)
+            return
+        }
         if (exchange.requestMethod == "GET" && exchange.requestURI.toString() == "/service") {
             serviceInfoHandler.handle(exchange)
             return

@@ -7,7 +7,7 @@ plugins {
 }
 kotlin {
     linuxX64()
-    mingwX64()
+//    mingwX64()
     jvm {
 //        compilations.all {
 //            kotlinOptions.jvmTarget = "1.8"

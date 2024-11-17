@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.communicate.CommunicateRepository
 import pw.binom.communicate.tcp.TcpCommunicatePair
+import pw.binom.config.CommandsConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.file.File
 import pw.binom.io.file.LocalFileSystem
@@ -27,15 +28,16 @@ import pw.binom.properties.PingProperties
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.proxy.controllers.*
 import pw.binom.proxy.properties.ProxyProperties
-import pw.binom.proxy.server.ClientService
 import pw.binom.proxy.services.ExternalWebServerService
 import pw.binom.proxy.services.InternalWebServerService
+import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
 import pw.binom.signal.Signal
 import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 import pw.binom.strong.inject
+import pw.binom.subchannel.commands.TcpConnectCommand
 
 suspend fun startProxyNode(
     properties: ProxyProperties,
@@ -49,6 +51,8 @@ suspend fun startProxyNode(
             it.bean { ExternalHandler() }
             it.bean { properties }
             it.bean { pingProperties }
+            it.bean { ClientService() }
+            it.bean { BenchmarkHandler() }
             it.bean { ClientControlHandler() }
 //            it.bean { ClientTransportTcpHandler() }
             it.bean { ClientTransportWsHandler() }
@@ -85,7 +89,7 @@ suspend fun startProxyNode(
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
     println("Starting node")
-    return Strong.create(baseConfig)
+    return Strong.create(baseConfig, CommandsConfig())
 }
 
 fun main(args: Array<String>) {

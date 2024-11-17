@@ -1,4 +1,5 @@
 package pw.binom.gateway
+/*
 
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
@@ -78,3 +79,4 @@ class GatewayClientWebSocket(val connection: WebSocketConnection) : GatewayClien
         }
     }
 }
+*/

@@ -1,5 +1,6 @@
 package pw.binom
 
+/*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
@@ -31,9 +32,11 @@ abstract class AbstractVirtualChannelManager : VirtualChannelManager {
     private val channels = HashMap<ChannelId, VirtualChannelImpl>()
     private val channelLock = SpinLock()
 
-    /**
+    */
+/**
      * Вызывается когда приходят данные от не известного канала
-     */
+     *//*
+
     protected abstract fun emittedNewChannel(id: ChannelId, channel: VirtualChannel)
 
     override val channelCount: Int
@@ -199,7 +202,6 @@ abstract class AbstractVirtualChannelManager : VirtualChannelManager {
 
         }
     }
-
-
 }
+*/
 

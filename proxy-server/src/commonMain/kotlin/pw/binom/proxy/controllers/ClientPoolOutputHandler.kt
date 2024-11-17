@@ -1,4 +1,5 @@
 package pw.binom.proxy.controllers
+/*
 
 import pw.binom.io.http.Encoding
 import pw.binom.io.http.Headers
@@ -43,7 +44,8 @@ class ClientPoolOutputHandler : HttpHandler {
                 exchange.output
             }
         )
-        /*
+        */
+/*
         val input = withTimeoutOrNull(10.seconds) {
             suspendCancellableCoroutine<Pair<AsyncInput, CancellableContinuation<Unit>>> {
                 waters[id] = it
@@ -58,6 +60,8 @@ class ClientPoolOutputHandler : HttpHandler {
                 input.second.resume(Unit)
             }
         }
-        */
+        *//*
+
     }
 }
+*/

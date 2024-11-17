@@ -1,5 +1,5 @@
 package pw.binom.gateway.services
-
+/*
 import pw.binom.io.Closeable
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -86,3 +86,4 @@ class GatewayControlService {
         }
     }
 }
+*/

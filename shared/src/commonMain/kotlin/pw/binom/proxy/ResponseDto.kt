@@ -1,4 +1,5 @@
 package pw.binom.proxy
+/*
 
 import kotlinx.serialization.Serializable
 import pw.binom.ArgCounter
@@ -60,3 +61,4 @@ data class ResponseDto(
     @Serializable
     class UnknownError(val message: String?)
 }
+*/

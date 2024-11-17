@@ -1,5 +1,6 @@
 package pw.binom
 
+/*
 import pw.binom.frame.virtual.VirtualChannel
 import pw.binom.io.AsyncCloseable
 
@@ -9,3 +10,4 @@ interface VirtualChannelManager : AsyncCloseable {
 
     fun getOrCreateChannel(id: ChannelId): VirtualChannel
 }
+*/
