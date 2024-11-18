@@ -22,10 +22,9 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
         const val NOT_SUPPORTED: Byte = 0x6
     }
 
-    suspend fun connect(host: String, port: Int): TcpClient {
+    suspend fun connect(host: String, port: Int): Connected {
         val client = clientService.startServer(this)
-        client.connect(host = host, port = port)
-        return client
+        return client.connect(host = host, port = port)
     }
 
     val tcpConnectionFactory by inject<TcpConnectionFactory>()
@@ -35,28 +34,29 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
         fun channel() = asClosed { channel }
 
         @Throws(UnknownHostException::class, IOException::class, CancellationException::class)
-        suspend fun connect(host: String, port: Int) {
-            asClosed {
-                channel.sendFrame {
-                    it.writeString(host)
-                    it.writeInt(port)
-                }
-                val result = channel.readFrame {
-                    when (val r = it.readByte()) {
-                        CONNECTED -> null
-                        HOST_NOT_FOUND -> UnknownHostException()
-                        UNKNOWN_ERROR -> IOException(it.readString())
-                        else -> IOException("Unknown code 0x${r.toUByte().toString(16)}")
-                    }
-                }
-                if (result.isClosed) {
-                    throw IOException("Connection closed")
-                }
-                result.getOrThrow()?.let { throw it }
+        suspend fun connect(host: String, port: Int): Connected = asClosed {
+            channel.sendFrame {
+                it.writeString(host)
+                it.writeInt(port)
             }
-
+            val result = channel.readFrame {
+                when (val r = it.readByte()) {
+                    CONNECTED -> null
+                    HOST_NOT_FOUND -> UnknownHostException()
+                    UNKNOWN_ERROR -> IOException(it.readString())
+                    else -> IOException("Unknown code 0x${r.toUByte().toString(16)}")
+                }
+            }
+            if (result.isClosed) {
+                throw IOException("Connection closed")
+            }
+            result.getOrThrow()?.let { throw it }
+            Connected(channel)
         }
+    }
 
+    class Connected(override val channel: FrameChannel) : AbstractCommandClient() {
+        fun channel() = asClosed { channel }
         suspend fun startExchange(channel: AsyncChannel) {
             asClosed {
                 this.channel.useAsync { c ->

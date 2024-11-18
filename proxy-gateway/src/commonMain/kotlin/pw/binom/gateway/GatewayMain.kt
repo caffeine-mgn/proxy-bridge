@@ -13,7 +13,6 @@ import pw.binom.io.http.BearerAuth
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
-import pw.binom.io.socket.*
 import pw.binom.io.use
 import pw.binom.network.*
 import pw.binom.pool.GenericObjectPool
@@ -34,9 +33,7 @@ import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
 import pw.binom.signal.Signal
 import pw.binom.strong.*
-import pw.binom.subchannel.commands.TcpConnectCommand
 import pw.binom.thread.Thread
-import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.minutes
 
 suspend fun startProxyClient(

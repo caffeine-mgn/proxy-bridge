@@ -17,6 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.coroutines.AsyncReentrantLock
+import pw.binom.coroutines.SimpleAsyncLock2
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.AsyncOutput
 import pw.binom.io.ByteBuffer
@@ -59,7 +60,7 @@ class WebSocketProcessing(
     private var writeJob: Job? = null
     private var readJob: Job? = null
     private val logger by Logger.ofThisOrGlobal
-    private val sendLock = AsyncReentrantLock()
+    private val sendLock = SimpleAsyncLock2()
     private val metricProvider = MetricProviderImpl()
 
     override fun accept(visitor: MetricVisitor) {

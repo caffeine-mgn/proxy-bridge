@@ -34,23 +34,28 @@ class OneConnectService {
     private val logger by Logger.ofThisOrGlobal
     private val virtualChannelService by inject<VirtualChannelService>()
 
-    private var job: Job? = null
+    private var jobs = emptyList<Job>()
     private val closing = AtomicBoolean(false)
 
     init {
         BeanLifeCycle.afterInit {
-            GlobalScope.launch(networkManager + CoroutineName("gateway-control-connect")) {
-                try {
-                    while (!closing.getValue() && isActive) {
-                        processing()
+            jobs = (0 until runtimeProperties.connectCount).map {
+                GlobalScope.launch(networkManager + CoroutineName("gateway-control-connect")) {
+                    try {
+                        while (!closing.getValue() && isActive) {
+                            processing()
+                        }
+                    } catch (e: Throwable) {
+                        logger.warn(text = "Missing connect to server", exception = e)
+                        delay(runtimeProperties.reconnectDelay)
                     }
-                } catch (e: Throwable) {
-                    logger.warn(text = "Missing connect to server", exception = e)
                 }
             }
         }
         BeanLifeCycle.preDestroy {
-            job?.cancelAndJoin()
+            jobs.forEach {
+                it.cancelAndJoin()
+            }
         }
     }
 
@@ -69,7 +74,6 @@ class OneConnectService {
             }.start(bufferSize = runtimeProperties.bufferSize)
         } catch (e: Throwable) {
             logger.info(text = "Can't connect to $url. Retry in ${runtimeProperties.reconnectDelay}", exception = e)
-            delay(runtimeProperties.reconnectDelay)
             return
         }
         logger.info("Connected to $url success")

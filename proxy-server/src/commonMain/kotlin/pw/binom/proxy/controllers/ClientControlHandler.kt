@@ -41,6 +41,8 @@ class ClientControlHandler : HttpHandler, Metric {
     private val clientsLock = SpinLock()
     private val pingProperties by inject<PingProperties>()
     private val metricProvider = MetricProviderImpl()
+    private val connectCounterMetric = metricProvider.counterLong("ws_connect_counter")
+    private val connectCountMetric = metricProvider.gaugeLong("ws_connect_count")
     private val connectionCount = AtomicLong(0)
 
     override fun accept(visitor: MetricVisitor) {
@@ -84,9 +86,12 @@ class ClientControlHandler : HttpHandler, Metric {
                 clientsMetrics += it.withField(name = "connection", value = id.toString())
             }
             try {
+                connectCounterMetric.inc()
+                connectCountMetric.inc()
                 logger.info("Start processing")
                 it.processing(networkManager)
             } finally {
+                connectCountMetric.dec()
                 logger.info("Processing finished!")
                 clientsLock.synchronize {
                     clientsMetrics -= it

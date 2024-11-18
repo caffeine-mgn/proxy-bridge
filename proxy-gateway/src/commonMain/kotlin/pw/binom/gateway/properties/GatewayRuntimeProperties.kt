@@ -25,6 +25,7 @@ data class GatewayRuntimeProperties(
     val reconnectTimeout: Duration = 30.seconds,
     val pingInterval: Duration = 50.seconds,
     val reconnectDelay: Duration = 1.seconds,
+    val connectCount: Int = 1,
 ) {
     enum class TransportType {
         TCP_OVER_HTTP,

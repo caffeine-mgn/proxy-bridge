@@ -231,7 +231,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
     suspend fun connect(
         host: String,
         port: Int,
-    ): TcpConnectCommand.TcpClient {
+    ): TcpConnectCommand.Connected {
         return tcpConnectCommand.connect(
             host = host,
             port = port,

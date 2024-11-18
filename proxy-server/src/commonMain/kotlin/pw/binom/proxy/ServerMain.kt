@@ -4,8 +4,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
-import pw.binom.communicate.CommunicateRepository
-import pw.binom.communicate.tcp.TcpCommunicatePair
 import pw.binom.config.CommandsConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.file.File
@@ -16,8 +14,6 @@ import pw.binom.io.file.workDirectoryFile
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.create
 import pw.binom.io.use
-import pw.binom.logger.Logger
-import pw.binom.logger.WARNING
 import pw.binom.logging.PromTailLogSender
 import pw.binom.logging.PromTailLoggerHandler
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
@@ -37,7 +33,6 @@ import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 import pw.binom.strong.inject
-import pw.binom.subchannel.commands.TcpConnectCommand
 
 suspend fun startProxyNode(
     properties: ProxyProperties,
