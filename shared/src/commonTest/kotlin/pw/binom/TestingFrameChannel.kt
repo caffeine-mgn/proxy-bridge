@@ -106,7 +106,7 @@ class TestingFrameChannel(override val bufferSize: PackageSize = PackageSize(DEF
         if (closedFlag.getValue()) {
             return FrameResult.Companion.closed()
         }
-        val l = ByteBufferFrameOutput(ByteBuffer(bufferSize.asInt))
+        val l = ByteBufferFrameOutput(byteBuffer(bufferSize.asInt))
         val result = func(l)
         l.buffer.flip()
         val data = l.buffer.toByteArray()

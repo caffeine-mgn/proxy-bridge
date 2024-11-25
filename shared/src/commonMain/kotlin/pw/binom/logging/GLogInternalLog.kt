@@ -1,7 +1,6 @@
-package pw.binom.proxy
+package pw.binom.logging
 
 import pw.binom.*
-import pw.binom.NullAppendable.append
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
 import pw.binom.date.DateTime
@@ -11,7 +10,7 @@ import pw.binom.io.file.File
 import pw.binom.io.file.openWrite
 import pw.binom.thread.Thread
 
-class GLog(val file: File) : InternalLog {
+class GLogInternalLog(val file: File) : InternalLog {
     companion object {
         private val DATE_PATTERN = "yyyyMMdd HH:mm:ss.SSSSSS".toDatePattern()
     }
@@ -22,12 +21,14 @@ class GLog(val file: File) : InternalLog {
 
     private val writer = file.openWrite(append = true).bufferedWriter()
     private val lock = SpinLock()
+    override val enabled: Boolean
+        get() = true
 
     override fun log(
         level: InternalLog.Level,
         file: String?,
         line: Int?,
-        method:String?,
+        method: String?,
         text: () -> String,
     ) {
         val levelStr =
@@ -55,4 +56,7 @@ class GLog(val file: File) : InternalLog {
             writer.flush()
         }
     }
+
+    override fun <T> tx(func: (InternalLog.Transaction) -> T): T =
+        func(InternalLog.Transaction.NULL)
 }

@@ -12,7 +12,7 @@ class FrameAsyncOutput(
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
     val func: suspend (ByteBuffer) -> Unit
 ) : AsyncOutput {
-    private val buffer = ByteBuffer(bufferSize)
+    private val buffer = byteBuffer(bufferSize)
     override suspend fun asyncClose() {
         buffer.close()
     }

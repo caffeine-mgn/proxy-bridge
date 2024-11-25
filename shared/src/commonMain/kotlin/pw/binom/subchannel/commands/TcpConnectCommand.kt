@@ -1,7 +1,6 @@
 package pw.binom.subchannel.commands
 
 import pw.binom.*
-import pw.binom.atomic.AtomicBoolean
 import pw.binom.frame.FrameChannel
 import pw.binom.io.AsyncChannel
 import pw.binom.io.IOException
@@ -9,6 +8,7 @@ import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.useAsync
 import pw.binom.services.ClientService
 import pw.binom.strong.inject
+import pw.binom.subchannel.AbstractCommandClient
 import pw.binom.subchannel.Command
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -57,13 +57,13 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
 
     class Connected(override val channel: FrameChannel) : AbstractCommandClient() {
         fun channel() = asClosed { channel }
-        suspend fun startExchange(channel: AsyncChannel) {
+        suspend fun startExchange(stream: AsyncChannel) {
             asClosed {
-                this.channel.useAsync { c ->
-                    channel.useAsync { channel ->
+                channel.useAsync { channel ->
+                    stream.useAsync { stream ->
                         Cooper.exchange(
-                            stream = channel,
-                            frame = c,
+                            stream = stream,
+                            frame = channel,
                         )
                     }
                 }

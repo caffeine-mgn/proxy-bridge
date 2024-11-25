@@ -33,7 +33,7 @@ object StreamBridge {
         bufferSize: Int = DEFAULT_BUFFER_SIZE,
         sizeProvider: ((ULong) -> Unit) = {},
         logger: Logger = StreamBridge.logger,
-    ) = ByteBuffer(bufferSize).use { buffer ->
+    ) = byteBuffer(bufferSize).use { buffer ->
         copy(
             left = left,
             right = right,
@@ -108,8 +108,8 @@ object StreamBridge {
         transferToLeft: ((Int) -> Unit)? = null,
         transferToRight: ((Int) -> Unit)? = null,
     ) = coroutineScope {
-        val bufferLeftToRight = ByteBuffer(bufferSize)
-        val bufferRightToLeft = ByteBuffer(bufferSize)
+        val bufferLeftToRight = byteBuffer(bufferSize)
+        val bufferRightToLeft = byteBuffer(bufferSize)
         try {
             var rightToLeft: Deferred<ReasonForStopping>? = null
             var water: CancellableContinuation<ReasonForStopping>? = null

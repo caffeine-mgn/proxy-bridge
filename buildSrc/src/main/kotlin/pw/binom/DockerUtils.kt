@@ -1,5 +1,5 @@
 package pw.binom
-
+/*
 import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
@@ -126,4 +126,4 @@ object DockerUtils {
         )
     }
 }
-
+*/

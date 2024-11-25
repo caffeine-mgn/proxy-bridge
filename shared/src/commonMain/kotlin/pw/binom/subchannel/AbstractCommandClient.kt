@@ -1,5 +1,6 @@
-package pw.binom
+package pw.binom.subchannel
 
+import pw.binom.AsyncReCloseable
 import pw.binom.frame.FrameChannel
 
 abstract class AbstractCommandClient : AsyncReCloseable() {

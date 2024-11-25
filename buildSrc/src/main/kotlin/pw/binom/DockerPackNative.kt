@@ -1,5 +1,5 @@
 package pw.binom
-
+/*
 import org.gradle.api.Project
 import org.gradle.api.tasks.Copy
 import org.jetbrains.kotlin.gradle.tasks.KotlinNativeLink
@@ -40,3 +40,4 @@ abstract class DockerPackNative : BasicDockerPlugin() {
         }
     }
 }
+*/

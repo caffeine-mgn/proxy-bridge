@@ -5,10 +5,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import pw.binom.*
-import pw.binom.atomic.AtomicBoolean
 import pw.binom.frame.*
 import pw.binom.io.ByteBuffer
-import pw.binom.logger.Logger
 
 class VirtualChannelImpl(
     override val id: ChannelId,
@@ -24,7 +22,9 @@ class VirtualChannelImpl(
 
     suspend fun incomePackage(id: FrameId, data: ByteBuffer): Boolean {
         try {
-            frameReorder.income(frame = id, data = data)
+//            SlowCoroutineDetect.detect("VirtualChannelImpl long income processing") {
+                frameReorder.income(frame = id, data = data)
+//            }
         } catch (e: ClosedSendChannelException) {
             data.close()
             return false
@@ -40,9 +40,11 @@ class VirtualChannelImpl(
         val frameId = packageCounter
         packageCounter = packageCounter.next
 
-        val r = sender.sendFrame {
-            it.writeByte(frameId.asByte)
-            func(it)
+        val r = SlowCoroutineDetect.detect("VirtualChannelImpl long waring write outcome message") {
+            sender.sendFrame {
+                it.writeByte(frameId.asByte)
+                func(it)
+            }
         }
         if (r.isClosed) {
             asyncClose()
@@ -54,7 +56,9 @@ class VirtualChannelImpl(
 
     override suspend fun <T> readFrame(func: (FrameInput) -> T): FrameResult<T> {
         val data = try {
-            incomeChannel.receive()
+//            SlowCoroutineDetect.detect("VirtualChannelImpl long waiting income message") {
+                incomeChannel.receive()
+//            }
         } catch (_: ClosedReceiveChannelException) {
             return FrameResult.closed()
         } catch (_: CancellationException) {
@@ -68,9 +72,11 @@ class VirtualChannelImpl(
     }
 
     override suspend fun realAsyncClose() {
-        incomeChannel.close()
-        incomeChannel.close()
-        closeFunc(id)
-        frameReorder.asyncClose()
+        SlowCoroutineDetect.detect("VirtualChannelImpl long closing") {
+            incomeChannel.close()
+            incomeChannel.close()
+            closeFunc(id)
+            frameReorder.asyncClose()
+        }
     }
 }

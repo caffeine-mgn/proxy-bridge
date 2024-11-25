@@ -1,7 +1,5 @@
 package pw.binom.logging
 
-import pw.binom.logger.Logger
-
 interface LogSender {
 
     fun send(

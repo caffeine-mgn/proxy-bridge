@@ -23,8 +23,8 @@ class ClosableAsyncChannel(
     override val available: Int
         get() = -1
 
-    private val writeBuffer = ByteBuffer(8)
-    private val readBuffer = ByteBuffer(8)
+    private val writeBuffer = byteBuffer(8)
+    private val readBuffer = byteBuffer(8)
 
     private var packageSize = 0
     private var closed = AtomicBoolean(false)

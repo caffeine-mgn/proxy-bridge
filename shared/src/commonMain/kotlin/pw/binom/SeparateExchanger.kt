@@ -22,7 +22,7 @@ suspend fun FrameChannel.copyTo(
 ) {
     val from = this
     require(from.bufferSize == destination.bufferSize) { "Buffer size of $from and $destination should be equals" }
-    val buffer = ByteBuffer(from.bufferSize.asInt)
+    val buffer = byteBuffer(from.bufferSize.asInt)
     val channel = Channel<Unit>(onUndeliveredElement = {})
     val syncPoint = AsyncSyncPoint()
 
@@ -44,7 +44,9 @@ suspend fun FrameChannel.copyTo(
 
 private suspend fun readProcessing(
     source: FrameChannel,
-    buffer: ByteBuffer, channel: Channel<Unit>, syncPoint: AsyncSyncPoint
+    buffer: ByteBuffer,
+    channel: Channel<Unit>,
+    syncPoint: AsyncSyncPoint,
 ) {
     try {
         while (coroutineContext.isActive) {

@@ -55,8 +55,8 @@ class WebSocketProcessing(
     private val outcome: ReceiveChannel<ByteBuffer>,
     private val pingProperties: PingProperties,
 ) : AsyncCloseable, Metric {
-    private val readBuffer = ByteBuffer(Int.SIZE_BYTES)
-    private val writeBuffer = ByteBuffer(Int.SIZE_BYTES)
+    private val readBuffer = byteBuffer(Int.SIZE_BYTES)
+    private val writeBuffer = byteBuffer(Int.SIZE_BYTES)
     private var writeJob: Job? = null
     private var readJob: Job? = null
     private val logger by Logger.ofThisOrGlobal
@@ -144,7 +144,7 @@ class WebSocketProcessing(
     }
 
     private suspend fun sendingPing() {
-        ByteBuffer(pingProperties.size).use { pingBuffer ->
+        byteBuffer(pingProperties.size).use { pingBuffer ->
             var failPing = 0
             pingFailShot = 0
             while (coroutineContext.isActive) {
@@ -155,10 +155,19 @@ class WebSocketProcessing(
                         pingBuffer.holdState {
                             Random.nextBytes(pingBuffer)
                         }
-                        sendLock.synchronize(SEND_TIMEOUT) {
-                            connection.write(MessageType.PING).useAsync { msg ->
-                                msg.writeFully(pingBuffer)
-                                logger.info("Ping send success!")
+                        SlowCoroutineDetect.detect("Can't fast lock for send ping") {
+                            sendLock.lock()
+                        }
+                        try {
+                            SlowCoroutineDetect.detect("Send ping data") {
+                                connection.write(MessageType.PING).useAsync { msg ->
+                                    msg.writeFully(pingBuffer)
+//                                    logger.info("Ping send success!")
+                                }
+                            }
+                        } finally {
+                            SlowCoroutineDetect.detect("Slow ping unlock during sending") {
+                                sendLock.unlock()
                             }
                         }
                     }
@@ -179,7 +188,9 @@ class WebSocketProcessing(
                 }
                 if (isPingOk) {
                     pingLatency = latency.inWholeMilliseconds * 0.001
-                    logger.info("Ping response OK. latency=$latency")
+                    if (failPing > 0) {
+                        logger.info("Ping response OK. latency=$latency")
+                    }
                     failPing = 0
                     pingFailShot = 0
                 } else {
@@ -187,7 +198,7 @@ class WebSocketProcessing(
                         logger.info("Ping timeout! No time for caution!")
                         return
                     }
-                    logger.info("Ping timeout! Wait next ping fail")
+                    logger.info("Ping timeout! Wait next ping fail. failPing=$failPing")
                     failPing++
                     pingFailShot = failPing.toLong()
                 }
@@ -209,19 +220,36 @@ class WebSocketProcessing(
             }
             try {
                 val dataForSend = buf.remaining
-                logger.info("Try to send data $dataForSend")
+//                logger.info("Try to send data $dataForSend")
                 try {
                     val time = measureTime {
-                        sendLock.synchronize(lockingTimeout = SEND_TIMEOUT) {
-                            connection.write(MessageType.BINARY).useAsync { msg ->
-                                msg.writeInt(buf.remaining, buffer = writeBuffer)
-                                logger.info("Outcome ${Int.SIZE_BYTES + buf.remaining} bytes")
-                                msg.writeFully(buf)
+                        SlowCoroutineDetect.detect("Slow lock ws send") {
+                            sendLock.lock()
+                        }
+                        try {
+                            val msg = SlowCoroutineDetect.detect("Creating websocket message") {
+                                connection.write(MessageType.BINARY)
+                            }
+
+                            try {
+                                SlowCoroutineDetect.detect("Sending data to message: ${msg::class}") {
+                                    msg.writeInt(buf.remaining, buffer = writeBuffer)
+//                                    logger.info("Outcome ${Int.SIZE_BYTES + buf.remaining} bytes")
+                                    msg.writeFully(buf)
+                                }
+                            } finally {
+                                SlowCoroutineDetect.detect("Closing websocket message: ${msg::class}") {
+                                    msg.asyncClose()
+                                }
+                            }
+                        } finally {
+                            SlowCoroutineDetect.detect("Slow unlock ws send") {
+                                sendLock.unlock()
                             }
                         }
                     }
                     sendLockTime.put(time)
-                    logger.info("Data $dataForSend success sent!")
+//                    logger.info("Data $dataForSend success sent!")
                 } catch (e: Throwable) {
                     logger.info(text = "Can't send data to WS", exception = e)
                     asyncClose()
@@ -236,15 +264,15 @@ class WebSocketProcessing(
     private suspend fun readDataMessage(msg: WebSocketInput): Boolean {
         val buf = msg.useAsync { income ->
             withTimeoutOrNull(5.seconds) {
-                logger.info("Reading size....")
+//                logger.info("Reading size....")
                 val size = income.readInt(readBuffer)
-                logger.info("Size was read: $size bytes. Try to read $size bytes")
-                val buf = ByteBuffer(size)
+//                logger.info("Size was read: $size bytes. Try to read $size bytes")
+                val buf = byteBuffer(size)
                 try {
                     income.readFully(buf)
-                    logger.info("Bytes was read!")
+//                    logger.info("Bytes was read!")
                     buf.flip()
-                    logger.info("Income ${size + Int.SIZE_BYTES} bytes")
+//                    logger.info("Income ${size + Int.SIZE_BYTES} bytes")
                     buf
                 } catch (e: Throwable) {
                     buf.close()
@@ -258,9 +286,9 @@ class WebSocketProcessing(
             return true
         }
         try {
-            logger.info("Try to send income ${buf.remaining} bytes bytes to channel")
+//            logger.info("Try to send income ${buf.remaining} bytes bytes to channel")
             this.income.send(buf)
-            logger.info("Sent income ${buf.remaining} bytes to channel success")
+//            logger.info("Sent income ${buf.remaining} bytes to channel success")
         } catch (_: ClosedSendChannelException) {
             logger.warn("Can't read data: ClosedSendChannelException")
             buf.close()
@@ -310,7 +338,7 @@ class WebSocketProcessing(
                     income.copyTo(outcome)
                 }
             }
-            logger.info("Ping $dataLen bytes")
+//            logger.info("Ping $dataLen bytes")
         } catch (_: WebSocketClosedException) {
             logger.warn("Can't send ping: WebSocketClosedException")
             return false
@@ -330,7 +358,7 @@ class WebSocketProcessing(
     private suspend fun readingProcessing() {
         while (coroutineContext.isActive) {
             val msg = try {
-                logger.info("Reading message...")
+//                logger.info("Reading message...")
                 connection.read()
             } catch (_: WebSocketClosedException) {
                 logger.warn("Can't read message: WebSocketClosedException")

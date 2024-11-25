@@ -31,9 +31,9 @@ class ProxyClientWebSocket(
     val connection: WebSocketConnection
 ) : ProxyClient {
     private val logger by Logger.ofThisOrGlobal
-    private val cmdBuffer = ByteBuffer(DEFAULT_BUFFER_SIZE)
-    private val eventBuffer = ByteBuffer(DEFAULT_BUFFER_SIZE)
-    private val pingBuffer = ByteBuffer(8)
+    private val cmdBuffer = byteBuffer(DEFAULT_BUFFER_SIZE)
+    private val eventBuffer = byteBuffer(DEFAULT_BUFFER_SIZE)
+    private val pingBuffer = byteBuffer(8)
     private val closed = AtomicBoolean(false)
     private var pongWaiter: CancellableContinuation<Unit>? = null
 

@@ -17,7 +17,7 @@ class StreamBridgeTest {
         var len = 0uL
         ByteArrayInput(inputData).use { input ->
             val output = ByteArrayOutput()
-            val copyResult = ByteBuffer(DEFAULT_BUFFER_SIZE).use { buffer ->
+            val copyResult = byteBuffer(DEFAULT_BUFFER_SIZE).use { buffer ->
                 StreamBridge.copy(
                     left = input.asyncInput(),
                     right = output.asyncOutput(),
@@ -38,7 +38,7 @@ class StreamBridgeTest {
         val maxLen = DEFAULT_BUFFER_SIZE * 2
         ByteArrayInput(inputData).use { input ->
             val output = OutputWithLimit(maxLen)
-            val copyResult = ByteBuffer(DEFAULT_BUFFER_SIZE).use { buffer ->
+            val copyResult = byteBuffer(DEFAULT_BUFFER_SIZE).use { buffer ->
                 StreamBridge.copy(
                     left = input.asyncInput(),
                     right = output.asyncOutput(),

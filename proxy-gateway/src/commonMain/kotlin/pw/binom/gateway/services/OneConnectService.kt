@@ -53,6 +53,7 @@ class OneConnectService {
             }
         }
         BeanLifeCycle.preDestroy {
+            closing.setValue(true)
             jobs.forEach {
                 it.cancelAndJoin()
             }

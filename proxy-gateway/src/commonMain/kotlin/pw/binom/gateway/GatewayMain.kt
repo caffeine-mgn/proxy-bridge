@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.config.CommandsConfig
+import pw.binom.config.LoggerConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.ByteBufferFactory
 import pw.binom.io.http.BasicAuth
@@ -22,9 +23,9 @@ import pw.binom.gateway.services.TcpConnectionFactoryImpl
 import pw.binom.io.file.*
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
-import pw.binom.logger.infoSync
 import pw.binom.logging.PromTailLogSender
-import pw.binom.logging.PromTailLoggerHandler
+import pw.binom.logging.LoggerSenderHandler
+import pw.binom.logging.SQLiteLogSender
 import pw.binom.properties.IniParser
 import pw.binom.properties.LoggerProperties
 import pw.binom.properties.PingProperties
@@ -79,6 +80,7 @@ suspend fun startProxyClient(
             it.bean { properties }
             it.bean { pingProperties }
             it.bean { loggerProperties }
+            it.bean { GCService() }
 //            it.bean { ProxyClientService() }
             it.bean { BinomMetrics }
             it.bean { ClientService() }
@@ -94,21 +96,14 @@ suspend fun startProxyClient(
                 it.bean { PromTailLogSender() }
             }
             if (loggerProperties.isCustomLogger) {
-                it.bean { PromTailLoggerHandler(tags = mapOf("app" to "proxy-client")) }
+                it.bean { LoggerSenderHandler(tags = mapOf("app" to "proxy-client")) }
             }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
-    return Strong.create(baseConfig, CommandsConfig())
+    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties))
 }
 
 val closed = AtomicBoolean(false)
-
-object SysLogger : InternalLog {
-    val logger by Logger.ofThisOrGlobal
-    override fun log(level: InternalLog.Level, file: String?, line: Int?, method: String?, text: () -> String) {
-        logger.infoSync(text = "$file::$method ${text()}")
-    }
-}
 
 fun main(args: Array<String>) {
     Logger.getLogger("Strong.Starter").level = Logger.WARNING

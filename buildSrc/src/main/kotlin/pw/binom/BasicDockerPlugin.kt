@@ -1,5 +1,5 @@
 package pw.binom
-
+/*
 import com.bmuschko.gradle.docker.tasks.AbstractDockerRemoteApiTask
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
@@ -62,8 +62,8 @@ abstract class BasicDockerPlugin : Plugin<Project> {
 
         createDockerfileTask = project.tasks.register("createDockerfile", Dockerfile::class.java)
         createDockerfileTask.configure {
-            it.group = "build"
-            it.destFile.set(File(project.buildDir, "docker/Dockerfile"))
+            group = "build"
+            destFile.set(File(project.buildDir, "docker/Dockerfile"))
         }
         buildDockerBuildImageTask = project.tasks.register("buildDockerBuildImage", DockerBuildImage::class.java)
         buildDockerBuildImageTask.configure {
@@ -105,3 +105,4 @@ fun AbstractDockerRemoteApiTask.applyUrl() {
         url.set(host)
     }
 }
+*/

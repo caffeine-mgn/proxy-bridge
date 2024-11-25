@@ -8,18 +8,14 @@ import pw.binom.url.URL
 @PropertiesPrefix("logger")
 class LoggerProperties(
     val promtail: PromtailSender? = null,
-    val dbSaver: DbSaver? = null,
+    val db: String? = null,
 ) {
     @Serializable
     class PromtailSender(
         val url: String,
-    )
-
-    @Serializable
-    class DbSaver(
-        val file: String,
+        val app: String,
     )
 
     val isCustomLogger
-        get() = promtail != null || dbSaver != null
+        get() = promtail != null || db != null
 }

@@ -1,10 +1,12 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.hidetake.groovy.ssh.core.Remote
+import pw.binom.*
 
 plugins {
     kotlin("multiplatform")
     id("kotlinx-serialization")
     id("com.github.johnrengelman.shadow")
-    id("org.hidetake.ssh") version "2.11.2"
+//    id("org.hidetake.ssh")// version "2.11.2"
 //    id("pw.binom.strong") version "1.0.0-SNAPSHOT"
 }
 val nativeEntryPoint = "pw.binom.proxy.main"
@@ -72,47 +74,61 @@ tasks {
     }
 }
 
-apply {
-    plugin(pw.binom.DockerPackNative::class.java)
-}
+//apply {
+//    plugin(pw.binom.DockerPackNative::class.java)
+//}
 
 tasks {
     val linkLinuxRelease = this.getByName("linkReleaseExecutableLinuxX64")
     val linkLinuxDebug = this.getByName("linkDebugExecutableLinuxX64")
     val shadowJar by getting
-    register("deploy") {
+    val deploy by creating {
+        val shadowJar = shadowJar as ShadowJar
+        inputs.file(shadowJar.archiveFile)
         dependsOn(shadowJar)
         doLast {
-            ssh.run(
-                delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
-                    val remote =
-                        Remote(
-                            hashMapOf<String, Any?>(
-                                "host" to "192.168.88.116",
-                                "user" to "root",
-                                "identity" to file("/home/subochev/.ssh/id_rsa"),
-                                "knownHosts" to org.hidetake.groovy.ssh.connection.AllowAnyHosts.instance
-                            )
-                        )
-                    println("remote=$remote")
-//                    println("ssh.remotes=${ssh.remotes}")
-//                    val remote = (ssh.remotes as Map<*,*>)["linux-test"] as Remote
-                    val jvmFile = layout.buildDirectory.file("libs/proxy-server.jar")
-                    val linuxReleaseFile = layout.buildDirectory.file("bin/linuxX64/releaseExecutable/proxy-node.kexe")
-                    session(
-                        remote,
-                        delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
-                            put(
-                                hashMapOf(
-                                    "from" to jvmFile.get().asFile,
-//                                    "from" to file("build/bin/linuxX64/debugExecutable/proxy-node.kexe"),
-                                    "into" to "/opt/proxy/proxy-node.jar"
-                                )
-                            )
-                        }
-                    )
-                }
-            )
+            SSH.run(
+                ip = "192.168.88.116",
+                user = "root",
+            ) {
+                put(
+                    from = shadowJar.archiveFile.get().asFile,
+                    to = "/opt/proxy/proxy-node.jar"
+                )
+            }
         }
     }
+//    register("deploy") {
+//        dependsOn(shadowJar)
+//        doLast {
+//            ssh.run(
+//                delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
+//                    val remote =
+//                        Remote(
+//                            hashMapOf<String, Any?>(
+//                                "host" to "192.168.88.116",
+//                                "user" to "root",
+//                                "identity" to file("/home/subochev/.ssh/id_rsa"),
+//                                "knownHosts" to org.hidetake.groovy.ssh.connection.AllowAnyHosts.instance
+//                            )
+//                        )
+//                    println("remote=$remote")
+//                    val jvmFile = layout.buildDirectory.file("libs/proxy-server.jar")
+//                    val linuxReleaseFile = layout.buildDirectory.file("bin/linuxX64/releaseExecutable/proxy-node.kexe")
+//                    session(
+//                        remote,
+//                        delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
+//                            put(
+//                                hashMapOf(
+//                                    "from" to jvmFile.get().asFile,
+////                                    "from" to file("build/bin/linuxX64/debugExecutable/proxy-node.kexe"),
+//                                    "into" to "/opt/proxy/proxy-node.jar"
+//                                )
+//                            )
+//                        }
+//                    )
+//                }
+//            )
+//        }
+//    }
 }

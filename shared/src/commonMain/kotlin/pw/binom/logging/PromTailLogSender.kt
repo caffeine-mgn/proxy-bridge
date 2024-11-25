@@ -19,6 +19,7 @@ import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.addHeader
 import pw.binom.io.useAsync
 import pw.binom.network.NetworkManager
+import pw.binom.properties.LoggerProperties
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.inject
 import pw.binom.url.toURL
@@ -26,9 +27,14 @@ import pw.binom.url.toURL
 class PromTailLogSender : LogSender {
     private val httpClient by inject<HttpClient>()
     private val networkManager by inject<NetworkManager>()
+    private val loggerProperties by inject<LoggerProperties>()
     private val sendChannel = Channel<Record>()
 
-    private val baseUrl = "http://192.168.88.58:3100/loki/api/v1/push".toURL()
+    private val baseUrl by lazy {
+        (loggerProperties.promtail!!.url.removeSuffix("/") + "/loki/api/v1/push").toURL()
+    }
+
+    // "http://192.168.88.58:3100/loki/api/v1/push".toURL()
     private var job: Job? = null
 
     private data class Record(
@@ -44,7 +50,7 @@ class PromTailLogSender : LogSender {
                 while (isActive) {
                     try {
                         val r = sendChannel.receive()
-                        var url = baseUrl
+                        val url = baseUrl
                         val tags = r.tags
                         val sb = StringBuilder()
                         if (r.message != null) {

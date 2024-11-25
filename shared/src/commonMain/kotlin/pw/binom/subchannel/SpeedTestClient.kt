@@ -1,5 +1,6 @@
 package pw.binom.subchannel
 
+import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.frame.FrameChannel
 import pw.binom.io.ByteBuffer
@@ -69,7 +70,7 @@ class SpeedTestClient(val channel: FrameChannel) {
                 it.writeLong(time.inWholeMilliseconds)
             }
             val mt = TimeSource.Monotonic.markNow()
-            ByteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
+            byteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
                 while (mt.elapsedNow() < time) {
                     buffer.clear()
                     Random.nextBytes(buffer)
@@ -94,7 +95,7 @@ class SpeedTestClient(val channel: FrameChannel) {
                 it.writeByte(DOWNLOAD_TEST)
                 it.writeLong(time.inWholeMilliseconds)
             }
-            ByteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
+            byteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
                 while (true) {
                     buffer.clear()
                     val cmd = channel.readFrame {

@@ -44,7 +44,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
         val now = TimeSource.Monotonic.markNow()
         val pingId = pingCounter.addAndGet(1)
         connection.write(MessageType.PING).useAsync { out ->
-            ByteBuffer(MAX_PING_BYTES).use { buffer ->
+            byteBuffer(MAX_PING_BYTES).use { buffer ->
                 buffer.writeLong(pingId)
                 buffer.flip()
                 out.writeFully(buffer)
@@ -78,7 +78,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                 }
                 if (msg.type == MessageType.PING) {
                     connection.write(MessageType.PONG).useAsync { out ->
-                        ByteBuffer(MAX_PING_BYTES).use { buffer ->
+                        byteBuffer(MAX_PING_BYTES).use { buffer ->
                             buffer.reset(position = 0, length = MAX_PING_BYTES)
                             msg.readFully(buffer)
                             buffer.flip()
@@ -88,7 +88,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                     continue
                 }
                 if (msg.type == MessageType.PONG) {
-                    ByteBuffer(MAX_PING_BYTES).use { buffer ->
+                    byteBuffer(MAX_PING_BYTES).use { buffer ->
                         msg.readFully(buffer)
                         buffer.flip()
                         if (buffer.remaining != MAX_PING_BYTES) {

@@ -1,5 +1,6 @@
 package pw.binom.subchannel
 
+import pw.binom.*
 import pw.binom.frame.FrameChannel
 import pw.binom.io.ByteBuffer
 import pw.binom.io.nextBytes
@@ -39,7 +40,7 @@ object SpeedTestServer {
     suspend fun testDownload(channel: FrameChannel, time: Duration) {
         val mt = TimeSource.Monotonic.markNow()
         channel.useAsync { channel ->
-            ByteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
+            byteBuffer(channel.bufferSize.asInt - 1).use { buffer ->
                 while (mt.elapsedNow() < time) {
                     buffer.clear()
                     Random.nextBytes(buffer)

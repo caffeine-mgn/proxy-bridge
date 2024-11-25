@@ -13,6 +13,6 @@ suspend fun AsyncOutput.writeText(text: String) {
     writeBinary(text.encodeToByteArray())
 }
 
-suspend fun AsyncInput.readBinary(size: Int) = ByteBuffer(DEFAULT_BUFFER_SIZE).use {
+suspend fun AsyncInput.readBinary(size: Int) = byteBuffer(DEFAULT_BUFFER_SIZE).use {
     readByteArray(size, it)
 }

@@ -91,18 +91,23 @@ object Cooper {
 
 suspend fun FrameChannel.copyTo(to: AsyncOutput): DataTransferSize {
     var size = 0
-    ByteBuffer(this.bufferSize.asInt).use { buffer ->
+    byteBuffer(this.bufferSize.asInt).use { buffer ->
         while (currentCoroutineContext().isActive) {
-            val copyResult = readFrame { buf2 ->
-                buffer.clear()
-                buf2.readInto(buffer)
-            }.valueOrNull ?: break
+            val copyResult = //SlowCoroutineDetect.detect("FrameChannel.copyTo(AsyncOutput) read from channel") {
+                readFrame { buf2 ->
+                    buffer.clear()
+                    buf2.readInto(buffer)
+                }.valueOrNull
+                //}
+                    ?: break
             if (copyResult > 0) {
                 buffer.flip()
                 try {
-                    size += buffer.remaining
-                    to.writeFully(buffer)
-                    to.flush()
+                    SlowCoroutineDetect.detect("FrameChannel.copyTo(AsyncOutput) write from stream") {
+                        size += buffer.remaining
+                        to.writeFully(buffer)
+                        to.flush()
+                    }
                 } catch (_: SocketClosedException) {
                     break
                 }
@@ -113,22 +118,25 @@ suspend fun FrameChannel.copyTo(to: AsyncOutput): DataTransferSize {
 }
 
 suspend fun AsyncInput.copyTo(frameChannel: FrameChannel): DataTransferSize {
-    println("AsyncInput.copyTo frameChannel=${frameChannel::class}")
     var size = 0
-    ByteBuffer(frameChannel.bufferSize.asInt).use { buffer ->
+    byteBuffer(frameChannel.bufferSize.asInt).use { buffer ->
         while (currentCoroutineContext().isActive) {
             buffer.clear()
             val l = try {
+//                SlowCoroutineDetect.detect("AsyncInput.copyTo(FrameChannel) read from stream") {
                 read(buffer)
+//                }
             } catch (e: SocketClosedException) {
                 break
             }
             if (l.isAvailable) {
                 buffer.flip()
                 while (buffer.hasRemaining) {
-                    val copyResult = frameChannel.sendFrame { frameOut ->
-                        frameOut.writeFrom(buffer)
-                    }.valueOrNull ?: break
+                    val copyResult = SlowCoroutineDetect.detect("AsyncInput.copyTo(FrameChannel) write from channel") {
+                        frameChannel.sendFrame { frameOut ->
+                            frameOut.writeFrom(buffer)
+                        }.valueOrNull
+                    } ?: break
                     size += copyResult
                 }
             } else {

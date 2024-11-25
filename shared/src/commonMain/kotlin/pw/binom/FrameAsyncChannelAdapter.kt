@@ -9,7 +9,7 @@ import pw.binom.io.empty
 
 class FrameAsyncChannelAdapter(val channel: FrameChannel) : AsyncChannel {
 
-    private val buffer = ByteBuffer(channel.bufferSize.asInt)
+    private val buffer = byteBuffer(channel.bufferSize.asInt)
     private val closed = AtomicBoolean(false)
 
     override val available: Int

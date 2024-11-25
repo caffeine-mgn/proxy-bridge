@@ -40,20 +40,20 @@ class ClosableAsyncChannelTest {
             channel.readByteArray(10) shouldContentEquals data2.copyOfRange(0, 10)
             channel.readByteArray(10) shouldContentEquals data2.copyOfRange(10, 20)
             channel.readByteArray(10) shouldContentEquals data2.copyOfRange(20, 30)
-            channel.read(ByteBuffer(1)).isClosed.shouldBeTrue()
+            channel.read(byteBuffer(1)).isClosed.shouldBeTrue()
             input.isEmpty.shouldBeTrue()
         }
 
         test("read test full 1") {
             channel.readByteArray(30) shouldContentEquals data1
             channel.readByteArray(30) shouldContentEquals data2
-            channel.read(ByteBuffer(1)).isClosed.shouldBeTrue()
+            channel.read(byteBuffer(1)).isClosed.shouldBeTrue()
             input.isEmpty.shouldBeTrue()
         }
 
         test("read test full 2") {
             channel.readByteArray(60) shouldContentEquals data1 + data2
-            channel.read(ByteBuffer(1)).isClosed.shouldBeTrue()
+            channel.read(byteBuffer(1)).isClosed.shouldBeTrue()
             input.isEmpty.shouldBeTrue()
         }
 

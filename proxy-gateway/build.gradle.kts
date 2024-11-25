@@ -2,6 +2,7 @@ import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
 import net.lingala.zip4j.model.enums.EncryptionMethod
+import pw.binom.*
 
 plugins {
     kotlin("multiplatform")
@@ -97,6 +98,23 @@ tasks {
                 .writeText(
                     "C:\\Users\\SubochevAV\\jvms\\jdk-17.0.2\\bin\\java -jar proxy-client.jar"
                 )
+        }
+    }
+
+    val deployGermany by creating {
+        inputs.file(shadowJar.archiveFile)
+        dependsOn(shadowJar)
+        doLast {
+            SSH.run(
+                ip = "10.200.196.2",
+                user = "root",
+                port = 7622,
+            ) {
+                put(
+                    from = shadowJar.archiveFile.get().asFile,
+                    to = "/opt/proxy/gateway.jar"
+                )
+            }
         }
     }
 

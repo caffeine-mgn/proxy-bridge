@@ -42,6 +42,7 @@ kotlin {
                 api(
                     "org.jetbrains.kotlinx:kotlinx-serialization-protobuf:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
                 )
+                api("pw.binom.io:sqlite:${pw.binom.Versions.BINOM_VERSION}")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
             }
         }

@@ -1,7 +1,7 @@
 package pw.binom.proxy.io
 
 import kotlinx.coroutines.isActive
-import pw.binom.DEFAULT_BUFFER_SIZE
+import pw.binom.*
 import pw.binom.io.AsyncInput
 import pw.binom.io.AsyncOutput
 import pw.binom.io.ByteBuffer
@@ -13,7 +13,7 @@ suspend fun AsyncInput.copyTo(
     bufferSize: Int = DEFAULT_BUFFER_SIZE,
     progress: suspend (Int) -> Unit,
 ): Long =
-    ByteBuffer(bufferSize).use { buffer ->
+    byteBuffer(bufferSize).use { buffer ->
         copyTo(
             dest = dest,
             buffer = buffer,

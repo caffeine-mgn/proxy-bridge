@@ -8,8 +8,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
-import pw.binom.ByteBufferPool
-import pw.binom.ChannelId
+import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
@@ -25,8 +24,6 @@ import pw.binom.metric.DurationRollingAverageGauge
 import pw.binom.metric.Metric
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricVisitor
-import pw.binom.readShort
-import pw.binom.writeShort
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -109,19 +106,25 @@ class VirtualChannelManagerImpl2(
                         } catch (e: Throwable) {
                             logger.warn(text = "Error on start init function", exception = e)
                             buf.close()
+                            return
                         }
                     }
                     try {
-                        logger.info("Send new data to channel $channelId2...")
+//                        logger.info("Send new data to channel $channelId2...")
                         val sendSuccess = withTimeoutOrNull(5.seconds) {
+//                            SlowCoroutineDetect.detect("Push data to channel") {
                             exist.incomePackage(id = frameId, data = buf)
+//                            }
                         }
                         if (sendSuccess != null) {
                             if (!sendSuccess) {
                                 logger.info("New data to channel $channelId2, but channel closed!")
-                                sendChannelClose(ChannelId(channelId))
+                                SlowCoroutineDetect.detect("Sending close #1") {
+                                    sendChannelClose(ChannelId(channelId))
+                                }
+                                buf.closeAnyway()
                             } else {
-                                logger.info("New data to channel $channelId2 success sent")
+//                                logger.info("New data to channel $channelId2 success sent")
                             }
 
                         } else {
@@ -131,22 +134,26 @@ class VirtualChannelManagerImpl2(
                     } catch (_: ClosedSendChannelException) {
                         logger.info("Error on income processing! 1")
                         buf.close()
-                        sendChannelClose(ChannelId(channelId))
+                        SlowCoroutineDetect.detect("Sending close #2") {
+                            sendChannelClose(ChannelId(channelId))
+                        }
                     } catch (_: CancellationException) {
                         logger.info("Error on income processing! 2")
-                        buf.close()
-                        sendChannelClose(ChannelId(channelId))
+                        buf.closeAnyway()
+                        SlowCoroutineDetect.detect("Sending close #3") {
+                            sendChannelClose(ChannelId(channelId))
+                        }
                         logger.info("Error on income processing! 3")
                     } catch (e: Throwable) {
                         logger.info("Error on income processing! 4")
-                        buf.close()
-                        e.printStackTrace()
+                        buf.closeAnyway()
                     }
                 }
             }
 
             CLOSE -> {
                 val channelId = buf.readShort()
+                buf.closeAnyway()
                 logger.info("Closing channel ${ChannelId(channelId)}")
                 channelLock.synchronize { channels.remove(channelId) }?.asyncClose()
             }
@@ -190,7 +197,7 @@ class VirtualChannelManagerImpl2(
 
     private fun channelFrameSender(id: ChannelId) = object : FrameSender {
         override suspend fun <T> sendFrame(func: (buffer: FrameOutput) -> T): FrameResult<T> {
-            val buf = ByteBuffer(bufferSize.asInt)
+            val buf = byteBuffer(bufferSize.asInt)
             buf.put(DATA)
             buf.writeShort(id.raw)
             val r = try {
@@ -200,7 +207,9 @@ class VirtualChannelManagerImpl2(
                 throw e
             }
             buf.flip()
-            internalOutcomeChannel.send(buf)
+            SlowCoroutineDetect.detect("Push message for send") {
+                internalOutcomeChannel.send(buf)
+            }
             return FrameResult.of(r)
         }
 
@@ -213,7 +222,7 @@ class VirtualChannelManagerImpl2(
     }
 
     private suspend fun sendChannelClose(id: ChannelId) {
-        val buffer = ByteBuffer(Short.SIZE_BYTES + 1)
+        val buffer = byteBuffer(Short.SIZE_BYTES + 1)
         buffer.put(CLOSE)
         buffer.writeShort(id.raw)
         buffer.flip()
