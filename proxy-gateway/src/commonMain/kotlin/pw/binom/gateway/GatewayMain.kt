@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.config.CommandsConfig
+import pw.binom.config.FileSystemConfig
 import pw.binom.config.LoggerConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.ByteBufferFactory
@@ -58,18 +59,18 @@ suspend fun startProxyClient(
                         HttpProxyConfig(
                             address = proxyConfig.address,
                             auth =
-                            proxyConfig.auth?.let { auth ->
-                                when {
-                                    auth.basicAuth != null ->
-                                        BasicAuth(
-                                            login = auth.basicAuth.user,
-                                            password = auth.basicAuth.password
-                                        )
+                                proxyConfig.auth?.let { auth ->
+                                    when {
+                                        auth.basicAuth != null ->
+                                            BasicAuth(
+                                                login = auth.basicAuth.user,
+                                                password = auth.basicAuth.password
+                                            )
 
-                                    auth.bearerAuth != null -> BearerAuth(token = auth.bearerAuth.token)
-                                    else -> null
+                                        auth.bearerAuth != null -> BearerAuth(token = auth.bearerAuth.token)
+                                        else -> null
+                                    }
                                 }
-                            }
                         )
                     }
                 val nm = inject<NetworkManager>()
@@ -100,7 +101,7 @@ suspend fun startProxyClient(
             }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
-    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties))
+    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties), FileSystemConfig())
 }
 
 val closed = AtomicBoolean(false)

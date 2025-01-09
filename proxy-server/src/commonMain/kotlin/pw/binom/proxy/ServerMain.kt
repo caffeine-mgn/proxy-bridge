@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.config.CommandsConfig
+import pw.binom.config.FileSystemConfig
 import pw.binom.config.LoggerConfig
 import pw.binom.frame.PackageSize
 import pw.binom.io.file.File
@@ -80,7 +81,7 @@ suspend fun startProxyNode(
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
     println("Starting node")
-    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties))
+    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties), FileSystemConfig())
 }
 
 fun main(args: Array<String>) {

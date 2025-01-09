@@ -107,7 +107,7 @@ class BenchmarkCommand : Command<BenchmarkCommand.Client> {
     }
 
     override val cmd: Byte
-        get() = 0x2
+        get() = pw.binom.subchannel.Command.BENCHMARK
 
     private sealed interface Command {
         object Upload : Command
