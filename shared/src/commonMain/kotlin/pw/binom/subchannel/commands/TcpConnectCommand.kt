@@ -58,7 +58,7 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
     class Connected(override val channel: FrameChannel) : AbstractCommandClient() {
         fun channel() = asClosed { channel }
         suspend fun startExchange(stream: AsyncChannel) {
-            asClosed {
+            val copyResult = asClosed {
                 channel.useAsync { channel ->
                     stream.useAsync { stream ->
                         Cooper.exchange(
@@ -68,6 +68,7 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
                     }
                 }
             }
+            println("Coping finished: $copyResult")
         }
     }
 
@@ -99,12 +100,13 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
             channel.sendFrame {
                 it.writeByte(CONNECTED)
             }
-            stream.useAsync { stream ->
+            val copyResult = stream.useAsync { stream ->
                 Cooper.exchange(
                     stream = stream,
                     frame = channel,
                 )
             }
+            println("Coping finished: $copyResult")
         }
     }
 

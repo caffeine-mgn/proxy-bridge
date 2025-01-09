@@ -97,8 +97,6 @@ class ProxyHandler : HttpHandler, MetricProvider {
     }
 
     private suspend fun httpRequest(exchange: HttpServerExchange) {
-        logger.info("Http request!!!")
-        logger.info("#1")
         val req =
             withTimeoutOrNull(10.seconds) {
                 val newHeaders = HashHeaders()
@@ -114,51 +112,32 @@ class ProxyHandler : HttpHandler, MetricProvider {
                     requestLength = OutputLength.None
                 )
             }
-        logger.info("#2")
         if (req == null) {
             logger.info("Can't connect to remote http server")
             exchange.startResponse(500)
-            logger.info("#3")
             return
         }
-        logger.info("#4")
         if (exchange.requestHeaders.bodyExist) {
-            logger.info("#5")
-            logger.info("Copping http->ws")
             req.startWriteBinary().useAsync { output ->
                 exchange.input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
-                    logger.debug("http->ws $it")
                 }
                 output.flush()
             }
-            logger.info("#6")
-            logger.info("Request data sent!")
         }
-        logger.info("#7")
         val resp = req.flush()
-        logger.info("#8")
         exchange.startResponse(
             statusCode = resp.responseCode,
             headers = resp.inputHeaders + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE)
         )
-        logger.info("#9")
         if (resp.inputHeaders.bodyExist) {
-            logger.info("#10")
-            logger.info("Copping ws->http")
             resp.readBinary().useAsync { input ->
-                logger.info("Input type: $input. available: ${input.available}")
                 exchange.output.useAsync { output ->
                     input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
 //                        logger.debug("ws->http $it")
                     }
                 }
             }
-            logger.info("#11")
-            logger.info("Response data sent!")
         }
-        logger.info("#12")
-        logger.info("Response finished!")
-
     }
 
     private suspend fun tcp(exchange: HttpServerExchange) {
