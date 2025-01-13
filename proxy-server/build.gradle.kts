@@ -84,6 +84,7 @@ tasks {
     val shadowJar by getting
     val deploy by creating {
         val shadowJar = shadowJar as ShadowJar
+        group = "Deploy"
         inputs.file(shadowJar.archiveFile)
         dependsOn(shadowJar)
         doLast {

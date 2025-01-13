@@ -3,11 +3,8 @@ package pw.binom.subchannel.commands
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.nullable
-import kotlinx.serialization.builtins.serializer
 import pw.binom.*
 import pw.binom.config.LOCAL_FS
-import pw.binom.frame.FrameAsyncChannel
 import pw.binom.frame.FrameChannel
 import pw.binom.frame.toAsyncChannel
 import pw.binom.io.*
@@ -241,12 +238,14 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
 
         suspend fun getEntity(path: Path): FSResult<Entity?> =
             channel.toAsyncChannel().useAsync {
-                val e = it.sendReceive(FS.GetEntity(path = path))
+                it.sendReceive(FS.GetEntity(path = path))
                     .optionOk {
-                        it.readObject(Entity.serializer().nullable)
+                        if (it.readBoolean()) {
+                            it.readObject(Entity.serializer())
+                        } else {
+                            null
+                        }
                     }
-//                it.writeBoolean(true)
-                e
             }
 
         inline fun <T> CommandResult.optionOk(func: () -> T): FSResult<T> =
@@ -287,7 +286,11 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
             channel.toAsyncChannel().useAsync {
                 it.sendReceive(FS.GetDir(path = path))
                     .optionOk {
-                        it.readObject(ListSerializer(Entity.serializer()).nullable)
+                        if (it.readBoolean()) {
+                            it.readObject(ListSerializer(Entity.serializer()))
+                        } else {
+                            null
+                        }
                     }
             }
     }
@@ -319,7 +322,10 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
                             ?.map { it.toInternal }
                     }.onOk {
                         logger.info("GetDir ${cmd.path}: $it")
-                        ch.writeObject(ListSerializer(Entity.serializer()).nullable, it)
+                        ch.writeBoolean(it != null)
+                        if (it != null) {
+                            ch.writeObject(ListSerializer(Entity.serializer()), it)
+                        }
                     }
                 }
 
@@ -365,10 +371,13 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
                         fs.getEntity(cmd.path)
                     }.onOk {
                         logger.info("Return ${cmd.path} -> $it")
-                        ch.writeObject(
-                            Entity.serializer().nullable,
-                            it?.toInternal
-                        )
+                        ch.writeBoolean(it != null)
+                        if (it != null) {
+                            ch.writeObject(
+                                Entity.serializer(),
+                                it.toInternal
+                            )
+                        }
                     }
                 }
             }

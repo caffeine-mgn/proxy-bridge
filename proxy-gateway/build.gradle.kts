@@ -119,6 +119,7 @@ tasks {
     }
 
     val deploy by creating {
+        group = "Deploy"
         dependsOn(shadowJar)
         dependsOn(generateBatchFile)
         inputs.file(shadowJar.archiveFile)
