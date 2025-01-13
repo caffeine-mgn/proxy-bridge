@@ -27,14 +27,6 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
 
     suspend fun client() = clientService.startServer(this)
 
-    companion object {
-        private const val UNKNOWN_ERROR: Byte = 0
-        private const val FORBIDDEN_ERROR: Byte = 0
-        private const val FILE_NOT_FOUND_ERROR: Byte = 0
-        private const val ENTITY_EXIST_ERROR: Byte = 0
-    }
-
-    @OptIn(ExperimentalSerializationApi::class)
     @Serializable
     sealed interface FS {
 
