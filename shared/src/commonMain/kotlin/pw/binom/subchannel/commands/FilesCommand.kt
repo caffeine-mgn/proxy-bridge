@@ -95,13 +95,10 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
         val isFile: Boolean,
         val size: Long,
         val lastModified: Long,
-    ) {
-        val name
-            get() = path.name
-    }
+    )
 
     private inline fun <T> FSResult<T>.onOk(func: (T) -> Unit) {
-        if (this.isOk) {
+        if (isOk) {
             func(getOrThrow())
         }
     }
@@ -191,12 +188,9 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
                 override val available: Int
                     get() = -1
 
-                override suspend fun asyncClose() {
-                    stream.asyncClose()
-                }
+                override suspend fun asyncClose() = stream.asyncClose()
 
-                override suspend fun read(dest: ByteBuffer): DataTransferSize =
-                    stream.read(dest)
+                override suspend fun read(dest: ByteBuffer) = stream.read(dest)
             })
         }
 
@@ -210,16 +204,11 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
                 stream
             }
             return FSResult(object : AsyncOutput {
-                override suspend fun asyncClose() {
-                    stream.asyncClose()
-                }
+                override suspend fun asyncClose() = stream.asyncClose()
 
-                override suspend fun flush() {
-                    stream.flush()
-                }
+                override suspend fun flush() = stream.flush()
 
-                override suspend fun write(data: ByteBuffer): DataTransferSize =
-                    stream.write(data)
+                override suspend fun write(data: ByteBuffer) = stream.write(data)
             })
         }
 
@@ -241,19 +230,16 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
             }
 
         inline fun <T> CommandResult.optionOk(func: () -> T): FSResult<T> =
-            if (this === CommandResult.OK) {
+            if (this.isOk) {
                 FSResult(func())
             } else {
                 FSResult(this)
             }
 
         private suspend fun AsyncChannel.sendReceive(fs: FS): CommandResult {
-            println("sending $fs")
             writeObject(FS.serializer(), fs)
             flush()
-            val c = readObject(CommandResult.serializer())
-            println("Was read $c")
-            return c
+            return readObject(CommandResult.serializer())
         }
 
         suspend fun mkdir(path: Path): FSResult<Entity> =
@@ -292,10 +278,7 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
 
     override suspend fun startClient(channel: FrameChannel) {
         channel.toAsyncChannel().useAsync { ch ->
-            println("Reading cmd...")
-            val cmd = ch.readObject(FS.serializer())
-            println("Income CMD: $cmd")
-            when (cmd) {
+            when (val cmd = ch.readObject(FS.serializer())) {
                 is FS.Copy -> processingOk(ch) {
                     fs.copy(
                         from = cmd.from,

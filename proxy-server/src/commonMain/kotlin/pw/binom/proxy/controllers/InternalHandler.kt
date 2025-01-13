@@ -19,7 +19,6 @@ class InternalHandler : HttpHandler {
     private val logger by Logger.ofThisOrGlobal
 
     override suspend fun handle(exchange: HttpServerExchange) {
-        logger.info("Income ${exchange.requestMethod} ${exchange.requestURI}")
         if (exchange.requestMethod == "POST" && exchange.requestURI.toString() == "/benchmark") {
             benchmarkHandler.handle(exchange)
             return
