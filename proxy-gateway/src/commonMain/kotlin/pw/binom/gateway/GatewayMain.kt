@@ -27,6 +27,7 @@ import pw.binom.logger.WARNING
 import pw.binom.logging.PromTailLogSender
 import pw.binom.logging.LoggerSenderHandler
 import pw.binom.logging.SQLiteLogSender
+import pw.binom.properties.FileSystemProperties
 import pw.binom.properties.IniParser
 import pw.binom.properties.LoggerProperties
 import pw.binom.properties.PingProperties
@@ -43,6 +44,7 @@ suspend fun startProxyClient(
     networkManager: NetworkManager,
     loggerProperties: LoggerProperties,
     pingProperties: PingProperties,
+    fileConfig: FileSystemProperties,
 ): Strong {
     val baseConfig =
         Strong.config {
@@ -101,7 +103,12 @@ suspend fun startProxyClient(
             }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
-    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties), FileSystemConfig())
+    return Strong.create(
+        baseConfig,
+        CommandsConfig(),
+        LoggerConfig(loggerProperties),
+        FileSystemConfig(fileConfig),
+    )
 }
 
 val closed = AtomicBoolean(false)
@@ -151,6 +158,7 @@ fun main(args: Array<String>) {
     )
     val loggerProperties = PropertiesDecoder.parse(LoggerProperties.serializer(), configRoot)
     val pingProperties = PropertiesDecoder.parse(PingProperties.serializer(), configRoot)
+    val fileConfig = PropertiesDecoder.parse(FileSystemProperties.serializer(), configRoot)
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
             val strong = startProxyClient(
@@ -158,6 +166,7 @@ fun main(args: Array<String>) {
                 networkManager = networkManager,
                 loggerProperties = loggerProperties,
                 pingProperties = pingProperties,
+                fileConfig = fileConfig,
             )
             val mainCoroutineContext = coroutineContext
             Signal.handler {

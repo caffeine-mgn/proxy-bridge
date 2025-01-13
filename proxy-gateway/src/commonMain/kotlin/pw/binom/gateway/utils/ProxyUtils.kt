@@ -3,6 +3,7 @@ package pw.binom.gateway.utils
 import pw.binom.DEFAULT_BUFFER_SIZE
 import pw.binom.io.*
 import pw.binom.io.http.*
+import pw.binom.io.httpClient.protocol.v11.Http11
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
 import pw.binom.io.socket.DomainSocketAddress
 import pw.binom.io.socket.SocketAddress
@@ -38,7 +39,7 @@ suspend fun AsyncChannel.tcpConnectViaHttpProxy(
     headersForSend += headers
 
     bufferedAsciiWriter(closeParent = false).useAsync { writer ->
-        Http11ConnectFactory2.sendRequest(
+        Http11.sendRequest(
             output = writer,
             method = "CONNECT",
             request = request,

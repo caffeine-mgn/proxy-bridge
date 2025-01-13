@@ -5,6 +5,7 @@ package pw.binom.frame
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.protobuf.ProtoBuf
+import pw.binom.*
 
 private val protobuf = ProtoBuf
 
@@ -22,3 +23,4 @@ fun <T> FrameOutput.writeObject(k: KSerializer<T>, value: T) {
 
 fun FrameSender.asOutput() = AsyncFrameOutput(this)
 fun FrameReceiver.toInput() = AsyncFrameInput(this)
+fun FrameChannel.toAsyncChannel() = FrameAsyncChannelAdapter(this)

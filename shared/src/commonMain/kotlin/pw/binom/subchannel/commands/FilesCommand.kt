@@ -2,95 +2,407 @@ package pw.binom.subchannel.commands
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.protobuf.ProtoBuf
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.builtins.serializer
+import pw.binom.*
 import pw.binom.config.LOCAL_FS
+import pw.binom.frame.FrameAsyncChannel
 import pw.binom.frame.FrameChannel
-import pw.binom.frame.FrameInput
-import pw.binom.frame.FrameOutput
-import pw.binom.frame.writeObject
-import pw.binom.io.AsyncInput
-import pw.binom.io.FileSystem
+import pw.binom.frame.toAsyncChannel
+import pw.binom.io.*
+import pw.binom.logger.Logger
+import pw.binom.logger.info
 import pw.binom.serialization.PathSerializer
 import pw.binom.services.ClientService
 import pw.binom.strong.inject
 import pw.binom.subchannel.AbstractCommandClient
 import pw.binom.subchannel.Command
-import pw.binom.subchannel.commands.TcpConnectCommand.Connected
 import pw.binom.url.Path
+import kotlin.jvm.JvmInline
 
 class FilesCommand : Command<FilesCommand.FilesClient> {
-    private val fs by inject<FileSystem>(name = LOCAL_FS)
+
+    private val logger by Logger.ofThisOrGlobal
+
+    private val fs by inject<FileSystem2>(name = LOCAL_FS)
     private val clientService by inject<ClientService>()
 
     suspend fun client() = clientService.startServer(this)
 
+    companion object {
+        private const val UNKNOWN_ERROR: Byte = 0
+        private const val FORBIDDEN_ERROR: Byte = 0
+        private const val FILE_NOT_FOUND_ERROR: Byte = 0
+        private const val ENTITY_EXIST_ERROR: Byte = 0
+    }
+
     @OptIn(ExperimentalSerializationApi::class)
     @Serializable
-    sealed interface Command {
+    sealed interface FS {
 
         @Serializable
-        class GetDir(@Serializable(PathSerializer::class) val path: Path) : Command
+        data class GetDir(@Serializable(PathSerializer::class) val path: Path) : FS
 
         @Serializable
-        class ReadFile(@Serializable(PathSerializer::class) val path: Path) : Command
+        data class ReadFile(
+            @Serializable(PathSerializer::class) val path: Path,
+            val range: Range? = null,
+        ) : FS
 
         @Serializable
-        class PutFile(@Serializable(PathSerializer::class) val path: Path) : Command
+        data class PutFile(@Serializable(PathSerializer::class) val path: Path, val override: Boolean) : FS
 
         @Serializable
-        class DeleteFile(@Serializable(PathSerializer::class) val path: Path) : Command
+        data class Delete(
+            @Serializable(PathSerializer::class) val path: Path,
+            val recursive: Boolean,
+        ) : FS
 
         @Serializable
-        class Mkdir(@Serializable(PathSerializer::class) val path: Path) : Command
+        data class Mkdir(@Serializable(PathSerializer::class) val path: Path) : FS
 
         @Serializable
-        class Move(
+        data class GetEntity(@Serializable(PathSerializer::class) val path: Path) : FS
+
+        @Serializable
+        data class Move(
             @Serializable(PathSerializer::class) val from: Path,
             @Serializable(PathSerializer::class) val to: Path,
             val overwrite: Boolean
-        ) : Command
+        ) : FS
 
         @Serializable
-        class Copy(
+        data class Copy(
             @Serializable(PathSerializer::class) val from: Path,
             @Serializable(PathSerializer::class) val to: Path,
             val overwrite: Boolean
-        ) : Command
+        ) : FS
+    }
+
+    private val Range.toFs
+        get() = when (this) {
+            is Range.First -> FileSystem2.Range.First(start = start)
+            is Range.Between -> FileSystem2.Range.Between(start = start, end = end)
+            is Range.Last -> FileSystem2.Range.Last(size = size)
+        }
+
+    @Serializable
+    sealed interface Range {
+        @Serializable
+        data class First(val start: Long) : Range
+
+        @Serializable
+        data class Between(val start: Long, val end: Long) : Range
+
+        @Serializable
+        data class Last(val size: Long) : Range
+    }
+
+    @Serializable
+    data class Entity(
+        @Serializable(PathSerializer::class)
+        val path: Path,
+        val isFile: Boolean,
+        val size: Long,
+        val lastModified: Long,
+    ) {
+        val name
+            get() = path.name
+    }
+
+    private inline fun <T> FSResult<T>.onOk(func: (T) -> Unit) {
+        if (this.isOk) {
+            func(getOrThrow())
+        }
+    }
+
+    @Serializable
+    sealed interface CommandResult {
+
+        val isOk: Boolean
+        val isNotOk
+            get() = !isOk
+
+        @Serializable
+        data object OK : CommandResult {
+            override val isOk: Boolean
+                get() = true
+        }
+
+        @Serializable
+        data class UnknownError(val error: String) : CommandResult {
+            override val isOk: Boolean
+                get() = false
+        }
+
+        @Serializable
+        data class FSError(val error: String?) : CommandResult {
+            override val isOk: Boolean
+                get() = false
+        }
+
+        @Serializable
+        data class EntityExist(val error: String?) : CommandResult {
+            override val isOk: Boolean
+                get() = false
+        }
+
+        @Serializable
+        data class EntityNotFound(val error: String?) : CommandResult {
+            override val isOk: Boolean
+                get() = false
+        }
+
+        @Serializable
+        data class Forbidden(val error: String?) : CommandResult {
+            override val isOk: Boolean
+                get() = false
+        }
+    }
+
+    @JvmInline
+    value class FSResult<T>(private val raw: Any?) {
+        fun getOrThrow(): T {
+            if (raw is CommandResult) {
+                throw IllegalStateException()
+            }
+            return raw as T
+        }
+
+        fun getCommandOrThrow(): CommandResult {
+            if (raw !is CommandResult) {
+                throw IllegalStateException()
+            }
+            return raw
+        }
+
+        val isOk
+            get() = raw !is CommandResult
     }
 
     class FilesClient(override val channel: FrameChannel) : AbstractCommandClient() {
-//        suspend fun getDir(path: Path): List<String> {
-//            asClosed {
-//                channel.sendFrame {
-//                    it.writeObject(Command.serializer(), Command.GetDir(path))
-//                }
-//            }
-//        }
 
-        fun readFile(path: Path, offset: ULong, length: ULong?) {
+        suspend fun readFile(path: Path, range: Range?): FSResult<AsyncInput?> {
+            val stream = safeClosable {
+                val stream = channel.toAsyncChannel().closeOnError()
+                val r = stream.sendReceive(FS.ReadFile(path = path, range = range))
+                if (r.isNotOk) {
+                    stream.asyncClose()
+                    return FSResult(r)
+                }
+                if (!stream.readBoolean()) {
+                    stream.asyncClose()
+                    return FSResult(null)
+                }
+                stream
+            }
 
+            return FSResult(object : AsyncInput {
+                override val available: Int
+                    get() = -1
+
+                override suspend fun asyncClose() {
+                    stream.asyncClose()
+                }
+
+                override suspend fun read(dest: ByteBuffer): DataTransferSize =
+                    stream.read(dest)
+            })
         }
 
-        fun putFile(path: Path, input: AsyncInput) {
+        suspend fun putFile(path: Path, override: Boolean): FSResult<AsyncOutput> {
+            val stream = safeClosable {
+                val stream = channel.toAsyncChannel().closeOnError()
+                val c = stream.sendReceive(FS.PutFile(path = path, override = override))
+                if (c.isNotOk) {
+                    return FSResult(c)
+                }
+                stream
+            }
+            return FSResult(object : AsyncOutput {
+                override suspend fun asyncClose() {
+                    stream.asyncClose()
+                }
 
+                override suspend fun flush() {
+                    stream.flush()
+                }
+
+                override suspend fun write(data: ByteBuffer): DataTransferSize =
+                    stream.write(data)
+            })
         }
 
-        fun delete(path: Path) {
+        suspend fun delete(path: Path, recursive: Boolean): CommandResult =
+            channel.toAsyncChannel().useAsync {
+                it.sendReceive(FS.Delete(path = path, recursive = recursive))
+            }
 
+        suspend fun getEntity(path: Path): FSResult<Entity?> =
+            channel.toAsyncChannel().useAsync {
+                val e = it.sendReceive(FS.GetEntity(path = path))
+                    .optionOk {
+                        it.readObject(Entity.serializer().nullable)
+                    }
+//                it.writeBoolean(true)
+                e
+            }
+
+        inline fun <T> CommandResult.optionOk(func: () -> T): FSResult<T> =
+            if (this === CommandResult.OK) {
+                FSResult(func())
+            } else {
+                FSResult(this)
+            }
+
+        private suspend fun AsyncChannel.sendReceive(fs: FS): CommandResult {
+            println("sending $fs")
+            writeObject(FS.serializer(), fs)
+            flush()
+            val c = readObject(CommandResult.serializer())
+            println("Was read $c")
+            return c
         }
 
-        fun mkdir(path: Path) {
-        }
+        suspend fun mkdir(path: Path): FSResult<Entity> =
+            channel.toAsyncChannel().useAsync {
+                it.sendReceive(FS.Mkdir(path = path))
+                    .optionOk {
+                        it.readObject(Entity.serializer())
+                    }
+            }
 
-        fun move(from: Path, path: Path, overwrite: Boolean) {}
-        fun copy(from: Path, path: Path, overwrite: Boolean) {}
+        suspend fun move(from: Path, to: Path, overwrite: Boolean) =
+            channel.toAsyncChannel().useAsync {
+                it.sendReceive(FS.Move(from = from, to = to, overwrite = overwrite))
+            }
+
+        suspend fun copy(from: Path, to: Path, overwrite: Boolean) =
+            channel.toAsyncChannel().useAsync {
+                it.sendReceive(FS.Copy(from = from, to = to, overwrite = overwrite))
+            }
+
+        suspend fun getEntries(path: Path): FSResult<List<Entity>?> =
+            channel.toAsyncChannel().useAsync {
+                it.sendReceive(FS.GetDir(path = path))
+                    .optionOk {
+                        it.readObject(ListSerializer(Entity.serializer()).nullable)
+                    }
+            }
     }
 
     override val cmd: Byte
-        get() = pw.binom.subchannel.Command.FS
+        get() = Command.FS
 
     override suspend fun startClient(channel: FrameChannel) {
-        TODO("Not yet implemented")
+        channel.toAsyncChannel().useAsync { ch ->
+            println("Reading cmd...")
+            val cmd = ch.readObject(FS.serializer())
+            println("Income CMD: $cmd")
+            when (cmd) {
+                is FS.Copy -> processingOk(ch) {
+                    fs.copy(
+                        from = cmd.from,
+                        to = cmd.to,
+                        override = cmd.overwrite
+                    )
+                }
+
+                is FS.Delete -> processingOk(ch) {
+                    fs.delete(path = cmd.path, recursive = cmd.recursive)
+                }
+
+                is FS.GetDir -> {
+                    processingOk(ch) {
+                        fs.getEntries(path = cmd.path)
+                            ?.map { it.toInternal }
+                    }.onOk {
+                        logger.info("GetDir ${cmd.path}: $it")
+                        ch.writeObject(ListSerializer(Entity.serializer()).nullable, it)
+                    }
+                }
+
+                is FS.Mkdir -> {
+                    processingOk(ch) {
+                        fs.makeDirectories(path = cmd.path)
+                    }.onOk {
+                        ch.writeObject(Entity.serializer(), it.toInternal)
+                    }
+                }
+
+                is FS.Move -> processingOk(ch) {
+                    fs.move(
+                        from = cmd.from,
+                        to = cmd.to,
+                        override = cmd.overwrite
+                    )
+                }
+
+                is FS.PutFile -> processingOk(ch) {
+                    fs.writeFile(
+                        path = cmd.path,
+                        override = cmd.override,
+                    )
+                }.onOk {
+                    ch.copyTo(it)
+                }
+
+                is FS.ReadFile -> {
+                    processingOk(ch) {
+                        fs.readFile(
+                            path = cmd.path,
+                            range = cmd.range?.toFs ?: FileSystem2.Range.First(start = 0)
+                        )
+                    }.onOk {
+                        ch.writeBoolean(it != null)
+                        it?.copyTo(ch)
+                    }
+                }
+
+                is FS.GetEntity -> {
+                    processingOk(ch) {
+                        fs.getEntity(cmd.path)
+                    }.onOk {
+                        logger.info("Return ${cmd.path} -> $it")
+                        ch.writeObject(
+                            Entity.serializer().nullable,
+                            it?.toInternal
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private val FileSystem2.Entity.toInternal
+        get() = Entity(
+            path = path,
+            isFile = isFile,
+            size = size,
+            lastModified = lastModified,
+        )
+
+    private suspend inline fun <T> processingOk(channel: AsyncChannel, func: () -> T): FSResult<T> {
+        val result = try {
+            func()
+        } catch (e: Throwable) {
+            val result = when (e) {
+                is FileSystem2.EntityExistException -> CommandResult.EntityExist(e.message)
+                is FileSystem2.FileNotFoundException -> CommandResult.EntityNotFound(e.message)
+                is FileSystem2.ForbiddenException -> CommandResult.Forbidden(e.message)
+                else -> CommandResult.UnknownError(e.message ?: e.toString())
+            }
+            channel.writeObject(CommandResult.serializer(), result)
+            println("Send response $result")
+            channel.flush()
+            return FSResult(result)
+        }
+
+        println("Send response ${CommandResult.OK}")
+        channel.writeObject(CommandResult.serializer(), CommandResult.OK)
+        channel.flush()
+        return FSResult(result)
     }
 
     override suspend fun startServer(channel: FrameChannel): FilesClient =

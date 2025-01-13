@@ -1,0 +1,9 @@
+services:
+    webdav:
+        image: ugeek/webdav:amd64
+        environment:
+            "USERNAME": "root"
+            "PASSWORD": "root"
+            "TZ": "GMT"
+        ports:
+            -   "8011:80"

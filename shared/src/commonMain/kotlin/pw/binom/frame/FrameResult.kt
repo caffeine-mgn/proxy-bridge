@@ -3,6 +3,9 @@ package pw.binom.frame
 import pw.binom.io.StreamClosedException
 import kotlin.jvm.JvmInline
 
+/**
+ * Результат чтения фрейма
+ */
 @JvmInline
 @Suppress("UNCHECKED_CAST")
 value class FrameResult<T> private constructor(private val raw: Any?) {
@@ -12,10 +15,8 @@ value class FrameResult<T> private constructor(private val raw: Any?) {
         fun <T> of(value: T) = FrameResult<T>(value)
     }
 
-    inline fun ensureNotClosed(): T {
-        check(isNotClosed) { "Connection closed" }
-        return getOrThrow()
-    }
+    inline fun ensureNotClosed(): T =
+        ensureNotClosed { "Connection closed" }
 
     inline fun ensureNotClosed(func: () -> String): T {
         check(isNotClosed, func)

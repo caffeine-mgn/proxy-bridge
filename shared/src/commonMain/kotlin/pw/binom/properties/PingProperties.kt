@@ -12,9 +12,4 @@ data class PingProperties(
     val timeout: Duration = 10.seconds,
     val size: Int = 32,
     val pingFailCount: Int = 3,
-) {
-    init {
-        println("interval=$interval")
-        println("timeout=$timeout")
-    }
-}
+)

@@ -8,17 +8,16 @@ import pw.binom.config.CommandsConfig
 import pw.binom.config.FileSystemConfig
 import pw.binom.config.LoggerConfig
 import pw.binom.frame.PackageSize
-import pw.binom.io.file.File
-import pw.binom.io.file.LocalFileSystem
-import pw.binom.io.file.readText
-import pw.binom.io.file.takeIfFile
-import pw.binom.io.file.workDirectoryFile
+import pw.binom.fs.RemoteFileSystem
+import pw.binom.io.file.*
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.create
 import pw.binom.io.use
-import pw.binom.logging.*
+import pw.binom.logger.Logger
+import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
+import pw.binom.properties.FileSystemProperties
 import pw.binom.properties.IniParser
 import pw.binom.properties.LoggerProperties
 import pw.binom.properties.PingProperties
@@ -34,12 +33,15 @@ import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
 import pw.binom.strong.bean
 import pw.binom.strong.inject
+import pw.binom.url.toPath
+import pw.binom.webdav.FileSystemWebDavHandler
 
 suspend fun startProxyNode(
     properties: ProxyProperties,
     loggerProperties: LoggerProperties,
     pingProperties: PingProperties,
     networkManager: NetworkManager,
+    fileConfig: FileSystemProperties,
 ): Strong {
     val baseConfig =
         Strong.config {
@@ -64,6 +66,12 @@ suspend fun startProxyNode(
             it.bean { ExternalWebServerService() }
             it.bean { BinomMetrics }
             it.bean { GCService() }
+            it.bean {
+                FileSystemWebDavHandler(
+                    fs = inject<RemoteFileSystem>(),
+                    global = "".toPath,
+                )
+            }
 //            it.bean { GatewayClientService() }
 //            it.bean { ServerControlService() }
             it.bean { PrometheusController() }
@@ -81,12 +89,17 @@ suspend fun startProxyNode(
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }
         }
     println("Starting node")
-    return Strong.create(baseConfig, CommandsConfig(), LoggerConfig(loggerProperties), FileSystemConfig())
+    return Strong.create(
+        baseConfig,
+        CommandsConfig(),
+        LoggerConfig(loggerProperties),
+        FileSystemConfig(fileConfig)
+    )
 }
 
 fun main(args: Array<String>) {
 //    val sql = SQLiteLogAppender(file = File("log.db"))
-//    Logger.getLogger("Strong.Starter").level = Logger.WARNING
+    Logger.getLogger("Strong.Starter").level = Logger.WARNING
     val argMap = HashMap<String, String?>()
     (args
         .filter { it.startsWith("-D") }
@@ -110,6 +123,7 @@ fun main(args: Array<String>) {
     val properties = PropertiesDecoder.parse(ProxyProperties.serializer(), configRoot)
     val loggerProperties = PropertiesDecoder.parse(LoggerProperties.serializer(), configRoot)
     val pingProperties = PropertiesDecoder.parse(PingProperties.serializer(), configRoot)
+    val fileConfig = PropertiesDecoder.parse(FileSystemProperties.serializer(), configRoot)
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
             val strong = startProxyNode(
@@ -117,6 +131,7 @@ fun main(args: Array<String>) {
                 networkManager = networkManager,
                 loggerProperties = loggerProperties,
                 pingProperties = pingProperties,
+                fileConfig = fileConfig,
             )
             val mainCoroutineContext = coroutineContext
             Signal.handler {
