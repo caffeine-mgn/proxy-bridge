@@ -65,6 +65,11 @@ class VirtualChannelManagerImpl2(
 //            internalOutcomeChannel = internalOutcomeChannel,
             sender = channelFrameSender(id),
             closeFunc = this::sendChannelClose,
+            disposeFunc = { channelId ->
+                channelLock.synchronize {
+                    channels.remove(channelId.raw)
+                }?.asyncClose()
+            }
         )
         channels[id.raw] = newChannel
         newChannel
@@ -154,8 +159,13 @@ class VirtualChannelManagerImpl2(
             CLOSE -> {
                 val channelId = buf.readShort()
                 buf.closeAnyway()
-                logger.info("Closing channel ${ChannelId(channelId)}")
-                channelLock.synchronize { channels.remove(channelId) }?.asyncClose()
+                val channel = channelLock.synchronize { channels[channelId] }
+                if (channel == null) {
+                    logger.info("Can't close channel ${ChannelId(channelId)}. Not exist")
+                } else {
+                    logger.info("Closing channel ${ChannelId(channelId)}")
+                    channelLock.synchronize { channels[channelId] }?.closeReceived()
+                }
             }
         }
     }

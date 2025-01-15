@@ -7,8 +7,9 @@ import pw.binom.*
 import pw.binom.coroutines.SimpleAsyncLock2
 import pw.binom.io.ByteBuffer
 
-class FrameReorder(
-    val channel: SendChannel<ByteBuffer>,
+class FrameReorder<T>(
+    val channel: SendChannel<T>,
+    val closeFunc: (T) -> Unit,
 ) : AsyncReCloseable() {
     /**
      * Ожидаемый номер следующего фрейма
@@ -18,11 +19,11 @@ class FrameReorder(
     /**
      * Пакеты из будущего
      */
-    private val notInTimePackages = HashMap<Byte, ByteBuffer>()
+    private val notInTimePackages = HashMap<Byte, T>()
     private val incomeLock = SimpleAsyncLock2()
 
     @OptIn(DelicateCoroutinesApi::class)
-    suspend fun income(frame: FrameId, data: ByteBuffer) {
+    suspend fun income(frame: FrameId, data: T) {
         if (channel.isClosedForSend) {
             throw ClosedSendChannelException(null)
         }
@@ -49,7 +50,7 @@ class FrameReorder(
     override suspend fun realAsyncClose() {
         incomeLock.synchronize {
             notInTimePackages.values.forEach {
-                it.close()
+                closeFunc(it)
             }
             notInTimePackages.clear()
         }
