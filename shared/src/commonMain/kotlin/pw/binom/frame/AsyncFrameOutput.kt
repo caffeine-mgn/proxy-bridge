@@ -48,11 +48,11 @@ class AsyncFrameOutput(val output: FrameSender) : AsyncOutput {
         outputBuffer.clear()
     }
 
-    suspend fun writeInt(value: Int) {
+    override suspend fun writeInt(value: Int) {
         writeFully(value.toByteArray())
     }
 
-    suspend fun writeLong(value: Long) {
+    override suspend fun writeLong(value: Long) {
         writeFully(value.toByteArray())
     }
 
@@ -81,7 +81,7 @@ class AsyncFrameOutput(val output: FrameSender) : AsyncOutput {
         if (!outputBuffer.hasRemaining) {
             flush()
         }
-        return DataTransferSize.ofSize(l)
+        return l
     }
 
     override suspend fun write(data: ByteBuffer): DataTransferSize {

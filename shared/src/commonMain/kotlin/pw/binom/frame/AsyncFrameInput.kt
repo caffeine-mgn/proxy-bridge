@@ -15,11 +15,11 @@ class AsyncFrameInput(val input: FrameReceiver) : AsyncInput {
     private val closed = AtomicBoolean(false)
     private val inputBuffer = ByteBuffer(input.bufferSize.asInt).empty()
 
-    override val available: Int
+    override val available: Available
         get() = when {
-            closed.getValue() -> 0
-            inputBuffer.hasRemaining -> inputBuffer.remaining
-            else -> -1
+            closed.getValue() -> Available.NOT_AVAILABLE
+            inputBuffer.hasRemaining -> Available.of(inputBuffer.remaining)
+            else -> Available.UNKNOWN
         }
 
     override suspend fun asyncClose() {
@@ -40,13 +40,13 @@ class AsyncFrameInput(val input: FrameReceiver) : AsyncInput {
     }
 
 
-    suspend fun readInt(): Int {
+    override suspend fun readInt(): Int {
         val buf = ByteArray(Int.SIZE_BYTES)
         readFully(buf)
         return Int.fromBytes(buf)
     }
 
-    suspend fun readLong(): Long {
+    override suspend fun readLong(): Long {
         val buf = ByteArray(Long.SIZE_BYTES)
         readFully(buf)
         return Long.fromBytes(buf)

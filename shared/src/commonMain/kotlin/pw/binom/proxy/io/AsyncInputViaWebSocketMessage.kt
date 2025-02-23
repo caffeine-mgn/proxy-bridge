@@ -23,8 +23,8 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
         private const val MAX_PING_BYTES = Long.SIZE_BYTES
     }
 
-    override val available: Int
-        get() = currentMessage?.available ?: -1
+    override val available: Available
+        get() = currentMessage?.available ?: Available.UNKNOWN
 
     override suspend fun asyncClose() {
         connection.asyncClose()
@@ -107,7 +107,7 @@ class AsyncInputViaWebSocketMessage(private val connection: WebSocketConnection)
                 this.currentMessage = currentMessage
             }
             val wasRead = currentMessage.read(dest)
-            if (currentMessage.available == 0) {
+            if (currentMessage.available.isNotAvailable) {
                 currentMessage.asyncClose()
                 this.currentMessage = null
             }

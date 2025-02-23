@@ -48,7 +48,7 @@ suspend fun AsyncOutput.writePackage(buffer: ByteBuffer, value: ByteArray) {
     while (offset < value.size) {
         flushPackageIfNeed(buffer = buffer, size = value.size - offset)
         val wrote = buffer.write(value, offset = offset)
-        offset += wrote
+        offset += wrote.length
     }
 }
 

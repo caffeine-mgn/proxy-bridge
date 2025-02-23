@@ -2,18 +2,15 @@ package pw.binom.proxy.channels
 
 import kotlinx.coroutines.*
 import pw.binom.atomic.AtomicBoolean
-import pw.binom.io.AsyncChannel
-import pw.binom.io.ByteBuffer
-import pw.binom.io.DataTransferSize
 import pw.binom.io.http.websocket.MessageType
 import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.http.websocket.WebSocketInput
-import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.proxy.TransportChannelId
 import pw.binom.StreamBridge
 import pw.binom.atomic.AtomicLong
+import pw.binom.io.*
 import pw.binom.io.http.websocket.WebSocketClosedException
 import pw.binom.proxy.io.copyTo
 import kotlin.coroutines.resume
@@ -93,8 +90,8 @@ class WSSpitChannel(
         }
     */
 
-    override val available: Int
-        get() = currentMessage?.available ?: -1
+    override val available: Available
+        get() = currentMessage?.available ?: Available.UNKNOWN
 
     suspend fun awaitClose() {
         if (closed.getValue()) {
@@ -142,7 +139,7 @@ class WSSpitChannel(
                     current.asyncClose()
                     continue
                 }
-                if (current.available == 0) {
+                if (current.available.isNotAvailable) {
                     current.asyncClose()
                     currentMessage = null
                 }
@@ -194,7 +191,7 @@ class WSSpitChannel(
                         continue
                     }
                     internalInput.addAndGet(result.length.toLong())
-                    if (msg.available == 0) {
+                    if (msg.available.isNotAvailable) {
                         currentMessage = null
                         msg.asyncClose()
                     }

@@ -5,7 +5,7 @@ buildscript {
     }
 }
 plugins {
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "2.1.10"
     id("org.gradle.kotlin.kotlin-dsl") version "5.1.2"
     id("com.github.gmazzo.buildconfig") version "3.0.3"
 }

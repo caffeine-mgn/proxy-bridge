@@ -185,8 +185,8 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
             }
 
             return FSResult(object : AsyncInput {
-                override val available: Int
-                    get() = -1
+                override val available: Available
+                    get() = Available.UNKNOWN
 
                 override suspend fun asyncClose() = stream.asyncClose()
 

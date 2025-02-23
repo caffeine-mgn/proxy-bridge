@@ -2,18 +2,15 @@ package pw.binom
 
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.frame.FrameChannel
-import pw.binom.io.AsyncChannel
-import pw.binom.io.ByteBuffer
-import pw.binom.io.DataTransferSize
-import pw.binom.io.empty
+import pw.binom.io.*
 
 class FrameAsyncChannelAdapter(val channel: FrameChannel) : AsyncChannel {
 
     private val buffer = byteBuffer(channel.bufferSize.asInt)
     private val closed = AtomicBoolean(false)
 
-    override val available: Int
-        get() = -1
+    override val available: Available
+        get() = Available.UNKNOWN
 
     init {
         buffer.empty()

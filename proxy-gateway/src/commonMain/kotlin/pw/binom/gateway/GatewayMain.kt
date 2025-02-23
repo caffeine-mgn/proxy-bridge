@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
+import pw.binom.config.BluetoothConfig
 import pw.binom.config.CommandsConfig
 import pw.binom.config.FileSystemConfig
 import pw.binom.config.LoggerConfig
@@ -27,10 +28,7 @@ import pw.binom.logger.WARNING
 import pw.binom.logging.PromTailLogSender
 import pw.binom.logging.LoggerSenderHandler
 import pw.binom.logging.SQLiteLogSender
-import pw.binom.properties.FileSystemProperties
-import pw.binom.properties.IniParser
-import pw.binom.properties.LoggerProperties
-import pw.binom.properties.PingProperties
+import pw.binom.properties.*
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
@@ -45,6 +43,7 @@ suspend fun startProxyClient(
     loggerProperties: LoggerProperties,
     pingProperties: PingProperties,
     fileConfig: FileSystemProperties,
+    bluetooth: BluetoothProperties,
 ): Strong {
     val baseConfig =
         Strong.config {
@@ -90,7 +89,9 @@ suspend fun startProxyClient(
             it.bean { LocalEventSystem() }
 //            it.bean { GatewayControlService() }
 //            it.bean { TcpCommunicatePair() }
-            it.bean { OneConnectService() }
+            if (properties.enableWebSocket) {
+                it.bean { OneConnectService() }
+            }
 //            it.bean { CommunicateRepository() }
             it.bean { VirtualChannelService(PackageSize(properties.bufferSize)) }
             val pool = ByteBufferPool(size = DEFAULT_BUFFER_SIZE)
@@ -108,6 +109,7 @@ suspend fun startProxyClient(
         CommandsConfig(),
         LoggerConfig(loggerProperties),
         FileSystemConfig(fileConfig),
+        BluetoothConfig(bluetooth),
     )
 }
 
@@ -159,6 +161,7 @@ fun main(args: Array<String>) {
     val loggerProperties = PropertiesDecoder.parse(LoggerProperties.serializer(), configRoot)
     val pingProperties = PropertiesDecoder.parse(PingProperties.serializer(), configRoot)
     val fileConfig = PropertiesDecoder.parse(FileSystemProperties.serializer(), configRoot)
+    val bluetoothProperties = PropertiesDecoder.parse(BluetoothProperties.serializer(), configRoot)
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
             val strong = startProxyClient(
@@ -167,6 +170,7 @@ fun main(args: Array<String>) {
                 loggerProperties = loggerProperties,
                 pingProperties = pingProperties,
                 fileConfig = fileConfig,
+                bluetooth = bluetoothProperties,
             )
             val mainCoroutineContext = coroutineContext
             Signal.handler {

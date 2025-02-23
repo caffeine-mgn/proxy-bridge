@@ -11,9 +11,9 @@ class ClientService {
 
     init {
         BeanLifeCycle.postConstruct {
-            val l = HashMap<Byte, Command<Any?>>()
+            val existCommands = HashMap<Byte, Command<Any?>>()
             commands.forEach {
-                val exist = l[it.cmd]
+                val exist = existCommands[it.cmd]
                 if (exist != null) {
                     throw RuntimeException("Command with byte ${it.cmd} already exists: $exist")
                 }

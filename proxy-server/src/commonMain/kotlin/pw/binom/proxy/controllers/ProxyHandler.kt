@@ -10,8 +10,8 @@ import pw.binom.io.http.forEachHeader
 import pw.binom.io.http.headersOf
 import pw.binom.io.httpClient.BaseHttpClient
 import pw.binom.io.httpClient.ConnectionFactory
-import pw.binom.io.httpClient.OutputLength
 import pw.binom.io.httpClient.RequestHook
+import pw.binom.io.httpClient.ResponseLength
 import pw.binom.io.httpClient.protocol.ConnectFactory2
 import pw.binom.io.httpClient.protocol.ProtocolSelector
 import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
@@ -109,7 +109,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
                     method = exchange.requestMethod,
                     uri = exchange.requestURI.toURL(),
                     headers = newHeaders,
-                    requestLength = OutputLength.None
+                    requestLength = ResponseLength.None
                 )
             }
         if (req == null) {

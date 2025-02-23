@@ -4,11 +4,7 @@ import kotlinx.coroutines.isActive
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
-import pw.binom.io.AsyncChannel
-import pw.binom.io.ByteBuffer
-import pw.binom.io.DataTransferSize
-import pw.binom.io.EOFException
-import pw.binom.io.StreamClosedException
+import pw.binom.io.*
 import kotlin.coroutines.coroutineContext
 
 class ClosableAsyncChannel(
@@ -20,8 +16,8 @@ class ClosableAsyncChannel(
         const val CLOSED: Byte = 2
     }
 
-    override val available: Int
-        get() = -1
+    override val available: Available
+        get() = Available.UNKNOWN
 
     private val writeBuffer = byteBuffer(8)
     private val readBuffer = byteBuffer(8)

@@ -4,6 +4,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import pw.binom.*
+import pw.binom.config.BluetoothConfig
 import pw.binom.config.CommandsConfig
 import pw.binom.config.FileSystemConfig
 import pw.binom.config.LoggerConfig
@@ -17,10 +18,7 @@ import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.network.NetworkManager
-import pw.binom.properties.FileSystemProperties
-import pw.binom.properties.IniParser
-import pw.binom.properties.LoggerProperties
-import pw.binom.properties.PingProperties
+import pw.binom.properties.*
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.proxy.controllers.*
 import pw.binom.proxy.properties.ProxyProperties
@@ -42,6 +40,7 @@ suspend fun startProxyNode(
     pingProperties: PingProperties,
     networkManager: NetworkManager,
     fileConfig: FileSystemProperties,
+    bluetooth: BluetoothProperties,
 ): Strong {
     val baseConfig =
         Strong.config {
@@ -93,7 +92,8 @@ suspend fun startProxyNode(
         baseConfig,
         CommandsConfig(),
         LoggerConfig(loggerProperties),
-        FileSystemConfig(fileConfig)
+        FileSystemConfig(fileConfig),
+        BluetoothConfig(bluetooth),
     )
 }
 
@@ -124,6 +124,7 @@ fun main(args: Array<String>) {
     val loggerProperties = PropertiesDecoder.parse(LoggerProperties.serializer(), configRoot)
     val pingProperties = PropertiesDecoder.parse(PingProperties.serializer(), configRoot)
     val fileConfig = PropertiesDecoder.parse(FileSystemProperties.serializer(), configRoot)
+    val bluetoothProperties = PropertiesDecoder.parse(BluetoothProperties.serializer(), configRoot)
     runBlocking {
         MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors).use { networkManager ->
             val strong = startProxyNode(
@@ -132,6 +133,7 @@ fun main(args: Array<String>) {
                 loggerProperties = loggerProperties,
                 pingProperties = pingProperties,
                 fileConfig = fileConfig,
+                bluetooth = bluetoothProperties,
             )
             val mainCoroutineContext = coroutineContext
             Signal.handler {

@@ -26,6 +26,7 @@ data class GatewayRuntimeProperties(
     val pingInterval: Duration = 50.seconds,
     val reconnectDelay: Duration = 1.seconds,
     val connectCount: Int = 1,
+    val enableWebSocket: Boolean = true,
 ) {
     enum class TransportType {
         TCP_OVER_HTTP,

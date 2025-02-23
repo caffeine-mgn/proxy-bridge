@@ -17,11 +17,11 @@ class FrameAsyncChannel(private val channel: FrameChannel) : AsyncChannel {
     private val inputBuffer = ByteBuffer(channel.bufferSize.asInt).empty()
     private val outputBuffer = ByteBuffer(channel.bufferSize.asInt)
 
-    override val available: Int
+    override val available: Available
         get() = when {
-            closed.getValue() -> 0
-            inputBuffer.hasRemaining -> inputBuffer.remaining
-            else -> -1
+            closed.getValue() -> Available.NOT_AVAILABLE
+            inputBuffer.hasRemaining -> Available.of(inputBuffer.remaining)
+            else -> Available.UNKNOWN
         }
 
     override suspend fun asyncClose() {
@@ -93,7 +93,7 @@ class FrameAsyncChannel(private val channel: FrameChannel) : AsyncChannel {
         return protobuf.decodeFromByteArray(k, data)
     }
 
-    suspend fun readBoolean() = readByte() > 0
+    override suspend fun readBoolean() = readByte() > 0
     suspend fun writeBoolean(bool: Boolean) {
         writeByte(if (bool) 100 else 0)
     }
@@ -109,13 +109,13 @@ class FrameAsyncChannel(private val channel: FrameChannel) : AsyncChannel {
 //    }
 
 
-    suspend fun readInt(): Int {
+    override suspend fun readInt(): Int {
         val buf = ByteArray(Int.SIZE_BYTES)
         readFully(buf)
         return Int.fromBytes(buf)
     }
 
-    suspend fun readLong(): Long {
+    override suspend fun readLong(): Long {
         val buf = ByteArray(Long.SIZE_BYTES)
         readFully(buf)
         return Long.fromBytes(buf)
@@ -139,11 +139,11 @@ class FrameAsyncChannel(private val channel: FrameChannel) : AsyncChannel {
         return length
     }
 
-    suspend fun writeInt(value: Int) {
+    override suspend fun writeInt(value: Int) {
         writeFully(value.toByteArray())
     }
 
-    suspend fun writeLong(value: Long) {
+    override suspend fun writeLong(value: Long) {
         writeFully(value.toByteArray())
     }
 
@@ -178,7 +178,7 @@ class FrameAsyncChannel(private val channel: FrameChannel) : AsyncChannel {
         if (!outputBuffer.hasRemaining) {
             flush()
         }
-        return DataTransferSize.ofSize(l)
+        return l
     }
 
     override suspend fun write(data: ByteBuffer): DataTransferSize {

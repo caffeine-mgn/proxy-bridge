@@ -47,6 +47,7 @@ kotlin {
                     "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
                 )
                 api(project(":shared"))
+                api(project(":sound"))
             }
         }
         val commonTest by getting {
