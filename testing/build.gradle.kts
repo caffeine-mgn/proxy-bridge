@@ -17,18 +17,18 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
-                api("org.jetbrains.kotlinx:kotlinx-coroutines-core:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-core:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
+                api(libs.kotlinx.coroutines.core)
+                api(libs.kotlinx.serialization.core)
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(project(":proxy-gateway"))
                 implementation(project(":proxy-server"))
-                api("pw.binom.io:testing:${pw.binom.Versions.BINOM_VERSION}")
+                api(libs.binom.testing)
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
-                api("org.jetbrains.kotlinx:kotlinx-coroutines-test:${pw.binom.Versions.KOTLINX_COROUTINES_VERSION}")
+                api(libs.kotlinx.coroutines.test)
             }
         }
         val jvmTest by getting {

@@ -6,10 +6,10 @@ import javax.microedition.io.Connector
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-suspend fun DiscoveryAgent.asyncSearchServices(attrSet: IntArray, uuidSet: Array<UUID>, device: RemoteDevice) =
+suspend fun DiscoveryAgent.asyncSearchServices(attrSet: IntArray, uuidSet: Array<UUID>, device: javax.bluetooth.RemoteDevice) =
     suspendCancellableCoroutine<List<out ServiceRecord>> { con ->
         val tx = searchServices(attrSet, uuidSet, device, object : DiscoveryListener {
-            override fun deviceDiscovered(btDevice: RemoteDevice?, cod: DeviceClass?) {
+            override fun deviceDiscovered(btDevice: javax.bluetooth.RemoteDevice?, cod: DeviceClass?) {
             }
 
             override fun servicesDiscovered(transID: Int, servRecord: Array<out ServiceRecord>?) {
@@ -27,11 +27,11 @@ suspend fun DiscoveryAgent.asyncSearchServices(attrSet: IntArray, uuidSet: Array
         }
     }
 
-suspend fun DiscoveryAgent.asyncDiscover(): Collection<RemoteDevice> =
+suspend fun DiscoveryAgent.asyncDiscover(): Collection<javax.bluetooth.RemoteDevice> =
     suspendCancellableCoroutine { con ->
         val listener = object : DiscoveryListener {
-            val result = HashSet<RemoteDevice>()
-            override fun deviceDiscovered(btDevice: RemoteDevice?, cod: DeviceClass?) {
+            val result = HashSet<javax.bluetooth.RemoteDevice>()
+            override fun deviceDiscovered(btDevice: javax.bluetooth.RemoteDevice?, cod: DeviceClass?) {
                 btDevice ?: return
                 result += btDevice
             }

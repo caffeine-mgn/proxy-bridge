@@ -35,17 +35,15 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
-                api("pw.binom.io:httpServer:${pw.binom.Versions.BINOM_VERSION}")
-                api("pw.binom.io:httpClient:${pw.binom.Versions.BINOM_VERSION}")
-                api("pw.binom.io:strong:${pw.binom.Versions.BINOM_VERSION}")
-                api("pw.binom.io:signal:${pw.binom.Versions.BINOM_VERSION}")
-                api("pw.binom.io:logger:${pw.binom.Versions.BINOM_VERSION}")
-                api("pw.binom.io:properties-serialization:${pw.binom.Versions.BINOM_VERSION}")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-json:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}")
-                api("pw.binom.io:prometheus:${pw.binom.Versions.BINOM_VERSION}")
-                api(
-                    "org.jetbrains.kotlinx:kotlinx-serialization-properties:${pw.binom.Versions.KOTLINX_SERIALIZATION_VERSION}"
-                )
+                api(libs.binom.httpServer)
+                api(libs.binom.httpClient)
+                api(libs.binom.strong.core)
+                api(libs.binom.signal)
+                api(libs.binom.logger)
+                api(libs.binom.propertiesSerialization)
+                api(libs.kotlinx.serialization.json)
+                api(libs.binom.prometheus)
+                api(libs.kotlinx.serialization.properties)
                 api(project(":shared"))
                 api(project(":sound"))
             }
