@@ -135,8 +135,9 @@ class ProxyHandler : HttpHandler, MetricProvider {
                 newHeaders.addAll(exchange.requestHeaders.toSimpleHeaders())
                 newHeaders[Headers.CONNECTION] = "Close"
                 var remoteUrl = exchange.requestURI.toURL()
+                val remotePort = remoteUrl.port ?: 80
                 println("URL: ${remoteUrl.host}:${remoteUrl.port}")
-                if (remoteUrl.domain == "nexus.isb" && (remoteUrl.port == 80 || remoteUrl.port == null)) {
+                if (remoteUrl.domain == "nexus.isb" && (remotePort == 80)) {
                     remoteUrl = remoteUrl.copy(schema = "https", port = 443)
                     println("NEW URL: $remoteUrl")
                 }
