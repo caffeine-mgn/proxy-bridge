@@ -29,7 +29,7 @@ kotlin {
                 api(libs.binom.compression)
                 api(libs.binom.httpClient)
                 api(libs.binom.sqlite)
-                api(libs.binom.bluetooth)
+//                api(libs.binom.bluetooth)
                 api(libs.binom.metric)
                 api(libs.binom.coroutines)
                 api(libs.binom.validate)

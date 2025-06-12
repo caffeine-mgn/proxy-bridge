@@ -3,6 +3,13 @@ package pw.binom.proxy.controllers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.FrameAsyncChannelAdapter
+import pw.binom.http.client.Http11ClientExchange
+import pw.binom.http.client.HttpClientRunnable
+import pw.binom.http.client.factory.Http11ConnectionFactory
+import pw.binom.http.client.factory.HttpProxyNetSocketFactory
+import pw.binom.http.client.factory.Https11ConnectionFactory
+import pw.binom.http.client.factory.NativeNetChannelFactory
+import pw.binom.http.client.factory.NetSocketFactory
 import pw.binom.io.AsyncChannel
 import pw.binom.io.http.HashHeaders
 import pw.binom.io.http.Headers
@@ -15,6 +22,7 @@ import pw.binom.io.httpClient.ResponseLength
 import pw.binom.io.httpClient.protocol.ConnectFactory2
 import pw.binom.io.httpClient.protocol.ProtocolSelector
 import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
+import pw.binom.io.httpClient.protocol.ssl.HttpSSLConnectFactory2
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
@@ -26,12 +34,14 @@ import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
 import pw.binom.network.NetworkManager
+import pw.binom.proxy.HttpsConverterChannel
 import pw.binom.proxy.server.ProxedFactory
 import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.proxy.exceptions.ClientMissingException
 import pw.binom.proxy.io.copyTo
 import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
+import pw.binom.ssl.KeyManager
 import pw.binom.strong.inject
 import pw.binom.subchannel.TcpExchange
 import pw.binom.subchannel.WorkerChanelClient
@@ -67,6 +77,28 @@ class ProxyHandler : HttpHandler, MetricProvider {
         override fun find(url: URL) = factory
     }
 
+    class VirtualSocketFactory(
+        val tcpConnectCommand: TcpConnectCommand
+    ) : NetSocketFactory {
+        override suspend fun connect(host: String, port: Int): AsyncChannel {
+            val channel = tcpConnectCommand.connect(
+                host = host,
+                port = port,
+            )
+            return FrameAsyncChannelAdapter(channel.channel())
+        }
+
+    }
+
+    val httpClient2 by lazy {
+        HttpClientRunnable(
+            factory = Https11ConnectionFactory(
+                fallback = Http11ConnectionFactory(),
+            ),
+            source = VirtualSocketFactory(tcpConnectCommand)
+        )
+    }
+
     val httpClient by lazy {
         val baseProtocolSelector = ProtocolSelectorBySchema()
         val http = Http11ConnectFactory2(networkManager = networkManager, connectFactory = ConnectionFactory.DEFAULT)
@@ -100,17 +132,25 @@ class ProxyHandler : HttpHandler, MetricProvider {
         val req =
             withTimeoutOrNull(10.seconds) {
                 val newHeaders = HashHeaders()
-                exchange.requestHeaders.forEachHeader { k, v ->
-                    println("$k: $v")
-                }
                 newHeaders.addAll(exchange.requestHeaders.toSimpleHeaders())
                 newHeaders[Headers.CONNECTION] = "Close"
-                httpClient.startConnect(
+                var remoteUrl = exchange.requestURI.toURL()
+                println("URL: ${remoteUrl.host}:${remoteUrl.port}")
+                if (remoteUrl.domain == "nexus.isb" && (remoteUrl.port == 80 || remoteUrl.port == null)) {
+                    remoteUrl = remoteUrl.copy(schema = "https", port = 443)
+                    println("NEW URL: $remoteUrl")
+                }
+                httpClient2.connect(
                     method = exchange.requestMethod,
-                    uri = exchange.requestURI.toURL(),
-                    headers = newHeaders,
-                    requestLength = ResponseLength.None
-                )
+                    url = remoteUrl,
+                    headers = newHeaders
+                ) as Http11ClientExchange
+//                httpClient.startConnect(
+//                    method = exchange.requestMethod,
+//                    uri = remoteUrl,
+//                    headers = newHeaders,
+//                    requestLength = ResponseLength.None
+//                )
             }
         if (req == null) {
             logger.info("Can't connect to remote http server")
@@ -118,19 +158,24 @@ class ProxyHandler : HttpHandler, MetricProvider {
             return
         }
         if (exchange.requestHeaders.bodyExist) {
-            req.startWriteBinary().useAsync { output ->
+            req.getOutput().useAsync { output ->
                 exchange.input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
                 }
                 output.flush()
             }
         }
-        val resp = req.flush()
+        val responseHeaders = req.getResponseHeaders()
+        val addResponseHeaders = headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE)
+        val newReponseHeaders = responseHeaders + addResponseHeaders
+//        println("responseHeaders: $responseHeaders")
+//        println("addResponseHeaders: $addResponseHeaders")
+//        println("newReponseHeaders: $newReponseHeaders")
         exchange.startResponse(
-            statusCode = resp.responseCode,
-            headers = resp.inputHeaders + headersOf(Headers.PROXY_CONNECTION to Headers.KEEP_ALIVE)
+            statusCode = req.getResponseCode(),
+            headers = newReponseHeaders
         )
-        if (resp.inputHeaders.bodyExist) {
-            resp.readBinary().useAsync { input ->
+        if (req.getResponseHeaders().bodyExist) {
+            req.getInput().useAsync { input ->
                 exchange.output.useAsync { output ->
                     input.copyTo(output, bufferSize = runtimeProperties.bufferSize) {
 //                        logger.debug("ws->http $it")
@@ -166,11 +211,23 @@ class ProxyHandler : HttpHandler, MetricProvider {
             }
         logger.info("Channel connected! Try return code 200")
         exchange.startResponse(200, headersOf(Headers.CONNECTION to Headers.CLOSE))
-        val incomeChannel =
+        var incomeChannel =
             AsyncChannel.create(
                 input = exchange.input,
                 output = exchange.output
             )
+
+        if (host == "nexus.isb" && port == 80) {
+            logger.info("Connect to $host:$port with HTTPS converting")
+            incomeChannel = HttpsConverterChannel(
+                source = incomeChannel,
+                host = host,
+                port = 443,
+            )
+        } else {
+            logger.info("Connect to $host:$port")
+        }
+
         connectCount.inc()
         try {
             incomeChannel.useAsync { incomeChannel ->

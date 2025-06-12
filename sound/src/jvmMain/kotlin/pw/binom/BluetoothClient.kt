@@ -79,6 +79,7 @@ actual class BluetoothClient actual constructor(
                         withTimeoutOrNull(5.seconds) {
                             ConnectorAsync.open(sspUrl) as StreamConnection
                         }
+
                     } catch (e: ConnectionNotFoundException) {
                         logger.warn("Device \"$addressAndChannel\" not found. Wait $reconnectDelay")
                         delay(reconnectDelay)

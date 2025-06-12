@@ -47,12 +47,12 @@ class BluetoothConnection(
     suspend fun readProcessing() {
         while (coroutineContext.isActive) {
             try {
-                logger.info("Reading package size...")
+//                logger.info("Reading package size...")
                 val size = nativeChannel.readInt()
-                logger.info("Package size: $size. Reading package...")
+//                logger.info("Package size: $size. Reading package...")
                 val buf = ByteArray(size)
                 nativeChannel.readFully(buf)
-                logger.info("Buffer was read success!")
+//                logger.info("Buffer was read success!")
                 income.send(ByteBuffer(buf))
             } catch (_: ClosedReceiveChannelException) {
                 break
@@ -70,11 +70,11 @@ class BluetoothConnection(
         while (coroutineContext.isActive) {
             try {
                 outcome.receive().use { buf ->
-                    logger.info("writing package size ${buf.remaining}")
+//                    logger.info("writing package size ${buf.remaining}")
                     nativeChannel.writeInt(buf.remaining)
-                    logger.info("writing frame data")
+//                    logger.info("writing frame data")
                     nativeChannel.writeFully(buf)
-                    logger.info("frame write success")
+//                    logger.info("frame write success")
                 }
                 nativeChannel.flush()
             } catch (_: ClosedReceiveChannelException) {
