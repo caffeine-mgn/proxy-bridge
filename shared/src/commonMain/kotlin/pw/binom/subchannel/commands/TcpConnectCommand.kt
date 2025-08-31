@@ -2,6 +2,7 @@ package pw.binom.subchannel.commands
 
 import pw.binom.*
 import pw.binom.frame.FrameChannel
+import pw.binom.frame.FrameChannelWithMeta
 import pw.binom.io.AsyncChannel
 import pw.binom.io.IOException
 import pw.binom.io.socket.UnknownHostException
@@ -29,12 +30,14 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
 
     val tcpConnectionFactory by inject<TcpConnectionFactory>()
 
-    class TcpClient(override val channel: FrameChannel) : AbstractCommandClient() {
+    class TcpClient(override val channel: FrameChannelWithMeta) : AbstractCommandClient() {
 
         fun channel() = asClosed { channel }
 
         @Throws(UnknownHostException::class, IOException::class, CancellationException::class)
         suspend fun connect(host: String, port: Int): Connected = asClosed {
+            channel.meta["type"] = "tcp source connection"
+            channel.meta["tcp"] = "$host:$port"
             channel.sendFrame {
                 it.writeString(host)
                 it.writeInt(port)
@@ -55,15 +58,17 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
         }
     }
 
-    class Connected(override val channel: FrameChannel) : AbstractCommandClient() {
+    class Connected(override val channel: FrameChannelWithMeta) : AbstractCommandClient() {
         fun channel() = asClosed { channel }
         suspend fun startExchange(stream: AsyncChannel) {
+            channel.meta["type"] = "tcp source connected"
             val copyResult = asClosed {
                 channel.useAsync { channel ->
                     stream.useAsync { stream ->
                         Cooper.exchange(
                             stream = stream,
                             frame = channel,
+                            channelName = "TCP destination",
                         )
                     }
                 }
@@ -75,7 +80,8 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
     override val cmd: Byte
         get() = Command.TCP_CONNECT
 
-    override suspend fun startClient(channel: FrameChannel) {
+    override suspend fun startClient(channel: FrameChannelWithMeta) {
+        channel.meta["type"] = "tcp destination connecting"
         channel.useAsync { channel ->
             val (host, port) = channel.readFrame {
                 it.readString() to it.readInt()
@@ -86,17 +92,21 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
                     port = port,
                 )
             } catch (_: UnknownHostException) {
+                channel.meta["type"] = "tcp destination unknown host"
                 channel.sendFrame {
                     it.writeByte(HOST_NOT_FOUND)
                 }
                 return
             } catch (e: Throwable) {
+                channel.meta["type"] = "tcp destination unknown error"
                 channel.sendFrame {
                     it.writeByte(UNKNOWN_ERROR)
                     it.writeString(e.message ?: e.toString())
                 }
                 return
             }
+            channel.meta["type"] = "tcp destination connected"
+            channel.meta["tcp"] = "$host:$port"
             channel.sendFrame {
                 it.writeByte(CONNECTED)
             }
@@ -104,11 +114,12 @@ class TcpConnectCommand : Command<TcpConnectCommand.TcpClient> {
                 Cooper.exchange(
                     stream = stream,
                     frame = channel,
+                    channelName = "TCP source"
                 )
             }
             println("Coping finished: $copyResult")
         }
     }
 
-    override suspend fun startServer(channel: FrameChannel): TcpClient = TcpClient(channel)
+    override suspend fun startServer(channel: FrameChannelWithMeta): TcpClient = TcpClient(channel)
 }

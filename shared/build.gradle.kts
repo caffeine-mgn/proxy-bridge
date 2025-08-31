@@ -1,6 +1,8 @@
 plugins {
     kotlin("multiplatform")
     id("kotlinx-serialization")
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
+    id("com.google.devtools.ksp") version "2.0.21-1.0.28"
 }
 val nativeEntryPoint = "pw.binom.proxy.main"
 kotlin {
@@ -30,6 +32,8 @@ kotlin {
                 api(libs.binom.compression)
                 api(libs.binom.coroutines)
                 api(libs.binom.validate)
+                api(libs.koin.core)
+                api(libs.koin.annotations)
                 api(libs.binom.thread)
                 api(libs.binom.socket)
                 api(libs.binom.xml)
@@ -42,10 +46,13 @@ kotlin {
                 api(libs.kotlinx.serialization.protobuf)
                 api(libs.binom.sqlite)
                 api(libs.kotlinx.coroutines.core)
+
+//                ksp("io.insert-koin:koin-ksp-compiler:${libs.versions.koin.annotations.get()}")
             }
         }
         val commonTest by getting {
             dependencies {
+                api(libs.koin.test)
                 api(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))

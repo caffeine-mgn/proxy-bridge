@@ -12,8 +12,8 @@ import kotlin.coroutines.resume
 
 class TestingChannel : AsyncChannel {
     override fun toString(): String = "TestingChannel@${hashCode()}"
-    override val available: Int
-        get() = lock.synchronize { data.size }
+    override val available: Available
+        get() = lock.synchronize { Available.of(data.size) }
     private val data = ByteArrayOutput()
     private var readWater: CancellableContinuation<DataTransferSize>? = null
     private var readInto: ByteBuffer? = null

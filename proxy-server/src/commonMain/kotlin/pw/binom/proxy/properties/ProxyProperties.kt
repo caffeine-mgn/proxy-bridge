@@ -26,7 +26,7 @@ data class ProxyProperties(
     val internalBinds: List<@Serializable(InetNetworkAddressSerializer::class) InetSocketAddress> = listOf(
         InetSocketAddress.resolve(
             host = "0.0.0.0",
-            port = 8081,
+            port = 8077,
         ),
     ),
     @Serializable(DurationSecond::class)

@@ -2,9 +2,10 @@ package pw.binom.subchannel
 
 import pw.binom.AsyncReCloseable
 import pw.binom.frame.FrameChannel
+import pw.binom.frame.FrameChannelWithMeta
 
 abstract class AbstractCommandClient : AsyncReCloseable() {
-    protected abstract val channel: FrameChannel
+    protected abstract val channel: FrameChannelWithMeta
 
     protected inline fun <T> asClosed(func: () -> T): T {
         check(!isClosed) { "Already closed" }

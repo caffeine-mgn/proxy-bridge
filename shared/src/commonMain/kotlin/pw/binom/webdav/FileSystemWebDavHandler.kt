@@ -92,7 +92,7 @@ class FileSystemWebDavHandler(
         val destination = exchange.destination
         if (destination == null) {
             exchange.startResponse(400)
-            exchange.output.bufferedAsciiWriter().useAsync {
+            exchange.output.bufferedWriter().useAsync {
                 it.append("Missing header \"Destination\"")
             }
             return
@@ -109,7 +109,7 @@ class FileSystemWebDavHandler(
         val destination = exchange.destination
         if (destination == null) {
             exchange.startResponse(400)
-            exchange.output.bufferedAsciiWriter().useAsync {
+            exchange.output.bufferedWriter().useAsync {
                 it.append("Missing header \"Destination\"")
             }
             return

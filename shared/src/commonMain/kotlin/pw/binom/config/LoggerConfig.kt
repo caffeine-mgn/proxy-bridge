@@ -14,6 +14,10 @@ fun LoggerConfig(loggerProperties: LoggerProperties) = Strong.config {
         it.bean { SQLiteLogSender() }
     }
 
+    if (loggerProperties.file!=null){
+        it.bean { FileLogSender(loggerProperties.file!!) }
+    }
+
 //    InternalLog.replace {
 //        InternalLoggerToLogger()
 //    }

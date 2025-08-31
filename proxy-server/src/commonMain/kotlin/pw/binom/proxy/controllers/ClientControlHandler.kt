@@ -4,8 +4,6 @@ import pw.binom.WebSocketProcessing
 import pw.binom.atomic.AtomicLong
 import pw.binom.concurrency.SpinLock
 import pw.binom.concurrency.synchronize
-import pw.binom.io.http.forEachHeader
-import pw.binom.io.http.websocket.WebSocketConnection
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.httpServer.acceptWebsocket
@@ -14,17 +12,13 @@ import pw.binom.logger.Logger
 import pw.binom.logger.info
 import pw.binom.metric.AsyncMetricVisitor
 import pw.binom.metric.Metric
-import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
-import pw.binom.metric.MetricUnit
 import pw.binom.metric.MetricVisitor
-import pw.binom.metric.metricOf
 import pw.binom.metric.withField
 import pw.binom.network.NetworkManager
 import pw.binom.properties.PingProperties
 import pw.binom.services.VirtualChannelService
 import pw.binom.strong.BeanLifeCycle
-import pw.binom.strong.Strong
 import pw.binom.strong.inject
 
 class ClientControlHandler : HttpHandler, Metric {

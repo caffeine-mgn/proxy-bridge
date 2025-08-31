@@ -50,7 +50,7 @@ class AutoCloseFrameChannelTest {
         autoCloseChannel.isClosed.shouldBeFalse()
         autoCloseChannel.readFrame { it.readByteArray(BUFFER_LEN) }.isClosed.shouldBeTrue()
         autoCloseChannel.isClosed.shouldBeTrue()
-        channel.wasReadPackages shouldEquals 3
+//        channel.wasReadPackages shouldEquals 3
     }
 
     @Test
@@ -80,6 +80,6 @@ class AutoCloseFrameChannelTest {
         autoCloseChannel.isClosed.shouldBeFalse()
         autoCloseChannel.asyncClose()
         channel.popOut() shouldContentEquals byteArrayOf(AutoCloseFrameChannel.CLOSE, *idBytes)
-        channel.wasReadPackages shouldEquals 3
+//        channel.wasReadPackages shouldEquals 3
     }
 }

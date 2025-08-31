@@ -4,7 +4,6 @@ import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
-import pw.binom.proxy.RequestDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

@@ -25,7 +25,8 @@ import pw.binom.proxy.properties.ProxyProperties
 import pw.binom.proxy.services.ExternalWebServerService
 import pw.binom.proxy.services.InternalWebServerService
 import pw.binom.services.ClientService
-import pw.binom.services.VirtualChannelService
+import pw.binom.services.VirtualChannelServiceImpl2
+import pw.binom.services.VirtualChannelServiceIncomeService
 import pw.binom.signal.Signal
 import pw.binom.strong.LocalEventSystem
 import pw.binom.strong.Strong
@@ -46,6 +47,7 @@ suspend fun startProxyNode(
         Strong.config {
             it.bean { networkManager }
             it.bean { ExternalHandler() }
+            it.bean { VirtualChannelServiceIncomeService() }
             it.bean { properties }
             it.bean { pingProperties }
             it.bean { ClientService() }
@@ -82,7 +84,14 @@ suspend fun startProxyNode(
                 val nm = inject<NetworkManager>()
                 HttpClient.create(networkDispatcher = nm.asInstance())
             }
-            it.bean { VirtualChannelService(bufferSize = PackageSize(properties.bufferSize)) }
+//            it.bean { VirtualChannelServiceImpl(bufferSize = PackageSize(properties.bufferSize)) }
+            it.bean {
+                VirtualChannelServiceImpl2(
+                    bufferSize = PackageSize(properties.bufferSize),
+                    serverMode = true,
+                    networkManager = inject(),
+                )
+            }
             val pool = ByteBufferPool(size = DEFAULT_BUFFER_SIZE)
             it.bean { pool }
             it.bean(name = "LOCAL_FS") { LocalFileSystem(root = File("/"), byteBufferPool = pool) }

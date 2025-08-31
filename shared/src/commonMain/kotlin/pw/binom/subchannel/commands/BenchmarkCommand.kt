@@ -2,6 +2,7 @@ package pw.binom.subchannel.commands
 
 import pw.binom.*
 import pw.binom.frame.FrameChannel
+import pw.binom.frame.FrameChannelWithMeta
 import pw.binom.io.*
 import pw.binom.logger.Logger
 import pw.binom.logger.info
@@ -29,7 +30,7 @@ class BenchmarkCommand : Command<BenchmarkCommand.Client> {
     suspend fun new() = clientService.startServer(this)
     private val logger by Logger.ofThisOrGlobal
 
-    class Client(override val channel: FrameChannel) : AbstractCommandClient() {
+    class Client(override val channel: FrameChannelWithMeta) : AbstractCommandClient() {
         private val logger by Logger.ofThisOrGlobal
         suspend fun uploadTest(time: Duration, size: Int, withResp: Boolean): Long =
             asClosed {
@@ -115,7 +116,7 @@ class BenchmarkCommand : Command<BenchmarkCommand.Client> {
         object Ping : Command
     }
 
-    override suspend fun startClient(channel: FrameChannel) {
+    override suspend fun startClient(channel: FrameChannelWithMeta) {
         channel.useAsync { channel ->
             val cmd = channel.readFrame {
                 when (val cmd = it.readByte()) {
@@ -185,6 +186,6 @@ class BenchmarkCommand : Command<BenchmarkCommand.Client> {
         }
     }
 
-    override suspend fun startServer(channel: FrameChannel): Client =
+    override suspend fun startServer(channel: FrameChannelWithMeta): Client =
         Client(channel)
 }

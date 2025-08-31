@@ -14,8 +14,8 @@ class ChannelBridgeTest {
             require(size >= 0)
         }
 
-        override val available: Int
-            get() = -1
+        override val available
+            get() = Available.UNKNOWN
 
         override suspend fun asyncClose() {
         }

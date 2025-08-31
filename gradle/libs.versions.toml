@@ -2,6 +2,8 @@
 binom = "1.0.0-SNAPSHOT"
 kotlinx-serialization = "1.8.0"
 kotlinx-coroutines = "1.10.1"
+koin-lib="4.0.3"
+koin-annotations="2.1.0"
 
 [libraries]
 binom-strong-core = { group = "pw.binom.io", name = "strong", version.ref = "binom" }
@@ -25,6 +27,10 @@ binom-bluetooth = { group = "pw.binom.io", name = "bluetooth", version.ref = "bi
 binom-coroutines = { group = "pw.binom.io", name = "coroutines", version.ref = "binom" }
 binom-propertiesSerialization = { group = "pw.binom.io", name = "properties-serialization", version.ref = "binom" }
 binom-testing = { group = "pw.binom.io", name = "testing", version.ref = "binom" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref="koin-lib" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref="koin-lib" }
+koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref="koin-annotations" }
+koin-ksp = { module = "io.insert-koin:koin-ksp-compiler", version.ref="koin-annotations" }
 
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }

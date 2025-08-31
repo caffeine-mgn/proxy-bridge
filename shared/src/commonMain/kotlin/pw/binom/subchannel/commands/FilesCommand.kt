@@ -6,6 +6,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import pw.binom.*
 import pw.binom.config.LOCAL_FS
 import pw.binom.frame.FrameChannel
+import pw.binom.frame.FrameChannelWithMeta
 import pw.binom.frame.toAsyncChannel
 import pw.binom.io.*
 import pw.binom.logger.Logger
@@ -167,7 +168,7 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
             get() = raw !is CommandResult
     }
 
-    class FilesClient(override val channel: FrameChannel) : AbstractCommandClient() {
+    class FilesClient(override val channel: FrameChannelWithMeta) : AbstractCommandClient() {
 
         suspend fun readFile(path: Path, range: Range?): FSResult<AsyncInput?> {
             val stream = safeClosable {
@@ -276,7 +277,7 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
     override val cmd: Byte
         get() = Command.FS
 
-    override suspend fun startClient(channel: FrameChannel) {
+    override suspend fun startClient(channel: FrameChannelWithMeta) {
         channel.toAsyncChannel().useAsync { ch ->
             when (val cmd = ch.readObject(FS.serializer())) {
                 is FS.Copy -> processingOk(ch) {
@@ -389,6 +390,6 @@ class FilesCommand : Command<FilesCommand.FilesClient> {
         return FSResult(result)
     }
 
-    override suspend fun startServer(channel: FrameChannel): FilesClient =
+    override suspend fun startServer(channel: FrameChannelWithMeta): FilesClient =
         FilesClient(channel)
 }

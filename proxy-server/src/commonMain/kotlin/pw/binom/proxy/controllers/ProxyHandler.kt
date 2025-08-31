@@ -6,29 +6,23 @@ import pw.binom.FrameAsyncChannelAdapter
 import pw.binom.http.client.Http11ClientExchange
 import pw.binom.http.client.HttpClientRunnable
 import pw.binom.http.client.factory.Http11ConnectionFactory
-import pw.binom.http.client.factory.HttpProxyNetSocketFactory
 import pw.binom.http.client.factory.Https11ConnectionFactory
-import pw.binom.http.client.factory.NativeNetChannelFactory
 import pw.binom.http.client.factory.NetSocketFactory
 import pw.binom.io.AsyncChannel
 import pw.binom.io.http.HashHeaders
 import pw.binom.io.http.Headers
-import pw.binom.io.http.forEachHeader
 import pw.binom.io.http.headersOf
 import pw.binom.io.httpClient.BaseHttpClient
 import pw.binom.io.httpClient.ConnectionFactory
 import pw.binom.io.httpClient.RequestHook
-import pw.binom.io.httpClient.ResponseLength
 import pw.binom.io.httpClient.protocol.ConnectFactory2
 import pw.binom.io.httpClient.protocol.ProtocolSelector
 import pw.binom.io.httpClient.protocol.ProtocolSelectorBySchema
-import pw.binom.io.httpClient.protocol.ssl.HttpSSLConnectFactory2
 import pw.binom.io.httpClient.protocol.v11.Http11ConnectFactory2
 import pw.binom.io.httpServer.HttpHandler
 import pw.binom.io.httpServer.HttpServerExchange
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
-import pw.binom.logger.debug
 import pw.binom.logger.info
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
@@ -41,16 +35,14 @@ import pw.binom.proxy.exceptions.ClientMissingException
 import pw.binom.proxy.io.copyTo
 import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelService
-import pw.binom.ssl.KeyManager
 import pw.binom.strong.inject
-import pw.binom.subchannel.TcpExchange
-import pw.binom.subchannel.WorkerChanelClient
 import pw.binom.subchannel.commands.TcpConnectCommand
 import pw.binom.url.URL
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class ProxyHandler : HttpHandler, MetricProvider {
+    val httpsDomains = setOf("nexus.isb", "jira.otpbank.ru", "bitbucket.isb")
+
     //    private val clientService by inject<ClientService>()
     private val networkManager by inject<NetworkManager>()
     private val runtimeProperties by inject<ProxyProperties>()
@@ -137,7 +129,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
                 var remoteUrl = exchange.requestURI.toURL()
                 val remotePort = remoteUrl.port ?: 80
                 println("URL: ${remoteUrl.host}:${remoteUrl.port}")
-                if (remoteUrl.domain == "nexus.isb" && (remotePort == 80)) {
+                if (remoteUrl.domain in httpsDomains && (remotePort == 80)) {
                     remoteUrl = remoteUrl.copy(schema = "https", port = 443)
                     println("NEW URL: $remoteUrl")
                 }
@@ -218,7 +210,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
                 output = exchange.output
             )
 
-        if (host == "nexus.isb" && port == 80) {
+        if (host in httpsDomains && port == 80) {
             logger.info("Connect to $host:$port with HTTPS converting")
             incomeChannel = HttpsConverterChannel(
                 source = incomeChannel,

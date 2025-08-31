@@ -4,6 +4,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.io.AsyncChannel
+import pw.binom.io.Available
 import pw.binom.io.ByteBuffer
 import pw.binom.io.ClosedException
 import pw.binom.io.DataTransferSize
@@ -23,7 +24,7 @@ class VirtualChannel : AsyncChannel {
     private val internalOutput = TestingChannel()
 
     private val internal = object : AsyncChannel {
-        override val available: Int
+        override val available
             get() = internalInput.available
 
         override suspend fun asyncClose() {
@@ -50,7 +51,7 @@ class VirtualChannel : AsyncChannel {
             }
         }
 
-    override val available: Int
+    override val available
         get() = internalOutput.available
 
     private val closed = AtomicBoolean(false)

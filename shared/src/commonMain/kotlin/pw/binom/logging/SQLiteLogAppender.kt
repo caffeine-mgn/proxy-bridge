@@ -21,7 +21,8 @@ class SQLiteLogAppender(val file: File) : Closeable {
                 id integer primary key autoincrement,
                 MODULE text not null,
                 METHOD text not null,
-                MESSAGE text not null
+                MESSAGE text not null,
+                TAGS text not null
             );
         """
         ).use { it.executeUpdate() }
@@ -29,16 +30,17 @@ class SQLiteLogAppender(val file: File) : Closeable {
 
     private val insertStatement = connect.prepareStatement(
         """
-        insert into $TABLE_NAME (MODULE,METHOD,MESSAGE) VALUES(?,?,?)
+        insert into $TABLE_NAME (MODULE,METHOD,MESSAGE,TAGS) VALUES(?,?,?,?)
     """
     )
     private val lock = SpinLock()
 
-    fun insert(module: String, method: String, message: String) {
+    fun insert(module: String, method: String, message: String, tags: Map<String, String>) {
         lock.synchronize {
             insertStatement.set(0, module)
             insertStatement.set(1, method)
             insertStatement.set(2, message)
+            insertStatement.set(3, "|" + tags.entries.joinToString("|") { "${it.key}=${it.value}}" } + "|")
             insertStatement.executeUpdate()
         }
     }

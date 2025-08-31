@@ -3,6 +3,7 @@ package pw.binom.subchannel
 import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.frame.FrameChannel
 import pw.binom.atomic.AtomicBoolean
+import pw.binom.frame.FrameChannelWithMeta
 import pw.binom.io.AsyncCloseable
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.logger.Logger
@@ -11,7 +12,7 @@ import pw.binom.logger.infoSync
 import pw.binom.logging.Variables
 import kotlin.time.Duration.Companion.seconds
 
-class WorkerChanelClient(val channel: FrameChannel) : AsyncCloseable {
+class WorkerChanelClient(val channel: FrameChannelWithMeta) : AsyncCloseable {
     companion object {
         const val CLOSE: Byte = 0x1
         const val START_TCP: Byte = 0x2

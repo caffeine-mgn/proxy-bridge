@@ -10,6 +10,7 @@ value class PackageSize(val raw: Short) {
     companion object {
         const val SIZE_BYTES = Short.SIZE_BYTES
         const val MAX_VALUE = Short.MAX_VALUE.toInt()
+        val MAX = PackageSize(Short.MAX_VALUE)
     }
 
     constructor(array: ByteArray) : this(Short.fromBytes(array))
@@ -18,7 +19,7 @@ value class PackageSize(val raw: Short) {
         require(size <= UShort.MAX_VALUE.toInt()) { "Invalid size $size. Size should be less or equal ${UShort.MAX_VALUE}" }
     }
 
-    val asInt:Int
+    val asInt: Int
         get() = raw.toUShort().toInt()
 
     val asShort

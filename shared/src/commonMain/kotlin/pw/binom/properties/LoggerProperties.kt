@@ -9,6 +9,7 @@ import pw.binom.url.URL
 class LoggerProperties(
     val promtail: PromtailSender? = null,
     val db: String? = null,
+    val file: String? = null,
 ) {
     @Serializable
     class PromtailSender(

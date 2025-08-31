@@ -1,11 +1,11 @@
 package pw.binom
 
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.channels.onFailure
+import kotlinx.coroutines.channels.trySendBlocking
 import pw.binom.atomic.AtomicBoolean
-import pw.binom.atomic.AtomicInt
-import pw.binom.collections.LinkedList
-import pw.binom.concurrency.SpinLock
 import pw.binom.frame.ByteBufferFrameInput
 import pw.binom.frame.ByteBufferFrameOutput
 import pw.binom.frame.FrameChannel
@@ -15,17 +15,27 @@ import pw.binom.frame.FrameResult
 import pw.binom.frame.PackageSize
 import pw.binom.io.ByteArrayOutput
 import pw.binom.io.ByteBuffer
-import kotlin.coroutines.resume
+import pw.binom.io.use
 
-class TestingFrameChannel(override val bufferSize: PackageSize = PackageSize(DEFAULT_BUFFER_SIZE)) : FrameChannel {
+class TestingFrameChannel : FrameChannel {
+    constructor(bufferSize: PackageSize = PackageSize(DEFAULT_BUFFER_SIZE)) {
+        this.bufferSize = bufferSize
+        data = Channel<FrameInput>(capacity = 100)
+        data2 = Channel<FrameInput>(capacity = 100)
+    }
 
-    private val inputs = LinkedList<FrameInput>()
-    private val lockRead = SpinLock()
-    private val lockWrite = SpinLock()
-    private val closedFlag = AtomicBoolean(false)
-    private val internalWasReadPackages = AtomicInt(0)
-    val wasReadPackages
-        get() = internalWasReadPackages.getValue()
+    constructor(other: TestingFrameChannel) {
+        this.bufferSize = other.bufferSize
+        data = other.data2
+        data2 = other.data
+    }
+
+    fun revert() = TestingFrameChannel(this)
+
+    private val data: Channel<FrameInput>
+    private val data2: Channel<FrameInput>
+
+    override val bufferSize: PackageSize
 
     class ByteArrayOutputImpl : ByteArrayOutput() {
         operator fun ByteArray.unaryPlus() {
@@ -59,111 +69,52 @@ class TestingFrameChannel(override val bufferSize: PackageSize = PackageSize(DEF
         pushInput(ByteBufferFrameInput(ByteBuffer.wrap(o.toByteArray())))
     }
 
+    fun pushInput2(input: (FrameOutput) -> Unit) {
+        val buf = ByteBuffer(bufferSize.asInt)
+        input(ByteBufferFrameOutput(buf))
+        buf.flip()
+        pushInput(ByteBufferFrameInput(buf))
+    }
+
     fun pushInput(input: FrameInput) {
-        lockRead.lock()
-        val w = inputWater
-        if (w != null) {
-            inputWater = null
-            lockRead.unlock()
-            w.resume(input)
-        } else {
-            inputs.addLast(input)
-            lockRead.unlock()
-        }
+        data.trySendBlocking(input).onFailure { throw IllegalStateException() }
     }
 
-    private var inputWater: CancellableContinuation<FrameInput>? = null
-    private var outputWater: CancellableContinuation<ByteArray>? = null
-    private val CLOSE_MARKER = object : FrameInput {
-        override fun readByte(): Byte {
-            TODO("Not yet implemented")
-        }
-    }
-//    private val CLOSE_MARKER2 = object : FrameOutput {
-//        override fun writeByte(value: Byte) {
-//            TODO("Not yet implemented")
-//        }
-//    }
-
-    private val outputs = LinkedList<ByteArray>()
+    suspend fun pop() = data2.receive()
 
     suspend fun popOut(): ByteArray {
-        lockWrite.lock()
-        val frame = if (outputs.isEmpty()) {
-            suspendCancellableCoroutine<ByteArray> {
-                outputWater = it
-                lockWrite.unlock()
-            }
-        } else {
-            val l = outputs.removeFirst()
-            lockWrite.unlock()
-            l
+        val e = data2.receive()
+        return ByteBuffer(bufferSize.asInt).use { buf ->
+            e.readInto(buf)
+            buf.flip()
+            buf.toByteArray()
         }
-        return frame
     }
 
     override suspend fun <T> sendFrame(func: (FrameOutput) -> T): FrameResult<T> {
-        if (closedFlag.getValue()) {
-            return FrameResult.Companion.closed()
+        val buffer = ByteBuffer(bufferSize.asInt)
+        val result2 = func(ByteBufferFrameOutput(buffer))
+        buffer.flip()
+
+        try {
+            data2.send(ByteBufferFrameInput(buffer))
+        } catch (_: ClosedSendChannelException) {
+            return FrameResult.closed()
         }
-        val l = ByteBufferFrameOutput(byteBuffer(bufferSize.asInt))
-        val result = func(l)
-        l.buffer.flip()
-        val data = l.buffer.toByteArray()
-        lockWrite.lock()
-        val w = outputWater
-        if (w != null) {
-            outputWater = null
-            lockWrite.unlock()
-            w.resume(data)
-        } else {
-            outputs += data
-            lockWrite.unlock()
-        }
-        return FrameResult.Companion.of(result)
+        return FrameResult.of(result2)
     }
 
-    private val closedFlag1 = AtomicBoolean(false)
-
     override suspend fun <T> readFrame(func: (FrameInput) -> T): FrameResult<T> {
-        if (closedFlag1.getValue()) {
-            return FrameResult.Companion.closed()
+        val frameInput = try {
+            data.receive()
+        } catch (_: ClosedReceiveChannelException) {
+            return FrameResult.closed()
         }
-        lockRead.lock()
-        val frame = if (inputs.isEmpty()) {
-            suspendCancellableCoroutine<FrameInput> {
-                inputWater = it
-                lockRead.unlock()
-            }
-        } else {
-            val l = inputs.removeFirst()
-            lockRead.unlock()
-            l
-        }
-        if (frame === CLOSE_MARKER) {
-            closedFlag1.setValue(true)
-            return FrameResult.Companion.closed()
-        }
-        internalWasReadPackages.inc()
-        return FrameResult.Companion.of(func(frame))
+        return FrameResult.of(func(frameInput))
     }
 
     override suspend fun asyncClose() {
-        if (!closedFlag.compareAndSet(false, true)) {
-            return
-        }
-//        inputs.addLast(CLOSE_MARKER)
-//        outputs.addLast(CLOSE_MARKER2)
-
-        pushInput(CLOSE_MARKER)
-//        lockRead.lock()
-//        val w = inputWater
-//        if (w != null) {
-//            inputWater = null
-//            lockRead.unlock()
-//            w.resume(CLOSE_MARKER)
-//        } else {
-//            lockRead.unlock()
-//        }
+        data.close()
+        data2.close()
     }
 }

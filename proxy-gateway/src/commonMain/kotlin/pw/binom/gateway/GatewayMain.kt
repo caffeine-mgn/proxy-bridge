@@ -1,8 +1,10 @@
 package pw.binom.gateway
 
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.config.BluetoothConfig
@@ -27,14 +29,15 @@ import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
 import pw.binom.logging.PromTailLogSender
 import pw.binom.logging.LoggerSenderHandler
-import pw.binom.logging.SQLiteLogSender
 import pw.binom.properties.*
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.services.ClientService
-import pw.binom.services.VirtualChannelService
+import pw.binom.services.VirtualChannelServiceImpl2
+import pw.binom.services.VirtualChannelServiceIncomeService
 import pw.binom.signal.Signal
 import pw.binom.strong.*
 import pw.binom.thread.Thread
+import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.minutes
 
 suspend fun startProxyClient(
@@ -83,6 +86,7 @@ suspend fun startProxyClient(
             it.bean { pingProperties }
             it.bean { loggerProperties }
             it.bean { GCService() }
+            it.bean { VirtualChannelServiceIncomeService() }
 //            it.bean { ProxyClientService() }
             it.bean { BinomMetrics }
             it.bean { ClientService() }
@@ -93,7 +97,8 @@ suspend fun startProxyClient(
                 it.bean { OneConnectService() }
             }
 //            it.bean { CommunicateRepository() }
-            it.bean { VirtualChannelService(PackageSize(properties.bufferSize)) }
+//            it.bean { VirtualChannelServiceImpl(PackageSize(properties.bufferSize)) }
+            it.bean { VirtualChannelServiceImpl2(bufferSize = PackageSize(properties.bufferSize),serverMode = false, networkManager = inject()) }
             val pool = ByteBufferPool(size = DEFAULT_BUFFER_SIZE)
             it.bean { pool }
             if (loggerProperties.promtail != null) {

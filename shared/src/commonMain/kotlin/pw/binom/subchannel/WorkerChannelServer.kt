@@ -4,6 +4,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.Cooper
 import pw.binom.frame.FrameChannel
 import pw.binom.TcpConnectionFactory
+import pw.binom.frame.FrameChannelWithMeta
 import pw.binom.io.FileSystem
 import pw.binom.io.socket.UnknownHostException
 import pw.binom.io.useAsync
@@ -30,7 +31,7 @@ object WorkerChannelServer {
     }
 
     suspend fun start(
-        channel: FrameChannel,
+        channel: FrameChannelWithMeta,
         tcpConnectionFactory: ServiceProvider<TcpConnectionFactory>,
         fileSystem: ServiceProvider<FileSystem>,
     ) {
@@ -89,7 +90,7 @@ object WorkerChannelServer {
     }
 
     private suspend fun tcp(
-        channel: FrameChannel,
+        channel: FrameChannelWithMeta,
         cmd: Income.Tcp,
         tcpConnectionFactory: ServiceProvider<TcpConnectionFactory>
     ) {
@@ -120,6 +121,7 @@ object WorkerChannelServer {
             Cooper.exchange(
                 stream = stream,
                 frame = channel,
+                channelName = "",
             )
         }
     }

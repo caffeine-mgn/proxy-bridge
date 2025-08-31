@@ -7,8 +7,10 @@ import kotlinx.coroutines.channels.SendChannel
 import pw.binom.io.*
 import pw.binom.logger.Logger
 import pw.binom.logger.info
+import pw.binom.logger.infoSync
 import pw.binom.logger.warn
 import kotlin.coroutines.coroutineContext
+import kotlin.time.Duration.Companion.seconds
 
 class BluetoothConnection(
     private val income: SendChannel<ByteBuffer>,
@@ -47,13 +49,18 @@ class BluetoothConnection(
     suspend fun readProcessing() {
         while (coroutineContext.isActive) {
             try {
-//                logger.info("Reading package size...")
+                logger.info("Reading package size...")
                 val size = nativeChannel.readInt()
-//                logger.info("Package size: $size. Reading package...")
+                logger.info("Package size: $size. Reading package...")
                 val buf = ByteArray(size)
                 nativeChannel.readFully(buf)
-//                logger.info("Buffer was read success!")
-                income.send(ByteBuffer(buf))
+                logger.info("Buffer was read success! Try push to virtual manager")
+                timeoutChecker(timeout = 5.seconds, onTimeout = {
+                    logger.infoSync("Timeout pushing data to virtual channel...")
+                }) {
+                    income.send(buf.wrap())
+                }
+                logger.info("Package read success!")
             } catch (_: ClosedReceiveChannelException) {
                 break
             } catch (e: CancellationException) {
@@ -70,11 +77,11 @@ class BluetoothConnection(
         while (coroutineContext.isActive) {
             try {
                 outcome.receive().use { buf ->
-//                    logger.info("writing package size ${buf.remaining}")
+                    logger.info("writing package size ${buf.remaining}")
                     nativeChannel.writeInt(buf.remaining)
-//                    logger.info("writing frame data")
+                    logger.info("writing frame data")
                     nativeChannel.writeFully(buf)
-//                    logger.info("frame write success")
+                    logger.info("frame write success")
                 }
                 nativeChannel.flush()
             } catch (_: ClosedReceiveChannelException) {

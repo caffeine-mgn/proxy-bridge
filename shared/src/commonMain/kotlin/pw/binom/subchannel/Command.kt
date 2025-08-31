@@ -1,6 +1,7 @@
 package pw.binom.subchannel
 
 import pw.binom.frame.FrameChannel
+import pw.binom.frame.FrameChannelWithMeta
 
 interface Command<T> {
     companion object {
@@ -10,6 +11,6 @@ interface Command<T> {
     }
 
     val cmd: Byte
-    suspend fun startClient(channel: FrameChannel)
-    suspend fun startServer(channel: FrameChannel): T
+    suspend fun startClient(channel: FrameChannelWithMeta)
+    suspend fun startServer(channel: FrameChannelWithMeta): T
 }

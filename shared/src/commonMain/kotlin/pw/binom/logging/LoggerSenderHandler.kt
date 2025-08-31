@@ -4,6 +4,7 @@ import pw.binom.logger.Logger
 import pw.binom.strong.BeanLifeCycle
 import pw.binom.strong.injectOrNull
 import pw.binom.strong.injectServiceList
+import kotlin.coroutines.coroutineContext
 
 class LoggerSenderHandler(
     val tags: Map<String, String>,
@@ -28,6 +29,7 @@ class LoggerSenderHandler(
         trace: String?,
         exception: Throwable?
     ) {
+        val contextTags = coroutineContext[LogTags]?.tags ?: emptyMap()
         logSender.forEach {
             it.send(
                 tags = Variables.variables() +
@@ -35,7 +37,7 @@ class LoggerSenderHandler(
                         mapOf(
                             "app" to "proxy-server",
                             "logger_name" to logger.pkg,
-                        ) + this.tags,
+                        ) + this.tags + contextTags,
                 message = text,
                 exception = exception,
                 loggerName = logger.pkg,

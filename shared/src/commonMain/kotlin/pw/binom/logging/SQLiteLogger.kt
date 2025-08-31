@@ -8,6 +8,7 @@ class SQLiteLogger(private val sql: SQLiteLogAppender) : Logger.Handler {
             module = logger.pkg,
             method = "",
             message = (text ?: "") + (exception?.stackTraceToString() ?: ""),
+            tags = emptyMap(),
         )
     }
 }

@@ -12,6 +12,7 @@ class SQLiteLogSender : LogSender {
             module = loggerName,
             method = "",
             message = (message ?: "") + (exception?.stackTraceToString() ?: ""),
+            tags = tags,
         )
     }
 }

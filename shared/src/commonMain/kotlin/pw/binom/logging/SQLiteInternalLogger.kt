@@ -10,7 +10,8 @@ class SQLiteInternalLogger(val sql: SQLiteLogAppender) : InternalLog {
         sql.insert(
             module = file ?: "",
             method = method ?: "",
-            message = text()
+            message = text(),
+            tags = emptyMap(),
         )
     }
 

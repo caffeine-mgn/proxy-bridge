@@ -39,8 +39,8 @@ fun testChannel(func: suspend AsyncChannel.() -> Unit): AsyncChannel {
 }
 
 private class TestChannel : AsyncChannel {
-    override val available: Int
-        get() = -1
+    override val available: Available
+        get() = Available.UNKNOWN
     val closeable = AtomicBoolean(false)
 
     val forRead = ByteArrayOutput()
@@ -130,8 +130,8 @@ private class TestChannel : AsyncChannel {
 private class TestChannelContext(private val channel: TestChannel) : AsyncChannel {
     private var closed = AtomicBoolean(false)
     val logger by Logger.ofThisOrGlobal
-    override val available: Int
-        get() = if (closed.getValue()) 0 else -1
+    override val available: Available
+        get() = if (closed.getValue()) Available.of(0) else Available.UNKNOWN
 
     override suspend fun asyncClose() {
         closed.setValue(true)
