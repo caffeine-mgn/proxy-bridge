@@ -9,6 +9,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.random.Random
 
 class VirtualManagerImpl(
     val multiplexer: Multiplexer,
@@ -142,8 +143,10 @@ class VirtualManagerImpl(
     }
 
     private class AsyncInputImpl(
+        val channelId: Int,
         val onClose: suspend () -> Unit
     ) : AsyncInput {
+
         private val data = Channel<ByteBuffer>(onUndeliveredElement = { it.close() })
         val income: SendChannel<ByteBuffer>
             get() = data
@@ -151,22 +154,45 @@ class VirtualManagerImpl(
         private var current: ByteBuffer? = null
 
         override val available: Available
-            get() = if (closed.getValue()) Available.NOT_AVAILABLE else Available.UNKNOWN
+            get() = if (closed.getValue()) {
+                Available.NOT_AVAILABLE
+            } else {
+                val current = current
+                if (current != null && current.hasRemaining) {
+                    Available.of(current.remaining)
+                } else {
+                    Available.UNKNOWN
+                }
+            }
 
         override suspend fun read(dest: ByteBuffer): DataTransferSize {
-            if (closed.getValue()) {
-                return DataTransferSize.CLOSED
+            println("AsyncInputImpl::read #$channelId need read ${dest.remaining}, current.remaining=${current?.remaining}")
+            if (!dest.hasRemaining) {
+                return DataTransferSize.EMPTY
             }
-            var current = current
-            if (current == null) {
-                current = data.receive()
+            while (true) {
+                if (closed.getValue()) {
+                    return DataTransferSize.CLOSED
+                }
+                var current = this.current
+                if (current == null) {
+                    println("AsyncInputImpl::read #$channelId buffer missing. Waiting next")
+                    val newBuffer = data.receive()
+                    current = newBuffer
+                    this.current = current
+                    println("AsyncInputImpl::read #$channelId new buffer got. new buffer remaining=${newBuffer.remaining}")
+                }
+                val wrote = dest.write(current)
+                if (!current.hasRemaining) {
+                    println("AsyncInputImpl::read #$channelId old buffer finished. old buffer capacity=${current.capacity}")
+                    current.close()
+                    this.current = null
+                }
+                if (wrote.isAvailable) {
+                    println("AsyncInputImpl::read #$channelId returned $wrote")
+                    return wrote
+                }
             }
-            val wrote = dest.write(current)
-            if (current.hasRemaining) {
-                current.close()
-                this.current = null
-            }
-            return wrote
         }
 
         override suspend fun asyncClose() {
@@ -228,6 +254,7 @@ class VirtualManagerImpl(
 
     private inner class MultiplexSocketImpl(private val channelId: Int) : MultiplexSocket {
         override val input = AsyncInputImpl(
+            channelId = channelId,
             onClose = {
                 inputClosed = true
                 checkClosed()

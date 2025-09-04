@@ -32,6 +32,8 @@ kotlin {
                 api(libs.binom.coroutines)
                 api(libs.binom.logger)
                 api(libs.binom.network)
+                api(libs.binom.httpClient)
+                api(libs.binom.httpServer)
 //                api(libs.binom.process)
 //                api(libs.binom.propertiesSerialization)
 //                api(libs.kotlinx.serialization.properties)

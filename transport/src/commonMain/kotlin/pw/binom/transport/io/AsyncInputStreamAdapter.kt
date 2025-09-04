@@ -45,7 +45,7 @@ class AsyncInputStreamAdapter(private val inputStream: InputStream, bufferSize: 
         if (closed.getValue()) {
             return DataTransferSize.Companion.CLOSED
         }
-        return dispatcher.asyncExecute {
+        val r =  dispatcher.asyncExecute {
             val l = inputStream.read(dest, offset, length)
             println("AsyncInputStreamAdapter::read was read $l offset=$offset length=$length")
             if (l < 0) {
@@ -54,6 +54,8 @@ class AsyncInputStreamAdapter(private val inputStream: InputStream, bufferSize: 
                 DataTransferSize.Companion.ofSize(l)
             }
         }
+        println("AsyncInputStreamAdapter::read returned $r")
+        return r
     }
 
     fun free() {

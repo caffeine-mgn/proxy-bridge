@@ -46,7 +46,6 @@ object BluetoothClient {
         val connection = Connector.open(sspUrl) as StreamConnection
         val input = connection.openInputStream()
         val output = connection.openOutputStream()
-
         val asyncInput = AsyncInputStreamAdapter(
             inputStream = InputStreamImpl(input),
             bufferSize = BUFFER_SIZE,

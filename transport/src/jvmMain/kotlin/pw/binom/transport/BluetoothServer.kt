@@ -4,13 +4,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import pw.binom.Environment
+import pw.binom.availableProcessors
 import pw.binom.io.useAsync
 import pw.binom.logger.Logger
 import pw.binom.logger.infoSync
+import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
 import pw.binom.transport.io.AsyncInputStreamAdapter
 import pw.binom.transport.io.AsyncOutputStreamAdapter
+import pw.binom.transport.io.VirtualSocketFactory
 import pw.binom.transport.services.EchoService
 import pw.binom.transport.services.SpeedTestService
+import pw.binom.transport.services.TcpBridgeService
 import javax.bluetooth.LocalDevice
 import javax.microedition.io.Connector
 import javax.microedition.io.StreamConnection
@@ -19,6 +24,7 @@ import kotlin.time.Duration.Companion.seconds
 
 object BluetoothServer {
     private val logger by Logger.ofThisOrGlobal
+    private val networkManager = MultiFixedSizeThreadNetworkDispatcher(Environment.availableProcessors)
     fun start(
         serviceUuid: javax.bluetooth.UUID = BluetoothClient.SERVICE_UUID,//javax.bluetooth.UUID(0x1101),
         serviceName: String = "SPPServer",
@@ -73,6 +79,13 @@ object BluetoothServer {
                         manager.defineService(
                             serviceId = EchoService.ID,
                             EchoService(context = coroutineContext),
+                        )
+                        manager.defineService(
+                            serviceId = TcpBridgeService.ID,
+                            implements = TcpBridgeService(
+                                scope = networkManager,
+                                networkManager = networkManager,
+                            )
                         )
                         manager.defineService(
                             serviceId = SpeedTestService.ID,

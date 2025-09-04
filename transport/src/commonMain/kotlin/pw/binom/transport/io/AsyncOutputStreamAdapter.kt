@@ -49,10 +49,10 @@ class AsyncOutputStreamAdapter(private val outputStream: OutputStream, bufferSiz
         }
         dispatcher.asyncExecute {
             outputStream.write(data, offset, length)
-            outputStream.flush()
-//            println("AsyncOutputStreamAdapter::wrote wrote success $length")
+            println("AsyncOutputStreamAdapter::wrote wrote success $length")
         }
-        return DataTransferSize.Companion.ofSize(data.size)
+        println("AsyncOutputStreamAdapter::wrote returned $length")
+        return DataTransferSize.Companion.ofSize(length)
     }
 
     override suspend fun flush() {
