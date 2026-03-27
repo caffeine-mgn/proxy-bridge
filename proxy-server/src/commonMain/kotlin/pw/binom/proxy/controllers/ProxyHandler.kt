@@ -1,10 +1,12 @@
 package pw.binom.proxy.controllers
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.FrameAsyncChannelAdapter
 import pw.binom.http.client.Http11ClientExchange
 import pw.binom.http.client.HttpClientRunnable
+import pw.binom.http.client.HttpClientRunnableImpl
 import pw.binom.http.client.factory.Http11ConnectionFactory
 import pw.binom.http.client.factory.Https11ConnectionFactory
 import pw.binom.http.client.factory.NetSocketFactory
@@ -27,6 +29,7 @@ import pw.binom.logger.info
 import pw.binom.metric.MetricProvider
 import pw.binom.metric.MetricProviderImpl
 import pw.binom.metric.MetricUnit
+import pw.binom.network.Network
 import pw.binom.network.NetworkManager
 import pw.binom.proxy.HttpsConverterChannel
 import pw.binom.proxy.server.ProxedFactory
@@ -83,7 +86,7 @@ class ProxyHandler : HttpHandler, MetricProvider {
     }
 
     val httpClient2 by lazy {
-        HttpClientRunnable(
+        HttpClientRunnableImpl(
             factory = Https11ConnectionFactory(
                 fallback = Http11ConnectionFactory(),
             ),
