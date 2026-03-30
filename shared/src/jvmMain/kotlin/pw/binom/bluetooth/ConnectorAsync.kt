@@ -1,6 +1,6 @@
 package pw.binom.bluetooth
 
-import pw.binom.*
+import pw.binom.utils.executeCoroutineInThread
 import javax.microedition.io.Connector
 
 object ConnectorAsync {

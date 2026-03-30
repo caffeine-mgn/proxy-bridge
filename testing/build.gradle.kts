@@ -1,4 +1,4 @@
-import pw.binom.*
+//import pw.binom.*
 
 plugins {
     kotlin("multiplatform")
@@ -6,7 +6,7 @@ plugins {
 //    id("com.bmuschko.docker-remote-api") version "9.4.0"
 }
 kotlin {
-    linuxX64()
+//    linuxX64()
 //    mingwX64()
     jvm {
 //        compilations.all {

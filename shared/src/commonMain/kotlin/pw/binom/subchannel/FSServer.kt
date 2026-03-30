@@ -1,7 +1,8 @@
 package pw.binom.subchannel
 
-import pw.binom.frame.FrameChannel
 import pw.binom.copyTo
+import pw.binom.frame.FrameChannel
+import pw.binom.utils.copyTo
 import pw.binom.io.FileSystem
 import pw.binom.io.IOException
 import pw.binom.io.useAsync

@@ -1,12 +1,12 @@
-import pw.binom.*
+//import pw.binom.*
 
 plugins {
-    kotlin("multiplatform")
-    id("kotlinx-serialization")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlinx.serialization)
 //    id("com.bmuschko.docker-remote-api") version "9.4.0"
 }
 kotlin {
-    linuxX64()
+//    linuxX64()
 //    mingwX64()
     jvm {
 //        compilations.all {

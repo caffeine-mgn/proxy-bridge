@@ -6,7 +6,7 @@ plugins {
 }
 val nativeEntryPoint = "pw.binom.proxy.main"
 kotlin {
-    linuxX64()
+//    linuxX64()
 //    mingwX64 {
 //        binaries {
 //            executable {
@@ -23,6 +23,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
+                api(project(":multiplexer"))
                 api(libs.binom.strong.core)
                 api(libs.binom.http)
                 api(libs.binom.logger)
@@ -30,6 +31,7 @@ kotlin {
                 api(libs.binom.httpServer)
                 api(libs.binom.metric)
                 api(libs.binom.compression)
+                api(libs.kotlinx.io.core)
                 api(libs.binom.coroutines)
                 api(libs.binom.validate)
                 api(libs.koin.core)
@@ -46,6 +48,14 @@ kotlin {
                 api(libs.kotlinx.serialization.protobuf)
                 api(libs.binom.sqlite)
                 api(libs.kotlinx.coroutines.core)
+                api("com.github.hypfvieh:dbus-java-core:5.2.0")
+                api("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0")
+                api("com.github.hypfvieh:bluez-dbus:0.3.2")
+
+                api("io.ktor:ktor-server-cio:${libs.versions.ktor.get()}")
+                api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
+                api("io.ktor:ktor-client-cio:${libs.versions.ktor.get()}")
+                api("io.ktor:ktor-client-core:${libs.versions.ktor.get()}")
 
 //                ksp("io.insert-koin:koin-ksp-compiler:${libs.versions.koin.annotations.get()}")
             }
@@ -60,7 +70,9 @@ kotlin {
                 api(libs.kotlinx.coroutines.test)
             }
         }
-
+        jvmMain.dependencies {
+            api("io.ultreia:bluecove:2.1.1")
+        }
         val jvmTest by getting {
             dependsOn(commonTest)
             dependencies {

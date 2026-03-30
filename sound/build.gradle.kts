@@ -43,10 +43,10 @@ kotlin {
                 api(libs.kotlinx.serialization.protobuf)
                 api(libs.kotlinx.coroutines.core)
                 api(project(":shared"))
+
             }
         }
         jvmMain.dependencies {
-            api("io.ultreia:bluecove:2.1.1")
             api("com.fazecast:jSerialComm:2.11.0")
         }
         val commonTest by getting {

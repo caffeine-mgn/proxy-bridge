@@ -117,8 +117,11 @@ class VirtualManagerImpl(
         socket.input.income.send(data.data)
     }
 
+    /**
+     * Обработка входящего запроса на открытие канала
+     */
     private suspend fun income(channelId: Int, serviceId: Int) {
-        if (connections.containsKey(channelId)) {
+        if (!connections.containsKey(channelId)) {
             multiplexer.close(channelId)
             return
         }

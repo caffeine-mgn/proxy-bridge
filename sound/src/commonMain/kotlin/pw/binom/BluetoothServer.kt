@@ -1,5 +1,5 @@
 package pw.binom
 
-expect class BluetoothServer{
+expect class BluetoothServer: AutoCloseable{
     constructor()
 }

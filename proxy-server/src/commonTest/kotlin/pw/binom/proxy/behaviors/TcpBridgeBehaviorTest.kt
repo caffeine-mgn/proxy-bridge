@@ -2,6 +2,7 @@ package pw.binom.proxy.behaviors
 
 import kotlinx.coroutines.delay
 import pw.binom.*
+import pw.binom.bluetooth.create
 import pw.binom.io.writeByteArray
 import pw.binom.testing.Testing
 import pw.binom.testing.shouldEquals

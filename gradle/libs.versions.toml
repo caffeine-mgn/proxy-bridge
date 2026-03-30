@@ -2,8 +2,13 @@
 binom = "1.0.0-SNAPSHOT"
 kotlinx-serialization = "1.8.0"
 kotlinx-coroutines = "1.10.1"
-koin-lib="4.0.3"
-koin-annotations="2.1.0"
+koin-lib = "4.0.3"
+koin-annotations = "2.1.0"
+ktor = "3.4.1"
+kotlinx-rpc = "0.10.2"
+logback = "1.4.14"
+kotlin = "2.3.20"
+kotlinx-io = "0.9.0"
 
 [libraries]
 binom-strong-core = { group = "pw.binom.io", name = "strong", version.ref = "binom" }
@@ -27,10 +32,22 @@ binom-bluetooth = { group = "pw.binom.io", name = "bluetooth", version.ref = "bi
 binom-coroutines = { group = "pw.binom.io", name = "coroutines", version.ref = "binom" }
 binom-propertiesSerialization = { group = "pw.binom.io", name = "properties-serialization", version.ref = "binom" }
 binom-testing = { group = "pw.binom.io", name = "testing", version.ref = "binom" }
-koin-core = { module = "io.insert-koin:koin-core", version.ref="koin-lib" }
-koin-test = { module = "io.insert-koin:koin-test", version.ref="koin-lib" }
-koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref="koin-annotations" }
-koin-ksp = { module = "io.insert-koin:koin-ksp-compiler", version.ref="koin-annotations" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin-lib" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin-lib" }
+koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
+koin-ksp = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotations" }
+
+ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+ktor-server-config-yaml = { module = "io.ktor:ktor-server-config-yaml", version.ref = "ktor" }
+ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+
+kotlinx-rpc-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-client", version.ref = "kotlinx-rpc" }
+kotlinx-rpc-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-server", version.ref = "kotlinx-rpc" }
+kotlinx-rpc-json = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json", version.ref = "kotlinx-rpc" }
+kotlinx-rpc-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-protobuf", version.ref = "kotlinx-rpc" }
 
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
@@ -38,3 +55,12 @@ kotlinx-serialization-protobuf = { group = "org.jetbrains.kotlinx", name = "kotl
 kotlinx-serialization-properties = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-properties", version.ref = "kotlinx-serialization" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+
+[plugins]
+ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
+kotlinx-rpc = { id = "org.jetbrains.kotlinx.rpc.plugin", version.ref = "kotlinx-rpc" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }

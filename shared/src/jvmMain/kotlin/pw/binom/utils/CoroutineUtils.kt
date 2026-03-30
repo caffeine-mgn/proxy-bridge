@@ -1,4 +1,4 @@
-package pw.binom
+package pw.binom.utils
 
 import kotlinx.coroutines.suspendCancellableCoroutine
 

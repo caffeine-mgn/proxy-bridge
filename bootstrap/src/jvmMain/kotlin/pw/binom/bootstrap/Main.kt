@@ -6,7 +6,8 @@ import java.io.File
 
 fun main(args: Array<String>) {
     BootstrapBluetoothClient.start(
-        file = File("/home/subochev/projects/WORK/proxy-bridge/transport/build/libs/transport.jar"),
+//        file = File("/home/subochev/projects/WORK/proxy-bridge/transport/build/libs/transport.jar"),
+        file = File("/tmp/ddd/Plugin.zip"),
         addressAndChannel = "105FADED5516",
     )
 }

@@ -3,6 +3,7 @@ package pw.binom.subchannel
 import pw.binom.frame.FrameChannel
 import pw.binom.atomic.AtomicBoolean
 import pw.binom.copyTo
+import pw.binom.utils.copyTo
 import pw.binom.io.AsyncInput
 import pw.binom.io.AsyncOutput
 import pw.binom.url.Path

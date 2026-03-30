@@ -35,7 +35,7 @@ object BluetoothClient {
         }
 
         if (services == null) {
-            throw IllegalStateException("Can't get service for device $remoteAddress")
+            throw IllegalStateException("#1 Can't get service for device $remoteAddress")
         }
 
         val sspUrl = services.find { it.type == serviceName }?.url

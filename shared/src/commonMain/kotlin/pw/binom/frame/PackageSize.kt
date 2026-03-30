@@ -21,6 +21,8 @@ value class PackageSize(val raw: Short) {
 
     val asInt: Int
         get() = raw.toUShort().toInt()
+    val asLong
+        get() = asInt.toLong()
 
     val asShort
         get() = raw

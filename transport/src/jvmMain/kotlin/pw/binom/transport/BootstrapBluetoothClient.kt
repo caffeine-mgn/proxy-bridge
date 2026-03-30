@@ -31,7 +31,7 @@ object BootstrapBluetoothClient {
             }
 
             if (services == null) {
-                logger.info("Can't get service for device $addressAndChannel")
+                logger.info("#4 Can't get service for device $addressAndChannel")
                 Thread.sleep(5.seconds.inWholeMilliseconds)
                 continue
             }

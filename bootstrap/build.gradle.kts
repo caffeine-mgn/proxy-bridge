@@ -1,23 +1,10 @@
-import net.lingala.zip4j.ZipFile
-import net.lingala.zip4j.model.ZipParameters
-import net.lingala.zip4j.model.enums.CompressionLevel
-import net.lingala.zip4j.model.enums.EncryptionMethod
-import pw.binom.*
-
 plugins {
-    kotlin("multiplatform")
-    id("kotlinx-serialization")
-    id("com.github.johnrengelman.shadow")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.shadow)
 }
 val nativeEntryPoint = "pw.binom.transport.main"
 kotlin {
-//    linuxX64 {
-//        binaries {
-//            executable {
-//                entryPoint = nativeEntryPoint
-//            }
-//        }
-//    }
     jvm {
 //        compilations.all {
 //            kotlinOptions.jvmTarget = "1.8"
@@ -97,38 +84,38 @@ tasks {
         }
     }
 
-    val deployGermany by creating {
-        inputs.file(shadowJar.archiveFile)
-        dependsOn(shadowJar)
-        doLast {
-            SSH.run(
-                ip = "10.200.196.2",
-                user = "root",
-                port = 7622,
-            ) {
-                put(
-                    from = shadowJar.archiveFile.get().asFile,
-                    to = "/opt/proxy/gateway.jar"
-                )
-            }
-        }
-    }
+//    val deployGermany by creating {
+//        inputs.file(shadowJar.archiveFile)
+//        dependsOn(shadowJar)
+//        doLast {
+//            SSH.run(
+//                ip = "10.200.196.2",
+//                user = "root",
+//                port = 7622,
+//            ) {
+//                put(
+//                    from = shadowJar.archiveFile.get().asFile,
+//                    to = "/opt/proxy/gateway.jar"
+//                )
+//            }
+//        }
+//    }
 
-    val deploy by creating {
-        group = "Deploy"
-        dependsOn(shadowJar)
-        dependsOn(generateBatchFile)
-        inputs.file(shadowJar.archiveFile)
-        inputs.file(batFile)
-        doLast {
-            val zipParameters = ZipParameters()
-            zipParameters.isEncryptFiles = true
-            zipParameters.compressionLevel = CompressionLevel.HIGHER
-            zipParameters.encryptionMethod = EncryptionMethod.AES
-
-            val zipFile = ZipFile("/home/subochev/Nextcloud/tmp/dddd/proxy-client.zip", "1".toCharArray())
-            zipFile.addFile(shadowJar.archiveFile.get().asFile, zipParameters)
-            zipFile.addFile(batFile, zipParameters)
-        }
-    }
+//    val deploy by creating {
+//        group = "Deploy"
+//        dependsOn(shadowJar)
+//        dependsOn(generateBatchFile)
+//        inputs.file(shadowJar.archiveFile)
+//        inputs.file(batFile)
+//        doLast {
+//            val zipParameters = ZipParameters()
+//            zipParameters.isEncryptFiles = true
+//            zipParameters.compressionLevel = CompressionLevel.HIGHER
+//            zipParameters.encryptionMethod = EncryptionMethod.AES
+//
+//            val zipFile = ZipFile("/home/subochev/Nextcloud/tmp/dddd/proxy-client.zip", "1".toCharArray())
+//            zipFile.addFile(shadowJar.archiveFile.get().asFile, zipParameters)
+//            zipFile.addFile(batFile, zipParameters)
+//        }
+//    }
 }

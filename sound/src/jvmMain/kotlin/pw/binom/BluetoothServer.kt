@@ -1,38 +1,37 @@
 package pw.binom
 
-import kotlinx.coroutines.*
 import pw.binom.bluetooth.asyncAcceptAndOpen
-import pw.binom.io.useAsync
-import pw.binom.logger.Logger
-import pw.binom.logger.info
-import pw.binom.services.VirtualChannelService
-import pw.binom.strong.BeanLifeCycle
-import pw.binom.strong.inject
+import pw.binom.bluetooth.create
+import pw.binom.io.BluetoothConnection
 import javax.bluetooth.LocalDevice
 import javax.microedition.io.Connector
 import javax.microedition.io.StreamConnectionNotifier
 
-actual class BluetoothServer actual constructor() {
-    private val virtualChannelService by inject<VirtualChannelService>()
+actual class BluetoothServer actual constructor() : AutoCloseable {
+    private val localDevice = LocalDevice.getLocalDevice()
+    private val uuid = "0000110100002000800000805f9b34fb"
+    private val url = "btspp://localhost:$uuid;name=SPPServer"
+    private val streamConnectionNotifier = Connector.open(url) as StreamConnectionNotifier
 
-    //    private val threadCoroutineDispatcher = ThreadCoroutineDispatcher("Wating new clients")
-    private var job: Job? = null
-    private val logger by Logger.ofThisOrGlobal
-    private var streamConnectionNotifier: StreamConnectionNotifier? = null
+    suspend fun accept(): BluetoothConnection =
+        BluetoothConnection.create(streamConnectionNotifier.asyncAcceptAndOpen())
+
+
+    override fun close() {
+        streamConnectionNotifier.close()
+    }
 
     init {
+        /*
         BeanLifeCycle.preDestroy {
             streamConnectionNotifier?.close()
             job?.cancelAndJoin()
 //            threadCoroutineDispatcher.close()
         }
         BeanLifeCycle.postConstruct {
-            val localDevice = LocalDevice.getLocalDevice()
             logger.info("Адрес Bluetooth устройства: ${localDevice.bluetoothAddress}")
             logger.info("Имя Bluetooth устройства: ${localDevice.friendlyName}")
-            val uuid = "0000110100002000800000805f9b34fb"
-            val url = "btspp://localhost:$uuid;name=SPPServer"
-            streamConnectionNotifier = Connector.open(url) as StreamConnectionNotifier
+
             logger.info("Сервис SPP опубликован: btspp://${localDevice.bluetoothAddress}:1;authenticate=false;encrypt=false;master=false")
             job = GlobalScope.launch {
                 while (isActive) {
@@ -62,5 +61,6 @@ actual class BluetoothServer actual constructor() {
                 }
             }
         }
+        */
     }
 }

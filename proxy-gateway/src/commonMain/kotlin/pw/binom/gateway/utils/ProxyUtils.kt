@@ -38,14 +38,15 @@ suspend fun AsyncChannel.tcpConnectViaHttpProxy(
     }
     headersForSend += headers
 
-    bufferedAsciiWriter(closeParent = false).useAsync { writer ->
-        Http11.sendRequest(
-            output = writer,
-            method = "CONNECT",
-            request = request,
-            headers = headersOf(Headers.HOST to request),
-        )
-    }
+    TODO()
+//    bufferedAsciiWriter(closeParent = false).useAsync { writer ->
+//        Http11.sendRequest(
+//            output = writer,
+//            method = "CONNECT",
+//            request = request,
+//            headers = headersOf(Headers.HOST to request),
+//        )
+//    }
     val reader = bufferedAsciiReader(bufferSize = readBufferSize)
     val resp = try {
         Http11ConnectFactory2.readResponse(reader)

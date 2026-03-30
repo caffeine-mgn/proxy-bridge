@@ -20,7 +20,7 @@ object BootstrapBluetoothClient {
 
     private class RemoteDeviceImpl(address: String) : RemoteDevice(address)
 
-    fun start(file:File,addressAndChannel:String) {
+    fun start(file: File, addressAndChannel: String) {
         while (!Thread.currentThread().isInterrupted) {
             val workPc = RemoteDeviceImpl(addressAndChannel)
             val uuidSet = arrayOf(javax.bluetooth.UUID(0x1101)) // UUID для Serial Port Profile (SPP)
@@ -37,7 +37,7 @@ object BootstrapBluetoothClient {
             }
 
             if (services == null) {
-                logger.info("Can't get service for device $addressAndChannel")
+                logger.info("#3 Can't get service for device $addressAndChannel")
                 Thread.sleep(5.seconds.inWholeMilliseconds)
                 continue
             }
