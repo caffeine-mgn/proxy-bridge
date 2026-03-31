@@ -43,25 +43,33 @@ suspend fun connect(
     coroutineScope {
         listOf(
             launch(Dispatchers.IO) {
-                println("ChannelExtensions #1")
-                income.consumeEach { buffer ->
-                    println("connect:: copy ${buffer.size} bytes from channel to stream")
-                    a.writePacket(buffer)
-                    a.flush()
+                println("connect:: start copping channel to stream")
+                try {
+                    income.consumeEach { buffer ->
+                        println("connect:: copy ${buffer.size} bytes from channel to stream")
+                        a.writePacket(buffer)
+                        a.flush()
+                    }
+                } finally {
+                    println("connect:: end copping channel to stream")
                 }
             },
             launch(Dispatchers.IO) {
-                println("ChannelExtensions #2")
-                while (isActive) {
-                    val buffer = Buffer()
-                    if (b.readBuffer.exhausted()) {
-                        b.awaitContent(min = 1)
+                println("connect:: start copping stream to channel")
+                try {
+                    while (isActive) {
+                        val buffer = Buffer()
+                        if (b.readBuffer.exhausted()) {
+                            b.awaitContent(min = 1)
+                        }
+                        val wasRead = b.readBuffer.copyTo(buffer)
+                        if (wasRead > 0) {
+                            println("connect:: copy ${buffer.size} bytes from stream to channel")
+                            outcome.send(buffer)
+                        }
                     }
-                    val wasRead = b.readBuffer.copyTo(buffer)
-                    if (wasRead > 0) {
-                        println("connect:: copy ${buffer.size} bytes from stream to channel")
-                        outcome.send(buffer)
-                    }
+                } finally {
+                    println("connect:: end copping stream to channel")
                 }
             }).joinAll()
     }
