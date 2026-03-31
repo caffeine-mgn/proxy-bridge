@@ -1,48 +1,18 @@
 package pw.binom.gateway
 
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.prepareQuery
-import io.ktor.client.request.prepareRequest
-import io.ktor.client.request.request
-import io.ktor.client.request.setBody
-import io.ktor.client.request.url
-import io.ktor.client.statement.bodyAsChannel
-import io.ktor.client.statement.request
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.cio.encodeChunked
-import io.ktor.http.content.OutgoingContent
-import io.ktor.network.selector.SelectorManager
-import io.ktor.network.sockets.aSocket
-import io.ktor.network.sockets.openReadChannel
-import io.ktor.network.sockets.openWriteChannel
-import io.ktor.server.application.ApplicationCall
-import io.ktor.server.application.ApplicationCallPipeline
-import io.ktor.server.application.call
-import io.ktor.server.cio.CIO
-import io.ktor.server.engine.embeddedServer
-import io.ktor.server.http.content.resourceClasspathResource
-import io.ktor.server.request.httpMethod
-import io.ktor.server.request.uri
-import io.ktor.server.response.header
-import io.ktor.server.response.respondBytesWriter
-import io.ktor.server.response.respondText
-import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.ByteWriteChannel
-import io.ktor.utils.io.copyTo
-import io.ktor.utils.io.readLineStrict
-import io.ktor.utils.io.reader
-import io.ktor.utils.io.writeStringUtf8
-import io.ktor.utils.io.writer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.network.selector.*
+import io.ktor.network.sockets.*
+import io.ktor.server.application.*
+import io.ktor.server.cio.*
+import io.ktor.server.engine.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.*
 import kotlinx.io.IOException
 import org.freedesktop.dbus.DBusPath
 import org.freedesktop.dbus.connections.impl.DBusConnection
@@ -51,6 +21,7 @@ import org.freedesktop.dbus.exceptions.DBusException
 import org.freedesktop.dbus.types.Variant
 import pw.binom.*
 import pw.binom.atomic.AtomicBoolean
+import pw.binom.channel.TcpConnectChannel
 import pw.binom.config.BluetoothConfig
 import pw.binom.config.CommandsConfig
 import pw.binom.config.FileSystemConfig
@@ -59,37 +30,41 @@ import pw.binom.dbus.BlueZProfileManager
 import pw.binom.dbus.SPP_UUID
 import pw.binom.dbus.SppProfileHandler
 import pw.binom.frame.PackageSize
+import pw.binom.gateway.properties.GatewayRuntimeProperties
+import pw.binom.gateway.services.OneConnectService
+import pw.binom.gateway.services.TcpConnectionFactoryImpl
+import pw.binom.http.ConnectionEstablished
+import pw.binom.http.HttpProxy
 import pw.binom.io.ByteBufferFactory
+import pw.binom.io.file.*
 import pw.binom.io.http.BasicAuth
 import pw.binom.io.http.BearerAuth
 import pw.binom.io.httpClient.HttpClient
 import pw.binom.io.httpClient.HttpProxyConfig
 import pw.binom.io.httpClient.create
 import pw.binom.io.use
-import pw.binom.network.*
-import pw.binom.pool.GenericObjectPool
-import pw.binom.gateway.properties.GatewayRuntimeProperties
-import pw.binom.gateway.services.OneConnectService
-import pw.binom.gateway.services.TcpConnectionFactoryImpl
-import pw.binom.http.ConnectionEstablished
-import pw.binom.http.HttpProxy
-import pw.binom.io.file.*
 import pw.binom.logger.Logger
 import pw.binom.logger.WARNING
-import pw.binom.logging.PromTailLogSender
 import pw.binom.logging.LoggerSenderHandler
+import pw.binom.logging.PromTailLogSender
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
+import pw.binom.network.MultiFixedSizeThreadNetworkDispatcher
+import pw.binom.network.NetworkManager
+import pw.binom.pool.GenericObjectPool
 import pw.binom.properties.*
 import pw.binom.properties.serialization.PropertiesDecoder
 import pw.binom.services.ClientService
 import pw.binom.services.VirtualChannelServiceImpl2
 import pw.binom.services.VirtualChannelServiceIncomeService
 import pw.binom.signal.Signal
-import pw.binom.strong.*
+import pw.binom.strong.LocalEventSystem
+import pw.binom.strong.Strong
+import pw.binom.strong.bean
+import pw.binom.strong.inject
 import pw.binom.thread.Thread
 import java.util.concurrent.TimeUnit
-import kotlin.jvm.java
+import kotlin.io.println
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.use
@@ -208,7 +183,7 @@ suspend fun connectProcessing(
 }
 
 
-fun main(args: Array<String>) {
+fun main3(args: Array<String>) {
     println("START HTTP SERVER ON PORT 8088")
     runBlocking {
         val client = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO)
@@ -385,30 +360,31 @@ fun main(args: Array<String>) {
     }.start(wait = true)
 }
 
-suspend fun main3(args: Array<String>) {
+suspend fun main(args: Array<String>) {
     withContext(Dispatchers.IO) {
-        val adapter = pw.binom.bluetooth.BluetoothAdapter.getAdapters().first()
-        adapter.listenSPP().use { server ->
-            while (coroutineContext.isActive) {
-                println("Wait a client")
-                val newClient = server.accept()
-                println("Client connected!")
-                launch {
-                    Multiplexer(
-                        channel = newClient,
-                        idOdd = true,
-                        ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-                    ).use { multiplexer ->
-                        while (isActive) {
-                            val newClient = multiplexer.accept()
-                            CoroutineScope(Dispatchers.IO).launch {
-                                clientProcessing(newClient)
+        SelectorManager(Dispatchers.IO).use { selector ->
+            val adapter = pw.binom.bluetooth.BluetoothAdapter.getAdapters().first()
+            adapter.listenSPP().use { server ->
+                while (coroutineContext.isActive) {
+                    println("Wait a client")
+                    val newClient = server.accept()
+                    println("Client connected!")
+                    launch {
+                        Multiplexer(
+                            channel = newClient,
+                            idOdd = true,
+                            ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+                        ).use { multiplexer ->
+                            while (isActive) {
+                                val newClient = multiplexer.accept()
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    clientProcessing(newClient, selector)
+                                }
                             }
                         }
                     }
-                    clientProcessing(newClient)
+                    println("Client connected")
                 }
-                println("Client connected")
             }
         }
 //        BluetoothServer().use { server ->
@@ -425,11 +401,12 @@ suspend fun main3(args: Array<String>) {
     }
 }
 
-suspend fun clientProcessing(connection: DuplexChannel) {
-    TODO()
-//    connection.use {
-//        ThroughputTest.server(channel = it, ack = true)
-//    }
+suspend fun clientProcessing(connection: DuplexChannel, selector: SelectorManager) {
+    val buff = connection.receive()
+    println("Income ${buff.size} bytes")
+    val cmd = buff.readByte()
+    println("Command: $cmd")
+    TcpConnectChannel.income(selector = selector, channel = connection, buffer = buff)
 }
 
 suspend fun main1(args: Array<String>) {
