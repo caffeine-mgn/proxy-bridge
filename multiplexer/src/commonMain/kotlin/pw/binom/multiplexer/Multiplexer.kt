@@ -112,7 +112,11 @@ class Multiplexer(
                 if (channel == null) {
                     MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
                 } else {
-                    channel.income.send(data)
+                    try {
+                        channel.income.send(data)
+                    } catch (e: CancellationException) {
+                        //ignore
+                    }
                 }
             },
             channelClosed = { channelId ->

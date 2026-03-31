@@ -98,33 +98,39 @@ object MultiplexerProtocol {
         requestChannel: HandlerOnChannel,
         newChannelAccepted: HandlerOnChannel,
     ) {
-        physical.consumeEach { buffer ->
-            val cmd = buffer.readByte()
-            when (cmd) {
-                DATA -> {
-                    val channelId = buffer.lebInt()
-                    println("MultiplexerProtocol:: INCOME DATA on channel $channelId with ${buffer.size} bytes")
-                    handlerOnData.onData(channelId = channelId, data = buffer)
-                }
+        try {
+            physical.consumeEach { buffer ->
+                val cmd = buffer.readByte()
+                when (cmd) {
+                    DATA -> {
+                        val channelId = buffer.lebInt()
+                        println("MultiplexerProtocol:: INCOME DATA on channel $channelId with ${buffer.size} bytes")
+                        handlerOnData.onData(channelId = channelId, data = buffer)
+                    }
 
-                CHANNEL_CLOSE -> {
-                    val channelId = buffer.lebInt()
-                    println("MultiplexerProtocol:: INCOME CLOSING channel $channelId")
-                    channelClosed.onEvent(channelId)
-                }
+                    CHANNEL_CLOSE -> {
+                        val channelId = buffer.lebInt()
+                        println("MultiplexerProtocol:: INCOME CLOSING channel $channelId")
+                        channelClosed.onEvent(channelId)
+                    }
 
-                REQUEST_NEW_CHANNEL -> {
-                    val channelId = buffer.lebInt()
-                    println("MultiplexerProtocol:: INCOME REQUEST_NEW_CHANNEL $channelId")
-                    requestChannel.onEvent(channelId)
-                }
+                    REQUEST_NEW_CHANNEL -> {
+                        val channelId = buffer.lebInt()
+                        println("MultiplexerProtocol:: INCOME REQUEST_NEW_CHANNEL $channelId")
+                        requestChannel.onEvent(channelId)
+                    }
 
-                ACCEPT_NEW_CHANNEL -> {
-                    val channelId = buffer.lebInt()
-                    println("MultiplexerProtocol:: INCOME ACCEPT_NEW_CHANNEL $channelId")
-                    newChannelAccepted.onEvent(channelId)
+                    ACCEPT_NEW_CHANNEL -> {
+                        val channelId = buffer.lebInt()
+                        println("MultiplexerProtocol:: INCOME ACCEPT_NEW_CHANNEL $channelId")
+                        newChannelAccepted.onEvent(channelId)
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        } finally {
+            println("MultiplexerProtocol:: reading finished!")
         }
     }
 
