@@ -10,10 +10,7 @@ pluginManagement {
 rootProject.name = "proxy-bridge"
 include(":proxy-server")
 include(":proxy-gateway")
-include(":testing")
 include(":shared")
-include(":testing-tools")
 include(":sound")
-include(":transport")
 include(":multiplexer")
 include(":bootstrap")

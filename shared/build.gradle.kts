@@ -20,61 +20,38 @@ kotlin {
 //        }
     }
     sourceSets {
-        val commonMain by getting {
-            dependencies {
-                api(kotlin("stdlib"))
-                api(project(":multiplexer"))
-                api(libs.binom.strong.core)
-                api(libs.binom.http)
-                api(libs.binom.logger)
-                api(libs.binom.file)
-                api(libs.binom.httpServer)
-                api(libs.binom.metric)
-                api(libs.binom.compression)
-                api(libs.kotlinx.io.core)
-                api(libs.binom.coroutines)
-                api(libs.binom.validate)
-                api(libs.koin.core)
-                api(libs.koin.annotations)
-                api(libs.binom.thread)
-                api(libs.binom.socket)
-                api(libs.binom.xml)
-                api(libs.binom.network)
-                api(libs.binom.httpClient)
-                api(libs.binom.propertiesSerialization)
-                api(libs.kotlinx.serialization.json)
-                api(libs.kotlinx.coroutines.core)
-                api(libs.kotlinx.serialization.core)
-                api(libs.kotlinx.serialization.protobuf)
-                api(libs.binom.sqlite)
-                api(libs.kotlinx.coroutines.core)
-                api("com.github.hypfvieh:dbus-java-core:5.2.0")
-                api("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0")
-                api("com.github.hypfvieh:bluez-dbus:0.3.2")
 
-                api("io.ktor:ktor-server-cio:${libs.versions.ktor.get()}")
-                api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
-                api("io.ktor:ktor-client-cio:${libs.versions.ktor.get()}")
-                api("io.ktor:ktor-client-core:${libs.versions.ktor.get()}")
+        commonMain.dependencies {
+            api(kotlin("stdlib"))
+            api(project(":multiplexer"))
+            api(libs.kotlinx.io.core)
+            api(libs.koin.core)
+            api(libs.koin.annotations)
+            api(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.coroutines.core)
+            api(libs.kotlinx.serialization.core)
+            api(libs.kotlinx.serialization.protobuf)
+            api(libs.kotlinx.coroutines.core)
+            api("com.github.hypfvieh:dbus-java-core:5.2.0")
+            api("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0")
+            api("com.github.hypfvieh:bluez-dbus:0.3.2")
 
-//                ksp("io.insert-koin:koin-ksp-compiler:${libs.versions.koin.annotations.get()}")
-            }
+            api("io.ktor:ktor-server-cio:${libs.versions.ktor.get()}")
+            api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
+            api("io.ktor:ktor-client-cio:${libs.versions.ktor.get()}")
+            api("io.ktor:ktor-client-core:${libs.versions.ktor.get()}")
         }
-        val commonTest by getting {
-            dependencies {
-                api(libs.koin.test)
-                api(project(":testing-tools"))
-                implementation(kotlin("test-common"))
-                implementation(kotlin("test-annotations-common"))
-                api(libs.binom.testing)
-                api(libs.kotlinx.coroutines.test)
-            }
+        commonTest.dependencies {
+            api(libs.koin.test)
+            implementation(kotlin("test-common"))
+            implementation(kotlin("test-annotations-common"))
+            api(libs.kotlinx.coroutines.test)
         }
         jvmMain.dependencies {
             api("io.ultreia:bluecove:2.1.1")
         }
-        val jvmTest by getting {
-            dependsOn(commonTest)
+        jvmTest {
+            dependsOn(commonTest.get())
             dependencies {
                 api(kotlin("test"))
             }

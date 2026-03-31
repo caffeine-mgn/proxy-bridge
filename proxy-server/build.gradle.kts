@@ -39,14 +39,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
-                api(libs.binom.httpServer)
-                api(libs.binom.httpClient)
-                api(libs.binom.strong.core)
-                api(libs.binom.signal)
-                api(libs.binom.logger)
-                api(libs.binom.propertiesSerialization)
                 api(libs.kotlinx.serialization.json)
-                api(libs.binom.prometheus)
                 api(libs.kotlinx.serialization.properties)
                 api(project(":shared"))
                 api(project(":sound"))
@@ -54,7 +47,6 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
-                implementation(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
             }

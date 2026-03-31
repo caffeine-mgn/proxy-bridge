@@ -15,10 +15,6 @@ private class RandomAccessFileSource(val file: RandomAccessFile) : RawSource {
         if (l == -1) {
             return -1L
         }
-//        repeat(l) {
-//            val b = buffer[it]
-//            println("R ${b.toUByte()} \"${b.toInt().toChar()}\"")
-//        }
         sink.write(buffer, 0, l)
         return l.toLong()
     }
@@ -35,9 +31,6 @@ private class RandomAccessFileSink(val file: RandomAccessFile) : RawSink {
         while (remaining > 0) {
             val len = minOf(remaining, Int.MAX_VALUE.toLong()).toInt()
             val data = source.readByteArray(len)
-//            data.forEach {
-//                println("W ${it.toUByte()} \"${it.toInt().toChar()}\"")
-//            }
             file.write(data)
             remaining -= data.size
         }

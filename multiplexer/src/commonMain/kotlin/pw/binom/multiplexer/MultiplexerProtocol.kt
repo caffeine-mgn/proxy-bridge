@@ -49,6 +49,7 @@ object MultiplexerProtocol {
         channelId: Int,
         physical: SendChannel<Buffer>,
     ) {
+        println("MultiplexerProtocol:: SEND RESPONSE TO OPEN CHANNEL $channelId")
         val resultBuffer = Buffer()
         resultBuffer.writeByte(ACCEPT_NEW_CHANNEL)
         resultBuffer.lebInt(channelId)

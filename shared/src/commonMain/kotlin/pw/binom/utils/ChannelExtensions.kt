@@ -51,6 +51,7 @@ suspend fun connect(
                         a.flush()
                     }
                 } finally {
+                    a.flushAndClose()
                     println("connect:: end copping channel to stream")
                 }
             },
@@ -60,7 +61,10 @@ suspend fun connect(
                     while (isActive) {
                         val buffer = Buffer()
                         if (b.readBuffer.exhausted()) {
-                            b.awaitContent(min = 1)
+                            val success = b.awaitContent(min = 1)
+                            if (!success) {
+                                break
+                            }
                         }
                         val wasRead = b.readBuffer.copyTo(buffer)
                         if (wasRead > 0) {
@@ -70,6 +74,7 @@ suspend fun connect(
                     }
                 } finally {
                     println("connect:: end copping stream to channel")
+                    outcome.close()
                 }
             }).joinAll()
     }

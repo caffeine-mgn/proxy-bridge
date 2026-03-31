@@ -21,23 +21,6 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(kotlin("stdlib"))
-                api(libs.binom.strong.core)
-                api(libs.binom.http)
-                api(libs.binom.logger)
-                api(libs.binom.file)
-                api(libs.binom.httpServer)
-                api(libs.binom.compression)
-                api(libs.binom.httpClient)
-                api(libs.binom.sqlite)
-//                api(libs.binom.bluetooth)
-                api(libs.binom.metric)
-                api(libs.binom.coroutines)
-                api(libs.binom.validate)
-                api(libs.binom.thread)
-                api(libs.binom.socket)
-                api(libs.binom.xml)
-                api(libs.binom.network)
-                api(libs.binom.propertiesSerialization)
                 api(libs.kotlinx.serialization.core)
                 api(libs.kotlinx.serialization.json)
                 api(libs.kotlinx.serialization.protobuf)
@@ -51,10 +34,8 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
-                api(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
-                api(libs.binom.testing)
                 api(libs.kotlinx.coroutines.test)
             }
         }

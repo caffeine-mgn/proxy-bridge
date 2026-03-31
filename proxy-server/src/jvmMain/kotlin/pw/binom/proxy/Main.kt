@@ -1,32 +1,17 @@
 package pw.binom.proxy
 
-import com.github.hypfvieh.bluetooth.DeviceManager
 import com.github.hypfvieh.bluetooth.wrapper.BluetoothDevice
-import io.ktor.network.selector.SelectorManager
-import io.ktor.network.sockets.aSocket
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.io.Buffer
-import kotlinx.io.writeString
+import io.ktor.network.selector.*
+import kotlinx.coroutines.*
 import pw.binom.*
 import pw.binom.bluetooth.BluetoothAdapter
 import pw.binom.channel.TcpConnectChannel
 import pw.binom.dbus.SPP_UUID
-import pw.binom.dbus.asBluetoothConnection
-import pw.binom.dbus.connectRfcomm
-import pw.binom.dbus.findSPPProfile
-import pw.binom.dbus.getDevice
 import pw.binom.http.HttpProxy
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
-import pw.binom.test.ThroughputTest
 import pw.binom.utils.connect
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 private fun checkSppViaSdpBrowse(deviceAddress: String): Boolean {
     return try {
@@ -155,7 +140,3 @@ object MainJvm {
     }
 }
 
-suspend fun main(args: Array<String>) {
-    val connected = BluetoothClient.connect("AAAAAAAAAAAA")
-    connected.income.receive()
-}

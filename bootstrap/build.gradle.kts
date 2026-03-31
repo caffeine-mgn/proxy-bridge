@@ -28,11 +28,8 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
-                implementation(project(":testing-tools"))
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
-                implementation(libs.binom.testing)
-                implementation(libs.binom.coroutines)
             }
         }
         jvmMain.dependencies {
