@@ -1,9 +1,13 @@
 package pw.binom.proxy
 
 import com.github.hypfvieh.bluetooth.wrapper.BluetoothDevice
+import io.ktor.http.HttpStatusCode
 import io.ktor.network.selector.*
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.*
-import pw.binom.*
 import pw.binom.bluetooth.BluetoothAdapter
 import pw.binom.channel.TcpConnectChannel
 import pw.binom.dbus.SPP_UUID
@@ -60,11 +64,27 @@ suspend fun clientProcessing(channel: DuplexChannel) {
 
 }
 
+val bluetoothAddress = "10:5F:AD:ED:55:16" //рабочий бук
+//val bluetoothAddress = "00:1A:7D:DA:71:11" //мой компьютер
 
 object MainJvm {
     @JvmStatic
     @JvmName("main")
     fun mainJvm(args: Array<String>) {
+
+        var connected = false
+        embeddedServer(io.ktor.server.cio.CIO, port = 8080) {
+            routing {
+                get("/health") {
+                    if (connected) {
+                        call.respondText(text = "Connected", status = HttpStatusCode.OK)
+                    } else {
+                        call.respondText(text = "Not connected", status = HttpStatusCode.ServiceUnavailable)
+                    }
+                }
+            }
+        }.start(wait = false)
+
         val adapter = BluetoothAdapter.getAdapters().first()
         SelectorManager(Dispatchers.IO).use { selector ->
             var currentMultiplexer: Multiplexer? = null
@@ -102,17 +122,20 @@ object MainJvm {
                 },
                 onHttp = { _, _, _, _ -> }
             )
-
             runBlocking {
                 while (isActive) {
+                    println("Connect to $bluetoothAddress")
                     val spp = try {
-                        adapter.connectSPP("00:1A:7D:DA:71:11")
+                        adapter.connectSPP(bluetoothAddress)
                     } catch (e: Throwable) {
+                        connected = false
                         println("Can't connect to device: ${e.message}")
                         delay(5.seconds)
                         continue
                     }
+                    println("Connected!")
                     try {
+                        connected = true
                         spp.use { connection ->
                             Multiplexer(
                                 channel = connection,
@@ -130,6 +153,7 @@ object MainJvm {
                         }
                     } catch (e: Throwable) {
                         currentMultiplexer = null
+                        connected = false
                         println("Error on processing: ${e.message}")
                         delay(5.seconds)
                         continue

@@ -37,7 +37,7 @@ fun BluetoothDevice.connectRfcomm(): Rfcomm {
         !rfcommDevice.exists()
     } ?: throw IllegalStateException("No available RFCOMM devices (0-255 all in use)")
     val rawPath = "/dev/rfcomm$number"
-
+    println("Binding $rawPath....")
     val args2 = listOf("rfcomm", "-i", adapter.deviceName, "bind", number.toString(), address, "1")
     val builder2 = ProcessBuilder(*args2.toTypedArray())
     builder2.redirectOutput(ProcessBuilder.Redirect.INHERIT)
@@ -48,6 +48,7 @@ fun BluetoothDevice.connectRfcomm(): Rfcomm {
     check(File(rawPath).exists()) { "Can't bind: file $rawPath not found" }
     Rfcomm.resetMode(number)
     Rfcomm.disableEcho(number)
+    println("Bound!")
     return Rfcomm(
         number = number,
         device = this,
