@@ -14,13 +14,14 @@ object BluetoothCoveAdapter : BluetoothAdapter {
     override fun listenSPP(): SPPServer = SPPServerCove()
 
     private class RemoteDeviceImpl(address: String) : RemoteDevice(address)
+
     private const val SPPServerName = "SPPServer"
 
     override suspend fun connectSPP(address: String): BluetoothConnection {
         val localDevice = LocalDevice.getLocalDevice()
         val attrIDs = intArrayOf(0x0100) // Атрибуты сервиса
         val uuidSet = arrayOf(javax.bluetooth.UUID(0x1101)) // UUID для Serial Port Profile (SPP)
-        val workPc = RemoteDeviceImpl(address)
+        val workPc = RemoteDeviceImpl(address.replace(":", ""))
         val services = localDevice.discoveryAgent.asyncSearchServices(
             attrSet = attrIDs,
             uuidSet = uuidSet,

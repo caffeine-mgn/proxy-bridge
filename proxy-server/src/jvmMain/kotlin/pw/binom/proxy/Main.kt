@@ -89,7 +89,7 @@ object MainJvm {
         SelectorManager(Dispatchers.IO).use { selector ->
             var currentMultiplexer: Multiplexer? = null
             val proxy = HttpProxy(
-                port = 8088,
+                port = 8077,
                 selector = selector,
                 onConnect = { host, port, context ->
                     val multiplexer = currentMultiplexer

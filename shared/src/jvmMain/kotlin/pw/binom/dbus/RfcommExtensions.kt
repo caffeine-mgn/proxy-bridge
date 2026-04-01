@@ -10,6 +10,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.io.Buffer
 import kotlinx.io.EOFException
+import kotlinx.io.IOException
 import kotlinx.io.buffered
 import pw.binom.asSink
 import pw.binom.asSource
@@ -28,10 +29,14 @@ fun Rfcomm.asBluetoothConnection(): BluetoothConnection {
     val input = Channel<Buffer>(Channel.UNLIMITED)
 
     val writeJob = CoroutineScope(Dispatchers.IO).launch {
-        output.consumeEach { buffer ->
-            outputStream.lebULong(buffer.size.toULong())
-            outputStream.write(buffer, buffer.size)
-            outputStream.flush()
+        try {
+            output.consumeEach { buffer ->
+                outputStream.lebULong(buffer.size.toULong())
+                outputStream.write(buffer, buffer.size)
+                outputStream.flush()
+            }
+        } catch (e: IOException){
+            output.close(e)
         }
     }
     val readJob = CoroutineScope(Dispatchers.IO).launch {
