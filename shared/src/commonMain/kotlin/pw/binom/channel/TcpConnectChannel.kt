@@ -1,5 +1,6 @@
 package pw.binom.channel
 
+import io.klogging.logger
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import kotlinx.io.Buffer
@@ -13,6 +14,9 @@ import pw.binom.utils.send
 
 object TcpConnectChannel {
     const val ID: Byte = 1
+
+    private val logger = logger(this::class)
+
     suspend fun connect(
         host: String,
         port: Int,
@@ -23,7 +27,6 @@ object TcpConnectChannel {
         b.writeByte(ID)
         b.lebString(host)
         b.lebInt(port)
-        println("Sending ${b.size}")
         channel.send(b)
         val buffer = channel.receive()
         val ok = buffer.readByte()
@@ -37,11 +40,9 @@ object TcpConnectChannel {
     }
 
     suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
-        println("Income buffer. Size: ${buffer.size}")
         val host = buffer.lebString()
-        println("Host: \"$host\"")
         val port = buffer.lebInt()
-        println("Port: $port")
+        logger.info { "Connect to \"$host:$port\"" }
         val socket = try {
             aSocket(selector).tcp().connect(host, port)
         } catch (e: Throwable) {
@@ -50,7 +51,7 @@ object TcpConnectChannel {
                 writeString(e.toString())
                 writeString(e.stackTraceToString())
             }
-            e.printStackTrace()
+            logger.warn { "Can't connect to \"$host:$port\":${e.stackTraceToString()}" }
             return
         }
 

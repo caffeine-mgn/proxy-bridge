@@ -22,6 +22,7 @@ kotlin {
     sourceSets {
 
         commonMain.dependencies {
+            api("dev.bluefalcon:blue-falcon:2.5.4")
             api(kotlin("stdlib"))
             api(project(":multiplexer"))
             api(libs.kotlinx.io.core)
@@ -35,6 +36,7 @@ kotlin {
             api("com.github.hypfvieh:dbus-java-core:5.2.0")
             api("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0")
             api("com.github.hypfvieh:bluez-dbus:0.3.2")
+            api("io.klogging:klogging:0.11.7")
 
             api("io.ktor:ktor-server-cio:${libs.versions.ktor.get()}")
             api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
