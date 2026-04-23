@@ -31,6 +31,11 @@ kotlin {
 //        }
 //    }
     jvm {
+        binaries {
+            executable {
+                mainClass = "pw.binom.proxy.MainJvm"
+            }
+        }
 //        compilations.all {
 //            kotlinOptions.jvmTarget = "1.8"
 //        }

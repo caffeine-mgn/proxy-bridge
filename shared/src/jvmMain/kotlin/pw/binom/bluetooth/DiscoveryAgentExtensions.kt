@@ -1,16 +1,20 @@
 package pw.binom.bluetooth
 
+import io.klogging.logger
+import io.klogging.noCoLogger
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.bluetooth.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+private val logger = noCoLogger("DiscoveryAgentExtensions")
 suspend fun DiscoveryAgent.asyncSearchServices(
     attrSet: IntArray,
     uuidSet: Array<UUID>,
     device: RemoteDevice
 ) =
     suspendCancellableCoroutine<List<out ServiceRecord>> { con ->
+        println("Start searching service on device ${device.bluetoothAddress}")
         val tx = searchServices(attrSet, uuidSet, device, object : DiscoveryListener {
             var resumed = false
             override fun deviceDiscovered(btDevice: RemoteDevice?, cod: DeviceClass?) {
@@ -36,8 +40,11 @@ suspend fun DiscoveryAgent.asyncSearchServices(
             override fun inquiryCompleted(discType: Int) {
                 println("DiscoveryAgent-->inquiryCompleted #4")
             }
+
+
         })
         con.invokeOnCancellation {
+            println("DiscoveryAgent-->cancelServiceSearch")
             cancelServiceSearch(tx)
         }
     }

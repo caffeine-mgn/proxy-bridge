@@ -12,7 +12,7 @@ import kotlinx.coroutines.selects.SelectClause2
 import kotlinx.io.Buffer
 
 @Suppress("DEPRECATION_ERROR", "INVISIBLE_REFERENCE", "INVISIBLE_MEMBER", "CANNOT_OVERRIDE_INVISIBLE_MEMBER")
-interface DuplexChannel : ReceiveChannel<Buffer>, SendChannel<Buffer> {
+interface DuplexChannel : ReceiveChannel<Buffer>, SendChannel<Buffer>, AutoCloseable {
     val income: ReceiveChannel<Buffer>
     val outcome: SendChannel<Buffer>
 
@@ -71,4 +71,8 @@ interface DuplexChannel : ReceiveChannel<Buffer>, SendChannel<Buffer> {
     }
 
     override fun cancel(cause: CancellationException?) = income.cancel(cause)
+
+    override fun close() {
+        outcome.close()
+    }
 }

@@ -4,6 +4,8 @@ import com.github.hypfvieh.bluetooth.wrapper.BluetoothDevice
 import dev.bluefalcon.ApplicationContext
 import dev.bluefalcon.BlueFalcon
 import dev.bluefalcon.BlueFalconDelegate
+import io.klogging.Level
+import io.klogging.config.loggingConfiguration
 import io.ktor.http.HttpStatusCode
 import io.ktor.network.selector.*
 import io.ktor.server.engine.embeddedServer
@@ -74,9 +76,11 @@ object MainJvm {
     @JvmStatic
     @JvmName("main")
     fun mainJvm(args: Array<String>) {
-
+        loggingConfiguration {
+            this.kloggingMinLogLevel(Level.DEBUG)
+        }
         var connected = false
-        embeddedServer(io.ktor.server.cio.CIO, port = 8080) {
+        embeddedServer(io.ktor.server.cio.CIO, port = 8076) {
             routing {
                 get("/health") {
                     if (connected) {
@@ -127,8 +131,9 @@ object MainJvm {
             )
             runBlocking {
                 while (isActive) {
-                    println("Connect to $bluetoothAddress")
+                    println("Connecting to $bluetoothAddress...")
                     val spp = try {
+                        println("123")
                         adapter.connectSPP(bluetoothAddress)
                     } catch (e: Throwable) {
                         connected = false
