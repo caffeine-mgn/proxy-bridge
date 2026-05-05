@@ -2,6 +2,9 @@
 
 package pw.binom
 
+import dev.bluefalcon.core.BlueFalcon
+import dev.bluefalcon.engine.rpi.RpiEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import pw.binom.bluetooth.asyncSearchServices
@@ -13,9 +16,24 @@ import javax.microedition.io.StreamConnection
 import javax.microedition.io.StreamConnectionNotifier
 import kotlin.time.Duration.Companion.seconds
 
+fun main() {
+    runBlocking {
+        val blueFalcon = BlueFalcon {
+            this.engine = RpiEngine()
+        }
+        blueFalcon.scan()
+        blueFalcon.peripherals.collect { list ->
+            list.forEach {
+                println("-->${it}")
+            }
+        }
+    }
+//    println("blueFalcon.isScanning=${blueFalcon.isScanning}")
+}
+
 const val workPcAddress = "0C9A3CEA4C09"
 const val SPPServerName = "SPPServer"
-fun main() {
+fun main2() {
     runBlocking {
         val localDevice = LocalDevice.getLocalDevice()
 //        val devices = localDevice.discoveryAgent.asyncDiscover()

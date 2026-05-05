@@ -9,5 +9,5 @@ expect interface BluetoothAdapter {
 
     fun getLocalAddress(): String
     fun listenSPP(): SPPServer
-    suspend fun connectSPP(address: String): BluetoothConnection
+    suspend fun connectSPP(address: String, onClose: () -> Unit = {}): BluetoothConnection
 }

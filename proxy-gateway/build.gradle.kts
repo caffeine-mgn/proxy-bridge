@@ -42,8 +42,13 @@ kotlin {
             dependencies {
                 api(kotlin("stdlib"))
                 api(libs.kotlinx.serialization.properties)
+                api(libs.ktor.server.core)
                 api(project(":shared"))
                 api(project(":sound"))
+                api(project(":com"))
+                api(libs.slf4j.simple)
+                api(libs.koin.core)
+//                ksp(libs.koin.compiler)
             }
         }
         val commonTest by getting {
@@ -102,15 +107,37 @@ tasks {
                     "knownHosts" to AllowAnyHosts.instance
                 )
             )
-            val ssh =Ssh.newService()
+            val ssh = Ssh.newService()
             ssh.run(delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
                 session(remote, delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
                     put(
                         hashMapOf(
                             "from" to jvmJar.archiveFile.get().asFile,
-                            "into" to "/opt/gateway"
+                            "into" to "/opt/proxy-gateway"
                         )
                     )
+                })
+            })
+        }
+    }
+
+    val copyToWorkPc by registering {
+        dependsOn(copyToRaspberry)
+//        inputs.files(copyToRaspberry.get().outputs.files)
+        doLast {
+            val remote = Remote(
+                hashMapOf<String, Any?>(
+                    "host" to "192.168.76.108",
+                    "user" to "root",
+                    "port" to 22,
+                    "identity" to File("/home/subochev/.ssh/id_rsa"),
+                    "knownHosts" to AllowAnyHosts.instance
+                )
+            )
+            val ssh = Ssh.newService()
+            ssh.run(delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
+                session(remote, delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
+                    execute(listOf("/usr/bin/java","-jar","/opt/uploader/file-upload-service-jvm.jar","-p","/dev/ttyGS0", "-f", "/opt/proxy-gateway/proxy-gateway-jvm.jar"))
                 })
             })
         }

@@ -18,6 +18,7 @@ allprojects {
     repositories {
         mavenLocal()
         maven(url = "https://repo.binom.pw")
+        maven(url = "https://jitpack.io")
         mavenCentral()
     }
 }

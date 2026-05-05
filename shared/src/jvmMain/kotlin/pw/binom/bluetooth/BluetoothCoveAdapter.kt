@@ -20,7 +20,7 @@ object BluetoothCoveAdapter : BluetoothAdapter {
     private const val SPPServerName = "SPPServer"
     private val logger = logger(this::class)
 
-    override suspend fun connectSPP(address: String): BluetoothConnection {
+    override suspend fun connectSPP(address: String, onClose: () -> Unit): BluetoothConnection {
         logger.info { "Connecting to $address..." }
         val localDevice = LocalDevice.getLocalDevice()
         val attrIDs = intArrayOf(0x0100) // Атрибуты сервиса
@@ -33,12 +33,12 @@ object BluetoothCoveAdapter : BluetoothAdapter {
         )
         println("services->${services}")
 
-        val sspUrl = "btspp://${address.replace(":","")}:4;authenticate=false;encrypt=false;master=false"
+        val sspUrl = "btspp://${address.replace(":", "")}:4;authenticate=false;encrypt=false;master=false"
 //        val sspUrl = services.find { it.type == SPPServerName }?.url
 //            ?: throw IllegalArgumentException("Can't find SSP on device $address")
         return withContext(Dispatchers.IO) {
             val connection = ConnectorAsync.open(sspUrl) as StreamConnection
-            BluetoothConnection.create(connection)
+            BluetoothConnection.create(connection, onClose)
         }
     }
 

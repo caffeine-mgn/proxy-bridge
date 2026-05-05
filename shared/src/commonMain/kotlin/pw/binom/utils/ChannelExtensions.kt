@@ -23,14 +23,13 @@ import kotlinx.coroutines.launch
 import kotlinx.io.Buffer
 import kotlinx.io.Sink
 import kotlinx.io.Source
+import pw.binom.io.buildBuffer
 
 fun SendChannel<Buffer>.toByteChannel(): ByteWriteChannel = ByteWriteChannelByChannel(this)
 fun ReceiveChannel<Buffer>.toByteChannel(): ByteReadChannel = ByteReadChannelByChannel(this)
 
 suspend inline fun SendChannel<Buffer>.send(block: Buffer.() -> Unit) {
-    val buffer = Buffer()
-    block(buffer)
-    send(buffer)
+    send(buildBuffer(block))
 }
 
 @OptIn(InternalAPI::class)

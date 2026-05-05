@@ -12,9 +12,9 @@ kotlin {
     iosSimulatorArm64()
     tvosArm64()
     tvosSimulatorArm64()
-    watchosArm32()
+//    watchosArm32()
     watchosArm64()
-    watchosDeviceArm64()
+//    watchosDeviceArm64()
     watchosSimulatorArm64()
     wasmWasi {
         nodejs {
@@ -48,6 +48,7 @@ kotlin {
         commonMain.dependencies {
             api(libs.kotlinx.io.core)
             api(libs.kotlinx.coroutines.core)
+            api(libs.loggeing)
         }
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.test)

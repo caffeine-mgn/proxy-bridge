@@ -6,21 +6,26 @@ import io.ktor.network.sockets.*
 import kotlinx.io.Buffer
 import kotlinx.io.readString
 import kotlinx.io.writeString
+import org.koin.dsl.bind
+import org.koin.dsl.module
 import pw.binom.multiplexer.DuplexChannel
-import pw.binom.multiplexer.Multiplexer
+import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.multiplexer.lebInt
 import pw.binom.multiplexer.lebString
 import pw.binom.utils.send
 
-object TcpConnectChannel {
+object TcpConnectChannel : ChannelHandler {
     const val ID: Byte = 1
 
     private val logger = logger(this::class)
+    val module = module {
+        single { TcpConnectChannel } bind ChannelHandler::class
+    }
 
     suspend fun connect(
         host: String,
         port: Int,
-        multiplexer: Multiplexer,
+        multiplexer: MultiplexerImpl,
     ): DuplexChannel? {
         val channel = multiplexer.createChannel()
         val b = Buffer()
@@ -39,7 +44,10 @@ object TcpConnectChannel {
         }
     }
 
-    suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
+    override val id: Byte
+        get() = ID
+
+    override suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
         val host = buffer.lebString()
         val port = buffer.lebInt()
         logger.info { "Connect to \"$host:$port\"" }

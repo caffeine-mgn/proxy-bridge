@@ -15,7 +15,7 @@ actual interface BluetoothAdapter {
             val isArm = osArch.contains("arm") || osArch.contains("aarch")
             logger.info { "Creating DBus adapter" }
 
-            return if (isLinux && isArm){
+            return if (isLinux && isArm) {
                 val deviceManager = DeviceManager.createInstance(false)
                 deviceManager.adapters.map {
                     BluetoothAdapterDBus(it)
@@ -28,5 +28,5 @@ actual interface BluetoothAdapter {
 
     actual fun getLocalAddress(): String
     actual fun listenSPP(): SPPServer
-    actual suspend fun connectSPP(address: String): BluetoothConnection
+    actual suspend fun connectSPP(address: String, onClose: () -> Unit): BluetoothConnection
 }

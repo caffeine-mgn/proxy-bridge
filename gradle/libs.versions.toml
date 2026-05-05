@@ -1,7 +1,7 @@
 [versions]
 kotlinx-serialization = "1.8.0"
 kotlinx-coroutines = "1.10.1"
-koin-lib = "4.0.3"
+koin-lib = "4.1.0"
 koin-annotations = "2.1.0"
 ktor = "3.4.1"
 kotlinx-rpc = "0.10.2"
@@ -10,8 +10,14 @@ kotlin = "2.3.20"
 kotlinx-io = "0.9.0"
 
 [libraries]
+ktor-server-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.3" }
+loggeing = { module = "io.github.oshai:kotlin-logging", version = "8.0.02" }
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin-lib" }
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin-lib" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin-lib" }
+koin-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-lib" }
 koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
 koin-ksp = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotations" }
 

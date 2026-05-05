@@ -13,8 +13,8 @@ class BluetoothAdapterDBus(val adapter: DBusBluetoothAdapter) : BluetoothAdapter
         TODO("Not yet implemented")
     }
 
-    override suspend fun connectSPP(address: String): BluetoothConnection {
+    override suspend fun connectSPP(address: String, onClose: () -> Unit): BluetoothConnection {
         val remoteDevice = adapter.getDevice(address)
-        return remoteDevice.connectRfcomm().asBluetoothConnection()
+        return remoteDevice.connectRfcomm().asBluetoothConnection(onClose)
     }
 }

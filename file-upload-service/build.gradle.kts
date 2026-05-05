@@ -33,7 +33,7 @@ kotlin {
     jvm {
         binaries {
             executable {
-                mainClass = "pw.binom.proxy.MainJvm"
+                mainClass = "pw.binom.MainJvm"
             }
         }
 //        compilations.all {
@@ -67,7 +67,7 @@ kotlin {
 
 tasks.named<Jar>("jvmJar") {
     manifest {
-        attributes["Main-Class"] = "pw.binom.proxy.MainJvm"
+        attributes["Main-Class"] = "pw.binom.MainJvm"
     }
     from({
         configurations["jvmMainRuntimeClasspath"].map { if (it.isDirectory) it else zipTree(it) }
@@ -103,7 +103,7 @@ tasks {
                     put(
                         hashMapOf(
                             "from" to jvmJar.archiveFile.get().asFile,
-                            "into" to "/opt/proxy"
+                            "into" to "/opt/uploader"
                         )
                     )
                 })

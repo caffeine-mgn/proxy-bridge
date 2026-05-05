@@ -16,7 +16,7 @@ import pw.binom.multiplexer.lebULong
 import pw.binom.multiplexer.readFully
 import javax.microedition.io.StreamConnection
 
-fun BluetoothConnection.Companion.create(connection: StreamConnection): BluetoothConnection {
+fun BluetoothConnection.Companion.create(connection: StreamConnection, onClose: () -> Unit = {}): BluetoothConnection {
     val outputStream = connection.openOutputStream().asSink().buffered()
     val inputStream = connection.openInputStream().asSource().buffered()
 
@@ -27,7 +27,7 @@ fun BluetoothConnection.Companion.create(connection: StreamConnection): Bluetoot
         output.consumeEach { buffer ->
             outputStream.lebULong(buffer.size.toULong())
             outputStream.write(buffer, buffer.size)
-            outputStream.flush()
+            runCatching { outputStream.flush() }
         }
     }
     val readJob = CoroutineScope(Dispatchers.IO).launch {
@@ -52,5 +52,6 @@ fun BluetoothConnection.Companion.create(connection: StreamConnection): Bluetoot
             runCatching { outputStream.close() }
             runCatching { inputStream.close() }
             runCatching { connection.close() }
+            runCatching { onClose() }
         })
 }

@@ -66,7 +66,6 @@ object MultiplexerProtocol {
         physical: SendChannel<Buffer>,
     ) {
         logical.consumeEach { sourceBuffer ->
-            println("MultiplexerProtocol:: SENDING ${sourceBuffer.size} bytes to $channelId")
             physical.send(
                 wrapLogicalToPhysical(
                     channelId = channelId,
@@ -104,7 +103,6 @@ object MultiplexerProtocol {
                 when (cmd) {
                     DATA -> {
                         val channelId = buffer.lebInt()
-                        println("MultiplexerProtocol:: INCOME DATA on channel $channelId with ${buffer.size} bytes")
                         handlerOnData.onData(channelId = channelId, data = buffer)
                     }
 
@@ -128,7 +126,7 @@ object MultiplexerProtocol {
                 }
             }
         } catch (e: Throwable) {
-            e.printStackTrace()
+            println("MultiplexerProtocol::ERROR ${e.stackTraceToString()}")
         } finally {
             println("MultiplexerProtocol:: reading finished!")
         }

@@ -20,7 +20,7 @@ import pw.binom.multiplexer.readFully
 import java.io.RandomAccessFile
 import kotlin.time.Duration.Companion.seconds
 
-fun Rfcomm.asBluetoothConnection(): BluetoothConnection {
+fun Rfcomm.asBluetoothConnection(onClose:()->Unit = {}): BluetoothConnection {
     val randomAccess = RandomAccessFile(file, "rw")
     val outputStream = randomAccess.asSink().buffered()
     val inputStream = randomAccess.asSource().buffered()
@@ -74,5 +74,6 @@ fun Rfcomm.asBluetoothConnection(): BluetoothConnection {
             runCatching { readJob.cancel() }
             runCatching { disconnectedJob.cancel() }
             runCatching { close() }
+            runCatching { onClose() }
         })
 }

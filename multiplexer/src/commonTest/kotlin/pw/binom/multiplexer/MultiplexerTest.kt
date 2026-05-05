@@ -35,12 +35,12 @@ class MultiplexerTest {
     }
 
     lateinit var stub: Stub
-    lateinit var multiplexer: Multiplexer
+    lateinit var multiplexer: MultiplexerImpl
 
     @BeforeTest
     fun setup() {
         stub = Stub()
-        multiplexer = Multiplexer(
+        multiplexer = MultiplexerImpl(
             input = stub.input,
             output = stub.output,
             idOdd = true,
