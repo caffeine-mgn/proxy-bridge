@@ -1,5 +1,6 @@
 package pw.binom.multiplexer
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -34,6 +35,7 @@ class MultiplexerImpl(
     private val pendingChannelsLock = AtomicBoolean(false)
     private val pendingChannels = HashMap<Int, CancellableContinuation<Unit>>()
     private val incomeChannels = Channel<Int>(Channel.UNLIMITED)
+    private val logger = KotlinLogging.logger {}
 
     override suspend fun accept(): DuplexChannel {
         val incomeChannelId = incomeChannels.receive()
@@ -120,11 +122,11 @@ class MultiplexerImpl(
                 }
             },
             channelClosed = { channelId ->
-                println("Income message for close channel $channelId")
+                logger.info { "Income message for close channel $channelId" }
                 val channel = activeChannelsLock.locking {
                     activeChannels.remove(channelId)
                 }
-                println("found channel $channel")
+                logger.info { "found channel $channel" }
                 channel?.close()
             },
             requestChannel = { channelId ->

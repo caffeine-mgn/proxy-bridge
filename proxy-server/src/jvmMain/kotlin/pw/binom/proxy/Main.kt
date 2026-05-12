@@ -16,6 +16,7 @@ import io.ktor.server.routing.routing
 import kotlinx.coroutines.*
 import org.koin.core.context.startKoin
 import org.koin.dsl.bind
+import org.koin.dsl.binds
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 import pw.binom.ConnectionAcceptor
@@ -104,17 +105,24 @@ object MainJvm {
                 ),
                 SelectorManagerKoinModule,
                 module {
-                    single { MultiplexerHolder() } bind Multiplexer::class
+                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))
                 },
                 module {
                     single(createdAtStart = true) { FileServer() } onClose { it?.close() }
                 },
+                module {
+                    single {
+                        ConnectProcessingImpl(get())
+                    }.bind(ConnectProcessing::class)
+                },
                 FileChannel.module,
                 TcpConnectChannel.module,
+                HttpProxyModule(port = 8077),
+                Sock5ProxyModule(port = 1080),
             )
         }
         val con by koin.koin.inject<ConnectionAcceptor>()
-        val selector by koin.koin.inject<SelectorManager>()
+//        val selector by koin.koin.inject<SelectorManager>()
         val multiplexerHolder by koin.koin.inject<MultiplexerHolder>()
 //        val con: ConnectionAcceptor = SerialConnectionAcceptor("/dev/ttyGS0")
 //        val con:ConnectionAcceptor = BluetoothClientConnectionAcceptor(
@@ -137,6 +145,7 @@ object MainJvm {
             }
         }.start(wait = false)
         var currentMultiplexer: MultiplexerImpl? = null
+        /*
         val proxy = HttpProxy(
             port = 8077,
             selector = selector,
@@ -152,6 +161,7 @@ object MainJvm {
                     multiplexer = multiplexer
                 )
                 if (channel == null) {
+                    println("HttpProxy:: can't connect to $host:$port")
                     context.notAvailable()
                     return@HttpProxy
                 }
@@ -176,6 +186,7 @@ object MainJvm {
             },
             onHttp = { _, _, _, _ -> }
         )
+        */
         runBlocking {
             while (isActive) {
                 val spp = try {

@@ -26,8 +26,8 @@ suspend fun main(args: Array<String>) {
     val koin = startKoin {
         modules(
             comSerialKoinModule(
-//                serialName = lazyOf("/dev/ttyACM0")
-                serialName = lazyOf("COM4")
+                serialName = lazyOf("/dev/ttyACM0")
+//                serialName = lazyOf("COM4")
             ),
             SelectorManagerKoinModule,
             ChannelSelector.module,
@@ -44,7 +44,6 @@ suspend fun main(args: Array<String>) {
         logger.info { "Wait a client..." }
         val newClient = server.connection()
         logger.info { "Client connected!" }
-        println("Client connected!")
         MultiplexerImpl(
             channel = newClient,
             idOdd = true,

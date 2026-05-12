@@ -1,5 +1,6 @@
 package pw.binom.multiplexer
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.consumeEach
@@ -10,6 +11,7 @@ object MultiplexerProtocol {
     private const val CHANNEL_CLOSE: Byte = 2
     private const val REQUEST_NEW_CHANNEL: Byte = 3
     private const val ACCEPT_NEW_CHANNEL: Byte = 4
+    private val logger = KotlinLogging.logger { }
 
     /**
      * Посылает запрос на закрытие канала [channelId]
@@ -18,7 +20,7 @@ object MultiplexerProtocol {
         channelId: Int,
         physical: SendChannel<Buffer>,
     ) {
-        println("MultiplexerProtocol:: SEND CLOSING CHANNEL $channelId")
+        logger.info { "SEND CLOSING CHANNEL $channelId" }
         val resultBuffer = Buffer()
         resultBuffer.writeByte(CHANNEL_CLOSE)
         resultBuffer.lebInt(channelId)
@@ -32,7 +34,7 @@ object MultiplexerProtocol {
         channelId: Int,
         physical: SendChannel<Buffer>,
     ) {
-        println("MultiplexerProtocol:: SEND REQUEST TO OPEN CHANNEL $channelId")
+        logger.info { "SEND REQUEST TO OPEN CHANNEL $channelId" }
         val resultBuffer = Buffer()
         resultBuffer.writeByte(REQUEST_NEW_CHANNEL)
         resultBuffer.lebInt(channelId)
@@ -49,7 +51,7 @@ object MultiplexerProtocol {
         channelId: Int,
         physical: SendChannel<Buffer>,
     ) {
-        println("MultiplexerProtocol:: SEND RESPONSE TO OPEN CHANNEL $channelId")
+        logger.info { "SEND RESPONSE TO OPEN CHANNEL $channelId" }
         val resultBuffer = Buffer()
         resultBuffer.writeByte(ACCEPT_NEW_CHANNEL)
         resultBuffer.lebInt(channelId)
@@ -108,27 +110,27 @@ object MultiplexerProtocol {
 
                     CHANNEL_CLOSE -> {
                         val channelId = buffer.lebInt()
-                        println("MultiplexerProtocol:: INCOME CLOSING channel $channelId")
+                        logger.info { "INCOME CLOSING channel $channelId" }
                         channelClosed.onEvent(channelId)
                     }
 
                     REQUEST_NEW_CHANNEL -> {
                         val channelId = buffer.lebInt()
-                        println("MultiplexerProtocol:: INCOME REQUEST_NEW_CHANNEL $channelId")
+                        logger.info { "INCOME REQUEST_NEW_CHANNEL $channelId" }
                         requestChannel.onEvent(channelId)
                     }
 
                     ACCEPT_NEW_CHANNEL -> {
                         val channelId = buffer.lebInt()
-                        println("MultiplexerProtocol:: INCOME ACCEPT_NEW_CHANNEL $channelId")
+                        logger.info { "INCOME ACCEPT_NEW_CHANNEL $channelId" }
                         newChannelAccepted.onEvent(channelId)
                     }
                 }
             }
         } catch (e: Throwable) {
-            println("MultiplexerProtocol::ERROR ${e.stackTraceToString()}")
+            logger.error { "ERROR ${e.stackTraceToString()}" }
         } finally {
-            println("MultiplexerProtocol:: reading finished!")
+            logger.info { "reading finished!" }
         }
     }
 

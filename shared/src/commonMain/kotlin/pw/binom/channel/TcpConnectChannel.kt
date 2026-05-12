@@ -1,5 +1,6 @@
 package pw.binom.channel
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.klogging.logger
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -9,6 +10,7 @@ import kotlinx.io.writeString
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import pw.binom.multiplexer.DuplexChannel
+import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.multiplexer.lebInt
 import pw.binom.multiplexer.lebString
@@ -17,7 +19,7 @@ import pw.binom.utils.send
 object TcpConnectChannel : ChannelHandler {
     const val ID: Byte = 1
 
-    private val logger = logger(this::class)
+    private val logger = KotlinLogging.logger { }
     val module = module {
         single { TcpConnectChannel } bind ChannelHandler::class
     }
@@ -25,7 +27,7 @@ object TcpConnectChannel : ChannelHandler {
     suspend fun connect(
         host: String,
         port: Int,
-        multiplexer: MultiplexerImpl,
+        multiplexer: Multiplexer,
     ): DuplexChannel? {
         val channel = multiplexer.createChannel()
         val b = Buffer()
@@ -38,6 +40,7 @@ object TcpConnectChannel : ChannelHandler {
         return if (ok == 0.toByte()) {
             val error = buffer.readString()
             val stacktrace = buffer.readString()
+            logger.info { "Can't connect to \"$host:$port\":$error\n$stacktrace" }
             null
         } else {
             channel
@@ -50,7 +53,7 @@ object TcpConnectChannel : ChannelHandler {
     override suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
         val host = buffer.lebString()
         val port = buffer.lebInt()
-        logger.info { "Connect to \"$host:$port\"" }
+        logger.info { "TcpConnectChannel::income Connect to \"$host:$port\"" }
         val socket = try {
             aSocket(selector).tcp().connect(host, port)
         } catch (e: Throwable) {
@@ -59,9 +62,10 @@ object TcpConnectChannel : ChannelHandler {
                 writeString(e.toString())
                 writeString(e.stackTraceToString())
             }
-            logger.warn { "Can't connect to \"$host:$port\":${e.stackTraceToString()}" }
+            logger.error { "TcpConnectChannel::income Can't connect to \"$host:$port\":${e.stackTraceToString()}" }
             return
         }
+        logger.info { "TcpConnectChannel::income Connected success to \"$host:$port\"" }
 
         channel.send {
             writeByte(1)

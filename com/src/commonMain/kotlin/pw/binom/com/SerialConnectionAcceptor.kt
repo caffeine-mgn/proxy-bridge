@@ -1,6 +1,7 @@
 package pw.binom.com
 
 import com.fazecast.jSerialComm.SerialPort
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
@@ -10,8 +11,9 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 @OptIn(ExperimentalAtomicApi::class)
 class SerialConnectionAcceptor(val serialName: String, val baudRate: Int = 115200) : SingleConnectAcceptor() {
+    private val logger = KotlinLogging.logger {}
     override suspend fun createConnection(onClose: () -> Unit): DuplexChannel {
-        println("Opening connection $serialName")
+        logger.info { "Opening connection $serialName" }
         val port = SerialPort.getCommPort(serialName)
         port.baudRate = baudRate
         coroutineScope {

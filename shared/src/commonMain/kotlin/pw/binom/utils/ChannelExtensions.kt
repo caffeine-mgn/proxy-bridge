@@ -42,20 +42,20 @@ suspend fun connect(
     coroutineScope {
         listOf(
             launch(Dispatchers.IO) {
-                println("connect:: start copping channel to stream")
+//                println("connect:: start copping channel to stream")
                 try {
                     income.consumeEach { buffer ->
-                        println("connect:: copy ${buffer.size} bytes from channel to stream")
+//                        println("connect:: copy ${buffer.size} bytes from channel to stream")
                         a.writePacket(buffer)
                         a.flush()
                     }
                 } finally {
                     a.flushAndClose()
-                    println("connect:: end copping channel to stream")
+//                    println("connect:: end copping channel to stream")
                 }
             },
             launch(Dispatchers.IO) {
-                println("connect:: start copping stream to channel")
+//                println("connect:: start copping stream to channel")
                 try {
                     while (isActive) {
                         val buffer = Buffer()
@@ -67,12 +67,12 @@ suspend fun connect(
                         }
                         val wasRead = b.readBuffer.copyTo(buffer)
                         if (wasRead > 0) {
-                            println("connect:: copy ${buffer.size} bytes from stream to channel")
+//                            println("connect:: copy ${buffer.size} bytes from stream to channel")
                             outcome.send(buffer)
                         }
                     }
                 } finally {
-                    println("connect:: end copping stream to channel")
+//                    println("connect:: end copping stream to channel")
                     outcome.close()
                 }
             }).joinAll()

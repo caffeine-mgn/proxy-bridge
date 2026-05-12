@@ -19,6 +19,8 @@ import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import pw.binom.proxy.ConnectProcessing
+import pw.binom.proxy.ProxyingRawContext
 
 /**
  * Реализация HTTP PROXY
@@ -30,12 +32,7 @@ class HttpProxy(
     private val onHttp: HttpProcessing = HttpProcessing { _, _, _, _ -> },
 ) : AutoCloseable {
 
-    interface ProxyingRawContext {
-        suspend fun ok(): Pair<ByteReadChannel, ByteWriteChannel>
-        suspend fun ioError()
-        suspend fun timeout()
-        suspend fun notAvailable()
-    }
+
 
     interface ProxyingHttpContext {
         suspend fun readRequest(): ByteReadChannel
@@ -44,10 +41,6 @@ class HttpProxy(
 
     fun interface HttpProcessing {
         suspend fun request(uri: Url, method: HttpMethod, headers: Headers, context: ProxyingHttpContext)
-    }
-
-    fun interface ConnectProcessing {
-        suspend fun connect(host: String, port: Int, context: ProxyingRawContext)
     }
 
     private val serverJob = selector.launch {
