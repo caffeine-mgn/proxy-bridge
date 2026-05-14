@@ -1,7 +1,6 @@
 package pw.binom.channel
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.klogging.logger
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import kotlinx.io.Buffer
@@ -81,6 +80,7 @@ object TcpConnectChannel : ChannelHandler {
                 b = socketIncome,
             )
         } finally {
+            socket.close()
             channel.income.cancel()
             channel.outcome.close()
         }

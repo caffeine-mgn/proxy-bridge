@@ -1,13 +1,12 @@
 package pw.binom.bluetooth
 
-import io.klogging.logger
-import io.klogging.noCoLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.bluetooth.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-private val logger = noCoLogger("DiscoveryAgentExtensions")
+private val logger = KotlinLogging.logger {  }
 suspend fun DiscoveryAgent.asyncSearchServices(
     attrSet: IntArray,
     uuidSet: Array<UUID>,

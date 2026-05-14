@@ -1,13 +1,13 @@
 package pw.binom.bluetooth
 
 import com.github.hypfvieh.bluetooth.DeviceManager
-import io.klogging.noCoLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import pw.binom.io.BluetoothConnection
 import java.util.*
 
 actual interface BluetoothAdapter {
     actual companion object {
-        private val logger = noCoLogger<BluetoothAdapter>()
+        private val logger = KotlinLogging.logger {  }
         actual fun getAdapters(): List<BluetoothAdapter> {
             val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
             val osArch = System.getProperty("os.arch").lowercase(Locale.getDefault())

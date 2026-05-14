@@ -1,6 +1,6 @@
 package pw.binom.bluetooth
 
-import io.klogging.logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -18,7 +18,7 @@ object BluetoothCoveAdapter : BluetoothAdapter {
     private class RemoteDeviceImpl(address: String) : RemoteDevice(address)
 
     private const val SPPServerName = "SPPServer"
-    private val logger = logger(this::class)
+    private val logger = KotlinLogging.logger {  }
 
     override suspend fun connectSPP(address: String, onClose: () -> Unit): BluetoothConnection {
         logger.info { "Connecting to $address..." }

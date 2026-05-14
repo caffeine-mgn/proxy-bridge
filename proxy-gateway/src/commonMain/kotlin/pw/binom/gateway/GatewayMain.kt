@@ -1,21 +1,15 @@
 package pw.binom.gateway
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.klogging.logger
 import io.ktor.network.selector.*
 import kotlinx.coroutines.*
 import org.koin.core.context.startKoin
-import org.koin.dsl.bind
-import org.koin.dsl.module
-import org.koin.dsl.onClose
 import pw.binom.*
 import pw.binom.channel.ChannelSelector
 import pw.binom.channel.FileChannel
 import pw.binom.channel.TcpConnectChannel
 import pw.binom.com.comSerialKoinModule
 import pw.binom.io.SelectorManagerKoinModule
-import pw.binom.multiplexer.Multiplexer
-import pw.binom.multiplexer.MultiplexerHolder
 import pw.binom.multiplexer.MultiplexerImpl
 import kotlin.coroutines.coroutineContext
 import kotlin.use
@@ -26,8 +20,8 @@ suspend fun main(args: Array<String>) {
     val koin = startKoin {
         modules(
             comSerialKoinModule(
-                serialName = lazyOf("/dev/ttyACM0")
-//                serialName = lazyOf("COM4")
+//                serialName = lazyOf("/dev/ttyACM0")
+                serialName = lazyOf("COM4")
             ),
             SelectorManagerKoinModule,
             ChannelSelector.module,

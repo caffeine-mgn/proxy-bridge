@@ -50,7 +50,7 @@ kotlin {
                 api(libs.ktor.serialization.json)
                 api(libs.kotlinx.serialization.properties)
                 api(project(":shared"))
-                api(project(":sound"))
+//                api(project(":sound"))
                 api(project(":com"))
                 api(libs.slf4j.simple)
                 api(libs.koin.core)

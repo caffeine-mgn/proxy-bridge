@@ -1,7 +1,6 @@
 package pw.binom.channel
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.klogging.logger
 import io.ktor.network.selector.SelectorManager
 import org.koin.core.component.KoinComponent
 import org.koin.dsl.module
