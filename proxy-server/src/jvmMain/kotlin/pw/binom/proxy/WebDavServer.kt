@@ -1,5 +1,5 @@
 package pw.binom.proxy
-
+/*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.engine.embeddedServer
 import io.ktor.http.*
@@ -23,7 +23,7 @@ import kotlin.math.min
 class WebDavServer(port: Int, rootDir: Path) : AutoCloseable {
     companion object {
         fun module(port: Int, rootDir: Path) = org.koin.dsl.module {
-            single { WebDavServer(port,rootDir) }
+            single { WebDavServer(port, rootDir) }
         }
     }
 
@@ -45,19 +45,20 @@ class WebDavServer(port: Int, rootDir: Path) : AutoCloseable {
 }
 
 
-
-
 //private val ROOT_DIR = Paths.get("/tmp/webdav-root").also { Files.createDirectories(it) }
 private val HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME.withZone(ZoneId.of("GMT"))
 
 @OptIn(ExperimentalPathApi::class)
-fun Application.webDavModule(rootDir: Path) {
+fun Application.webDavModule(fileSystem: FileSystem) {
     routing {
         route("/dav") {
             // 1. OPTIONS
             options {
                 call.response.headers.append("DAV", "1,2")
-                call.response.headers.append("Allow", "GET,PUT,DELETE,MKCOL,PROPFIND,LOCK,UNLOCK,MOVE,COPY,HEAD,OPTIONS")
+                call.response.headers.append(
+                    "Allow",
+                    "GET,PUT,DELETE,MKCOL,PROPFIND,LOCK,UNLOCK,MOVE,COPY,HEAD,OPTIONS"
+                )
                 call.respond(HttpStatusCode.OK)
             }
 
@@ -65,13 +66,13 @@ fun Application.webDavModule(rootDir: Path) {
             method(HttpMethod("PROPFIND")) {
                 handle {
                     val depth = call.request.header("Depth")?.toIntOrNull() ?: 0
-                    val target = resolvePath(call,rootDir)
+                    val target = resolvePath(call, rootDir)
                     if (!Files.exists(target)) return@handle call.respond(HttpStatusCode.NotFound)
 
                     val xml = buildString {
                         appendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
                         appendLine("<D:multistatus xmlns:D=\"DAV:\">")
-                        appendPathXml(target, depth,rootDir)
+                        appendPathXml(target, depth, rootDir)
                         appendLine("</D:multistatus>")
                     }
                     call.response.header("Content-Type", "application/xml; charset=utf-8")
@@ -86,7 +87,7 @@ fun Application.webDavModule(rootDir: Path) {
             // 4. MKCOL
             method(HttpMethod("MKCOL")) {
                 handle {
-                    val path = resolvePath(call,rootDir)
+                    val path = resolvePath(call, rootDir)
                     if (Files.exists(path)) call.respond(HttpStatusCode.MethodNotAllowed)
                     else {
                         Files.createDirectories(path)
@@ -97,13 +98,16 @@ fun Application.webDavModule(rootDir: Path) {
 
             // 5. GET с поддержкой Range и ETag
             get {
-                val path = resolvePath(call,rootDir)
+                val path = resolvePath(call, rootDir)
                 if (!Files.isRegularFile(path)) return@get call.respond(HttpStatusCode.NotFound)
 
                 val attr = Files.readAttributes(path, BasicFileAttributes::class.java)
                 val etag = generateETag(path)
                 call.response.header("ETag", etag)
-                call.response.header("Last-Modified", HTTP_DATE.format(Instant.ofEpochMilli(attr.lastModifiedTime().toMillis())))
+                call.response.header(
+                    "Last-Modified",
+                    HTTP_DATE.format(Instant.ofEpochMilli(attr.lastModifiedTime().toMillis()))
+                )
 
                 // Проверка If-None-Match для кэширования
                 val ifNoneMatch = call.request.header("If-None-Match")
@@ -151,7 +155,7 @@ fun Application.webDavModule(rootDir: Path) {
 
             // 6. PUT с If-Match
             put {
-                val path = resolvePath(call,rootDir)
+                val path = resolvePath(call, rootDir)
                 val etag = generateETag(path)
                 val ifMatch = call.request.header("If-Match")
 
@@ -171,7 +175,7 @@ fun Application.webDavModule(rootDir: Path) {
 
             // 7. DELETE с If-Match
             delete {
-                val path = resolvePath(call,rootDir)
+                val path = resolvePath(call, rootDir)
                 if (!Files.exists(path)) return@delete call.respond(HttpStatusCode.NotFound)
 
                 val etag = generateETag(path)
@@ -185,15 +189,15 @@ fun Application.webDavModule(rootDir: Path) {
             }
 
             // 8. MOVE / COPY
-            method(HttpMethod("MOVE")) { handle { handleMoveCopy(call, isMove = true,rootDir) } }
-            method(HttpMethod("COPY")) { handle { handleMoveCopy(call, isMove = false,rootDir) } }
+            method(HttpMethod("MOVE")) { handle { handleMoveCopy(call, isMove = true, rootDir) } }
+            method(HttpMethod("COPY")) { handle { handleMoveCopy(call, isMove = false, rootDir) } }
         }
     }
 }
 
 // ================= HELPERS =================
 
-private fun resolvePath(call: RoutingCall,ROOT_DIR: Path): Path {
+private fun resolvePath(call: RoutingCall, ROOT_DIR: Path): Path {
     val raw = call.request.path().removePrefix("/dav").takeIf { it.isNotEmpty() } ?: ""
     val normalized = Paths.get(ROOT_DIR.toString(), raw).normalize()
     if (!normalized.startsWith(ROOT_DIR)) throw SecurityException("Path traversal")
@@ -211,6 +215,7 @@ private fun matchETag(headerValue: String, target: String): Boolean {
 }
 
 private data class ByteRange(val start: Long, val end: Long)
+
 private fun parseRange(header: String?, fileSize: Long): ByteRange? {
     if (header == null || !header.startsWith("bytes=")) return null
     val spec = header.substring(6).trim()
@@ -223,7 +228,7 @@ private fun parseRange(header: String?, fileSize: Long): ByteRange? {
     } else null
 }
 
-private fun StringBuilder.appendPathXml(path: Path, depth: Int,ROOT_DIR: Path) {
+private fun StringBuilder.appendPathXml(fileSystem:FileSystem, path: Path, depth: Int, ROOT_DIR: Path) {
     val isDir = Files.isDirectory(path)
     val attr = Files.readAttributes(path, BasicFileAttributes::class.java)
     val relative = "/" + ROOT_DIR.relativize(path).toString().replace('\\', '/')
@@ -233,7 +238,15 @@ private fun StringBuilder.appendPathXml(path: Path, depth: Int,ROOT_DIR: Path) {
     appendLine("<D:propstat>")
     appendLine("<D:prop>")
     appendLine("<D:getcontentlength>${if (isDir) 0 else attr.size()}</D:getcontentlength>")
-    appendLine("<D:getlastmodified>${HTTP_DATE.format(Instant.ofEpochMilli(attr.lastModifiedTime().toMillis()))}</D:getlastmodified>")
+    appendLine(
+        "<D:getlastmodified>${
+            HTTP_DATE.format(
+                Instant.ofEpochMilli(
+                    attr.lastModifiedTime().toMillis()
+                )
+            )
+        }</D:getlastmodified>"
+    )
     appendLine("<D:resourcetype>${if (isDir) "<D:collection/>" else ""}</D:resourcetype>")
     appendLine("<D:getetag>${generateETag(path)}</D:getetag>")
     appendLine("</D:prop>")
@@ -243,7 +256,7 @@ private fun StringBuilder.appendPathXml(path: Path, depth: Int,ROOT_DIR: Path) {
 
     if (isDir && depth > 0) {
         Files.list(path).use { stream ->
-            stream.forEach { child -> appendPathXml(child, if (depth == 1) 0 else depth,ROOT_DIR) }
+            stream.forEach { child -> appendPathXml(fileSystem,child, if (depth == 1) 0 else depth, ROOT_DIR) }
         }
     }
 }
@@ -262,8 +275,8 @@ private suspend fun handleLock(call: io.ktor.server.routing.RoutingCall) {
     call.respond(HttpStatusCode.OK, xml)
 }
 
-private suspend fun handleMoveCopy(call: RoutingCall, isMove: Boolean,ROOT_DIR: Path) {
-    val source = resolvePath(call,ROOT_DIR)
+private suspend fun handleMoveCopy(call: RoutingCall, isMove: Boolean, ROOT_DIR: Path) {
+    val source = resolvePath(call, ROOT_DIR)
     val destHeader = call.request.headers["Destination"]
     if (destHeader == null) return call.respond(HttpStatusCode.BadRequest, "Missing Destination")
 
@@ -284,10 +297,14 @@ private suspend fun handleMoveCopy(call: RoutingCall, isMove: Boolean,ROOT_DIR: 
             } else {
                 Files.copy(source, destPath, StandardCopyOption.REPLACE_EXISTING)
             }
-            val status = if (Files.notExists(destPath) || !overwrite) HttpStatusCode.Created else HttpStatusCode.NoContent
+            val status =
+                if (Files.notExists(destPath) || !overwrite) HttpStatusCode.Created else HttpStatusCode.NoContent
             call.respond(status)
         } catch (e: Exception) {
             call.respond(HttpStatusCode.InternalServerError, "Failed: ${e.message}")
         }
     }
 }
+
+
+ */

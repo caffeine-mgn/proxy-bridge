@@ -1,5 +1,6 @@
 package pw.binom.http
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.Headers
 import io.ktor.http.HeadersBuilder
 import io.ktor.http.HttpMethod
@@ -32,6 +33,7 @@ class HttpProxy(
     private val onHttp: HttpProcessing = HttpProcessing { _, _, _, _ -> },
 ) : AutoCloseable {
 
+    private val logger = KotlinLogging.logger { }
 
 
     interface ProxyingHttpContext {
@@ -144,7 +146,11 @@ class HttpProxy(
             if (!called) {
                 write.httpResponse(HttpStatusCode.NotFound)
             } else {
-                write.flush()
+                try {
+                    write.flush()
+                } catch (e: Throwable) {
+                    logger.warn(e) { "Can't flush response" }
+                }
             }
             return
         }
