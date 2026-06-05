@@ -212,12 +212,10 @@ class Socks5Server(
             }
 
             override suspend fun timeout() {
-                finished()
                 ioError()
             }
 
             override suspend fun notAvailable() {
-                finished()
                 ioError()
             }
 

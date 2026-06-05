@@ -45,14 +45,7 @@ data class Configuration(
         @Serializable
         @SerialName("com")
         data class Com(val port: String, val speed: Int = 115200) : Outcome
-
-        @Serializable
-        @SerialName("com")
-        data class HttpProxy(val host: String, val port: String) : Outcome
-
-        @Serializable
-        @SerialName("com")
-        data class Wrapper(val targetName: String) : Outcome
+        data class Tcp(val bind: String = "0.0.0.0", val port: String) : Outcome
     }
 
     @Serializable
