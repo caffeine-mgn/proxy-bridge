@@ -48,6 +48,7 @@ kotlin {
                 api(project(":com"))
                 api(libs.slf4j.simple)
                 api(libs.koin.core)
+                api(libs.kotlinx.serialization.yaml)
 //                ksp(libs.koin.compiler)
             }
         }

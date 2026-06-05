@@ -6,14 +6,17 @@ import org.koin.core.component.KoinComponent
 import org.koin.dsl.module
 import pw.binom.multiplexer.DuplexChannel
 
-object ChannelSelector : KoinComponent {
-    val module = module {
-        single { ChannelSelector }
+class ChannelSelector : KoinComponent {
+    companion object {
+        val module = module {
+            single { ChannelSelector() }
+        }
     }
+
     private val logger = KotlinLogging.logger { }
     private val handlers by lazy { getKoin().getAll<ChannelHandler>().associateBy { it.id } }
 
-    suspend fun processing(connection: DuplexChannel, selector: SelectorManager) {
+    suspend fun processing(connection: DuplexChannel) {
         try {
             val buff = connection.receive()
             val cmd = buff.readByte()
@@ -24,7 +27,7 @@ object ChannelSelector : KoinComponent {
                 connection.close()
                 return
             }
-            handler.income(selector = selector, channel = connection, buffer = buff)
+            handler.income(channel = connection, buffer = buff)
         } catch (e: Exception) {
             e.printStackTrace()
             throw e

@@ -11,6 +11,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 class Socks5Server(
     private val port: Int = 1080,
+    private val bind: String = "0.0.0.0",
     private val selectorManager: SelectorManager,
     private val authProvider: Socks5AuthProvider? = null,
     private val onConnect: ConnectProcessing = ConnectProcessing { _, _, _ -> },
@@ -51,7 +52,7 @@ class Socks5Server(
 
     private val serverJob = selectorManager.launch {
         aSocket(selectorManager).tcp()
-            .bind("0.0.0.0", port)
+            .bind(bind, port)
             .use { server ->
                 logger.info { "SOCKS5 server started on port $port" }
                 while (isActive) {

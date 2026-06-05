@@ -13,7 +13,8 @@ kotlin {
                 api(libs.kotlinx.serialization.json)
                 api(libs.kotlinx.serialization.protobuf)
                 api(libs.kotlinx.coroutines.core)
-                api(project(":shared"))
+                api(libs.koin.core)
+//                api(project(":shared"))
                 api(libs.loggeing)
                 api("com.fazecast:jSerialComm:2.11.0")
             }

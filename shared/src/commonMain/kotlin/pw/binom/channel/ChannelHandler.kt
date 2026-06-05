@@ -6,5 +6,5 @@ import pw.binom.multiplexer.DuplexChannel
 
 interface ChannelHandler {
     val id: Byte
-    suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer)
+    suspend fun income(channel: DuplexChannel, buffer: Buffer)
 }

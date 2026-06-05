@@ -1,5 +1,6 @@
 package pw.binom.proxy
 
+import com.charleskorn.kaml.Yaml
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
@@ -8,24 +9,30 @@ import io.ktor.http.*
 import io.ktor.server.engine.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.readText
 import kotlinx.coroutines.*
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import org.koin.core.context.startKoin
 import org.koin.dsl.bind
 import org.koin.dsl.binds
 import org.koin.dsl.module
 import org.koin.dsl.onClose
-import org.slf4j.event.Level
 import pw.binom.*
 import pw.binom.channel.FileChannel
 import pw.binom.channel.TcpConnectChannel
-import pw.binom.com.comSerialKoinModule
 import pw.binom.io.SelectorManagerKoinModule
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerHolder
 import pw.binom.multiplexer.MultiplexerImpl
-import java.nio.file.Paths
+import pw.binom.properties.ConfigModule
+import pw.binom.properties.Configuration
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
+import kotlin.use
 
 
 suspend fun clientProcessing(channel: DuplexChannel) {
@@ -46,22 +53,37 @@ object SerialPortSerevrCommand : CliktCommand() {
 private val logger = KotlinLogging.logger("GLOBAL")
 
 object MainJvm {
+    @OptIn(ExperimentalAtomicApi::class)
     @JvmStatic
     @JvmName("main")
     fun mainJvm(args: Array<String>) {
+        val configFile = Path("config.yaml")
+        if (!SystemFileSystem.exists(configFile)) {
+            println("Config file missing")
+            return
+        }
+        val config = SystemFileSystem.source(configFile).buffered().use {
+            Yaml.default.decodeFromString(Configuration.serializer(), it.readText())
+        }
+        println("config:\n${Yaml.default.encodeToString(Configuration.serializer(), config)}")
         logger.info { "STARTUP" }
         val koin = startKoin {
             modules(
-                comSerialKoinModule(
-                    serialName = lazyOf("/dev/ttyGS0")
-                ),
-                SelectorManagerKoinModule,
+                ConfigModule.createModule(config),
+//                comSerialKoinModule(
+//                    serialName = lazyOf("/dev/ttyGS0")
+//                ),
                 module {
-                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))
+                    single { TcpConnectProvider.Direct(get()) } bind TcpConnectProvider::class
                 },
+                SelectorManagerKoinModule,
+//                module {
+//                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))
+//                },
                 module {
                     single(createdAtStart = true) { FileServer() } onClose { it?.close() }
                 },
+                module { single { TcpConnectChannel(get(), get(), get()) } },
                 module {
                     single {
                         ConnectProcessingImpl(get())
@@ -69,11 +91,19 @@ object MainJvm {
                 },
                 FileChannel.module,
                 TcpConnectChannel.module,
-                HttpProxyModule(port = 8077),
-                Sock5ProxyModule(port = 1080),
+//                HttpProxyModule(port = 8077),
+//                Sock5ProxyModule(port = 1080),
 //                WebDavServer.module(port=8075,rootDir= Paths.get("/tmp/web-dav-root"))
             )
         }
+        val closed = AtomicBoolean(false)
+        Runtime.getRuntime().addShutdownHook(Thread {
+            closed.store(true)
+        })
+        while (!closed.load()) {
+            Thread.sleep(1000)
+        }
+        return
         val con by koin.koin.inject<ConnectionAcceptor>()
 //        val selector by koin.koin.inject<SelectorManager>()
         val multiplexerHolder by koin.koin.inject<MultiplexerHolder>()

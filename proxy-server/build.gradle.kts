@@ -49,6 +49,8 @@ kotlin {
                 api(libs.ktor.server.negotiation)
                 api(libs.ktor.serialization.json)
                 api(libs.kotlinx.serialization.properties)
+                api(libs.kotlinx.serialization.yaml)
+
                 api(project(":shared"))
 //                api(project(":sound"))
                 api(project(":com"))

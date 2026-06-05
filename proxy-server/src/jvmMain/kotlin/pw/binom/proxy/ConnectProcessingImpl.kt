@@ -1,25 +1,23 @@
 package pw.binom.proxy
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import pw.binom.channel.TcpConnectChannel
-import pw.binom.multiplexer.MultiplexerHolder
+import kotlin.time.Duration.Companion.seconds
 
 class ConnectProcessingImpl(
-    val currentMultiplexer: MultiplexerHolder,
-):ConnectProcessing {
+    private val tcpConnectChannel: TcpConnectChannel,
+) : ConnectProcessing {
     val logger = KotlinLogging.logger {}
     override suspend fun connect(host: String, port: Int, context: ProxyingRawContext) {
-        if (!currentMultiplexer.isInitialized()) {
-            logger.warn { "Multiplexer is not initialized" }
-            context.ioError()
-            return
+
+        val channel = withTimeoutOrNull(5.seconds) {
+            tcpConnectChannel.connect(
+                host = host,
+                port = port,
+            )
         }
-        val multiplexer = currentMultiplexer.value
-        val channel = TcpConnectChannel.connect(
-            host = host,
-            port = port,
-            multiplexer = multiplexer
-        )
         if (channel == null) {
             println("HttpProxy:: can't connect to $host:$port")
             context.notAvailable()

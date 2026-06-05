@@ -16,19 +16,27 @@ import org.koin.dsl.module
 import pw.binom.multiplexer.*
 import pw.binom.utils.send
 
-object FileChannel : ChannelHandler {
-    private val logger = KotlinLogging.logger { }
-    const val ID: Byte = 2
+class FileChannel(
+    selector: SelectorManager
+) : ChannelHandler {
+    companion object {
+        const val ID: Byte = 2
 
-    val module = module {
-        single { FileChannel } bind ChannelHandler::class
+        private const val GET_FILES: Byte = 0
+        private const val GET_FILE: Byte = 1
+        private const val FILE_FOUND: Byte = 1
+        private const val FILE_NOT_FOUND: Byte = 2
+        private const val IS_NOT_FILE: Byte = 3
+
+        val module = module {
+            single { FileChannel(get()) } bind ChannelHandler::class
+        }
     }
 
-    private const val GET_FILES: Byte = 0
-    private const val GET_FILE: Byte = 1
-    private const val FILE_FOUND: Byte = 1
-    private const val FILE_NOT_FOUND: Byte = 2
-    private const val IS_NOT_FILE: Byte = 3
+    private val logger = KotlinLogging.logger { }
+
+
+
 
     data class File(val name: String, val isFile: Boolean, val size: ULong)
 
@@ -110,7 +118,7 @@ object FileChannel : ChannelHandler {
     override val id: Byte
         get() = ID
 
-    override suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
+    override suspend fun income(channel: DuplexChannel, buffer: Buffer) {
         val cmd = buffer.readByte()
         when (cmd) {
             GET_FILES -> getFiles(buffer, channel)

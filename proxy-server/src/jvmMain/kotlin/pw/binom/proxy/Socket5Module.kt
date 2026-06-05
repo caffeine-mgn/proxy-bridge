@@ -18,16 +18,16 @@ class Sock5ProxyService(
     selector: SelectorManager,
     handler: ConnectProcessing,
     port: Int,
+    bind: String = "0.0.0.0",
 ) : AutoCloseable {
     val proxy = Socks5Server(
         port = port,
         selectorManager = selector,
         authProvider = null,
         onConnect = handler,
+        bind = bind,
     )
-
     override fun close() {
         proxy.close()
     }
-
 }

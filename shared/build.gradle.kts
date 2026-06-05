@@ -1,6 +1,6 @@
 plugins {
-    kotlin("multiplatform")
-    id("kotlinx-serialization")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlinx.serialization)
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
 }
@@ -25,6 +25,8 @@ kotlin {
             api("dev.bluefalcon:blue-falcon:3.1.1")
             api(kotlin("stdlib"))
             api(project(":multiplexer"))
+            api(project(":com"))
+            api("com.fazecast:jSerialComm:2.11.0")
             api(libs.kotlinx.io.core)
             api(libs.koin.core)
             api(libs.koin.annotations)

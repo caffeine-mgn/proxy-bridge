@@ -8,6 +8,7 @@ import kotlinx.io.readString
 import kotlinx.io.writeString
 import org.koin.dsl.bind
 import org.koin.dsl.module
+import pw.binom.TcpConnectProvider
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
@@ -15,27 +16,35 @@ import pw.binom.multiplexer.lebInt
 import pw.binom.multiplexer.lebString
 import pw.binom.utils.send
 
-object TcpConnectChannel : ChannelHandler {
-    const val ID: Byte = 1
+class TcpConnectChannel(
+    val selector: SelectorManager,
+    val multiplexer: Multiplexer,
+    val tcpConnectProvider: TcpConnectProvider,
+) : ChannelHandler {
+    companion object {
+        const val ID: Byte = 1
+        val module = module {
+            single { TcpConnectChannel(get(), get(), get()) } bind ChannelHandler::class
+        }
+    }
 
     private val logger = KotlinLogging.logger { }
-    val module = module {
-        single { TcpConnectChannel } bind ChannelHandler::class
-    }
+
 
     suspend fun connect(
         host: String,
         port: Int,
-        multiplexer: Multiplexer,
     ): DuplexChannel? {
         val channel = multiplexer.createChannel()
         val b = Buffer()
         b.writeByte(ID)
         b.lebString(host)
         b.lebInt(port)
+        println("SEND CONNECT $host:$port")
         channel.send(b)
         val buffer = channel.receive()
         val ok = buffer.readByte()
+        println("OK CONNECT: $ok")
         return if (ok == 0.toByte()) {
             val error = buffer.readString()
             val stacktrace = buffer.readString()
@@ -49,19 +58,24 @@ object TcpConnectChannel : ChannelHandler {
     override val id: Byte
         get() = ID
 
-    override suspend fun income(selector: SelectorManager, channel: DuplexChannel, buffer: Buffer) {
+    override suspend fun income(channel: DuplexChannel, buffer: Buffer) {
         val host = buffer.lebString()
         val port = buffer.lebInt()
         logger.info { "TcpConnectChannel::income Connect to \"$host:$port\"" }
         val socket = try {
-            aSocket(selector).tcp().connect(host, port)
+            tcpConnectProvider.connect(host, port)
+//            aSocket(selector).tcp().connect(host, port)
         } catch (e: Throwable) {
+            TcpConnectProvider.ConnectResult.UnknownError
+        }
+        if (socket !is TcpConnectProvider.ConnectResult.Success) {
+            val msg = (socket as? TcpConnectProvider.ConnectResult.Error)?.msg
             channel.send {
                 writeByte(0)
-                writeString(e.toString())
-                writeString(e.stackTraceToString())
+                writeString(msg ?: "unknown error")
+                writeString("none")
             }
-            logger.error { "TcpConnectChannel::income Can't connect to \"$host:$port\":${e.stackTraceToString()}" }
+            logger.error { "TcpConnectChannel::income Can't connect to \"$host:$port\":$msg" }
             return
         }
         logger.info { "TcpConnectChannel::income Connected success to \"$host:$port\"" }
@@ -69,8 +83,8 @@ object TcpConnectChannel : ChannelHandler {
         channel.send {
             writeByte(1)
         }
-        val socketIncome = socket.openReadChannel()
-        val socketOutcome = socket.openWriteChannel()
+        val socketIncome = socket.readChannel
+        val socketOutcome = socket.writeChannel
 
         try {
             pw.binom.utils.connect(

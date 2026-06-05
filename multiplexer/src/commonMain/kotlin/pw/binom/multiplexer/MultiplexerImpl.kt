@@ -85,10 +85,15 @@ class MultiplexerImpl(
         val newChannelId = idGenerator.addAndFetch(2)
 
         pendingChannelsLock.lock()
-        MultiplexerProtocol.sendRequestNewChannel(
-            channelId = newChannelId,
-            physical = output,
-        )
+        try {
+            MultiplexerProtocol.sendRequestNewChannel(
+                channelId = newChannelId,
+                physical = output,
+            )
+        } catch (e: CancellationException) {
+            pendingChannelsLock.unlock()
+            throw e
+        }
         suspendCancellableCoroutine { cont ->
             cont.invokeOnCancellation {
                 pendingChannelsLock.locking {
