@@ -6,6 +6,8 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.CancellationException
 import io.ktor.utils.io.InternalAPI
+import io.ktor.utils.io.close
+import io.ktor.utils.io.copyTo
 import io.ktor.utils.io.core.isEmpty
 import io.ktor.utils.io.core.readAvailable
 import io.ktor.utils.io.writeBuffer
@@ -36,26 +38,78 @@ suspend inline fun SendChannel<Buffer>.send(block: Buffer.() -> Unit) {
 suspend fun connect(
     outcome: SendChannel<Buffer>,
     income: ReceiveChannel<Buffer>,
+    a: SendChannel<Buffer>,
+    b: ReceiveChannel<Buffer>,
+) {
+    coroutineScope {
+        listOf(
+            launch(Dispatchers.IO) {
+                try {
+                    income.consumeEach { buffer ->
+                        a.send(buffer)
+                    }
+                } finally {
+                    a.close()
+                }
+            },
+            launch(Dispatchers.IO) {
+                try {
+                    b.consumeEach { buffer ->
+                        outcome.send(buffer)
+                    }
+                } finally {
+                    outcome.close()
+                }
+            }).joinAll()
+    }
+}
+
+@OptIn(InternalAPI::class)
+suspend fun connect(
+    outcome: ByteWriteChannel,
+    income: ByteReadChannel,
     a: ByteWriteChannel,
     b: ByteReadChannel,
 ) {
     coroutineScope {
         listOf(
             launch(Dispatchers.IO) {
-//                println("connect:: start copping channel to stream")
+                try {
+                    income.copyTo(a)
+                } finally {
+                    a.flushAndClose()
+                }
+            },
+            launch(Dispatchers.IO) {
+                try {
+                    b.copyTo(outcome)
+                } finally {
+                    outcome.flushAndClose()
+                }
+            }).joinAll()
+    }
+}
+
+@OptIn(InternalAPI::class)
+suspend fun connect(
+    outcome: SendChannel<Buffer>,
+    income: ReceiveChannel<Buffer>,
+    a: ByteWriteChannel,
+    b: ByteReadChannel,
+) {
+    coroutineScope {
+        listOf(
+            launch(Dispatchers.IO) {
                 try {
                     income.consumeEach { buffer ->
-//                        println("connect:: copy ${buffer.size} bytes from channel to stream")
                         a.writePacket(buffer)
                         a.flush()
                     }
                 } finally {
                     a.flushAndClose()
-//                    println("connect:: end copping channel to stream")
                 }
             },
             launch(Dispatchers.IO) {
-//                println("connect:: start copping stream to channel")
                 try {
                     while (isActive) {
                         val buffer = Buffer()
@@ -67,12 +121,10 @@ suspend fun connect(
                         }
                         val wasRead = b.readBuffer.copyTo(buffer)
                         if (wasRead > 0) {
-//                            println("connect:: copy ${buffer.size} bytes from stream to channel")
                             outcome.send(buffer)
                         }
                     }
                 } finally {
-//                    println("connect:: end copping stream to channel")
                     outcome.close()
                 }
             }).joinAll()

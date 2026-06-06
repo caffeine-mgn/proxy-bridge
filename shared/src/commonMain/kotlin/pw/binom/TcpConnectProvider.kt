@@ -1,7 +1,7 @@
 package pw.binom
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
-import io.ktor.network.sockets.Socket
 import io.ktor.network.sockets.aSocket
 import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
@@ -9,17 +9,43 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readLine
 import io.ktor.utils.io.writeByteArray
+import pw.binom.channel.TcpConnectChannel
+import pw.binom.properties.OutcomeService
+import pw.binom.utils.StringUtils
+import pw.binom.utils.toByteChannel
+import java.io.StringWriter
 import kotlin.io.encoding.Base64
 
+/**
+ * Провайдер TCP-соединений.
+ * Абстрагирует способ установки TCP-соединения: напрямую, через прокси или через канальный транспорт.
+ */
 interface TcpConnectProvider {
+    /**
+     * Результат попытки соединения.
+     */
     sealed interface ConnectResult {
+        /**
+         * Успешное соединение с каналами чтения и записи.
+         */
         interface Success : ConnectResult, AutoCloseable {
             val readChannel: ByteReadChannel
             val writeChannel: ByteWriteChannel
         }
 
+        /**
+         * Ошибка соединения с конкретным сообщением.
+         */
         class Error(val msg: String) : ConnectResult
+
+        /**
+         * Ошибка соединения по неизвестной причине.
+         */
         object UnknownError : ConnectResult
+
+        /**
+         * Удалённый хост недоступен.
+         */
         object Unreachable : ConnectResult
     }
 
@@ -29,14 +55,16 @@ interface TcpConnectProvider {
     private class SuccessImpl(
         override val readChannel: ByteReadChannel,
         override val writeChannel: ByteWriteChannel,
-        val socket: Socket,
+        val socket: AutoCloseable,
     ) : ConnectResult.Success {
         override fun close() {
             socket.close()
         }
-
     }
 
+    /**
+     * Прямое TCP-соединение через Ktor socket API.
+     */
     class Direct(val selector: SelectorManager) : TcpConnectProvider {
         override suspend fun connect(host: String, port: Int): ConnectResult {
             val socket = try {
@@ -55,8 +83,41 @@ interface TcpConnectProvider {
         }
     }
 
+    /**
+     * TCP-соединение через канальный транспорт (OutcomeService).
+     * Используется когда соединение идёт через relay/proxy-bridge инфраструктуру.
+     */
+    class UsingOutcome(val outcomeService: OutcomeService) : TcpConnectProvider {
+        override suspend fun connect(host: String, port: Int): ConnectResult {
+            val channel = outcomeService.createChannel()
+            val tcpChannel = TcpConnectChannel.connect(
+                channel = channel,
+                host = host,
+                port = port,
+            )
+            if (tcpChannel == null) {
+                runCatching { channel.close() }
+                return ConnectResult.Unreachable
+            }
+
+            return SuccessImpl(
+                readChannel = tcpChannel.income.toByteChannel(),
+                writeChannel = tcpChannel.outcome.toByteChannel(),
+                socket = channel,
+            )
+        }
+
+    }
+
+    /**
+     * Учётные данные для аутентификации на прокси.
+     */
     data class Auth(val login: String, val password: String)
 
+    /**
+     * TCP-соединение через HTTP-прокси с использованием метода CONNECT.
+     * Поддерживает опциональную Basic-аутентификацию.
+     */
     class HttpProxy(
         private val selector: SelectorManager,
         private val host: String,
@@ -101,6 +162,38 @@ interface TcpConnectProvider {
 
                 else -> ConnectResult.Error("Invalid response code: $code")
             }
+        }
+    }
+
+    class ByRule(val rules: List<Rule>) : TcpConnectProvider {
+        private val logger = KotlinLogging.logger {}
+
+        sealed interface Rule {
+            val provider: TcpConnectProvider
+            fun canConnect(host: String, port: Int): Boolean
+
+            class ByDomain(val host: String, override val provider: TcpConnectProvider) : Rule {
+                override fun canConnect(host: String, port: Int): Boolean =
+                    StringUtils.wildcardMatch(string = host, wildcard = this.host)
+
+            }
+
+            class Always(override val provider: TcpConnectProvider) : Rule {
+                override fun canConnect(host: String, port: Int): Boolean = true
+            }
+        }
+
+        override suspend fun connect(host: String, port: Int): ConnectResult {
+
+            rules.forEach { rule ->
+                if (rule.canConnect(host, port)) {
+                    logger.info { "Use rule ${rule::class.simpleName} for connect to $host:$port" }
+                    val result = rule.provider.connect(host, port)
+                    logger.info { "Connect result: $result" }
+                    return result
+                }
+            }
+            return ConnectResult.Unreachable
         }
     }
 }

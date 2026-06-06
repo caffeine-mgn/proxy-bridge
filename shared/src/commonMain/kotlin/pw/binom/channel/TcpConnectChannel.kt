@@ -22,38 +22,39 @@ class TcpConnectChannel(
     val tcpConnectProvider: TcpConnectProvider,
 ) : ChannelHandler {
     companion object {
+        private val logger = KotlinLogging.logger { }
         const val ID: Byte = 1
         val module = module {
             single { TcpConnectChannel(get(), get(), get()) } bind ChannelHandler::class
+        }
+
+        suspend fun connect(
+            channel: DuplexChannel,
+            host: String,
+            port: Int,
+        ): DuplexChannel? {
+            val b = Buffer()
+            b.writeByte(ID)
+            b.lebString(host)
+            b.lebInt(port)
+            println("SEND CONNECT $host:$port")
+            channel.send(b)
+            val buffer = channel.receive()
+            val ok = buffer.readByte()
+            println("OK CONNECT: $ok")
+            return if (ok == 0.toByte()) {
+                val error = buffer.readString()
+                val stacktrace = buffer.readString()
+                logger.info { "Can't connect to \"$host:$port\":$error\n$stacktrace" }
+                null
+            } else {
+                channel
+            }
         }
     }
 
     private val logger = KotlinLogging.logger { }
 
-
-    suspend fun connect(
-        host: String,
-        port: Int,
-    ): DuplexChannel? {
-        val channel = multiplexer.createChannel()
-        val b = Buffer()
-        b.writeByte(ID)
-        b.lebString(host)
-        b.lebInt(port)
-        println("SEND CONNECT $host:$port")
-        channel.send(b)
-        val buffer = channel.receive()
-        val ok = buffer.readByte()
-        println("OK CONNECT: $ok")
-        return if (ok == 0.toByte()) {
-            val error = buffer.readString()
-            val stacktrace = buffer.readString()
-            logger.info { "Can't connect to \"$host:$port\":$error\n$stacktrace" }
-            null
-        } else {
-            channel
-        }
-    }
 
     override val id: Byte
         get() = ID

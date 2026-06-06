@@ -147,11 +147,12 @@ class HttpProxy(
                 write.httpResponse(HttpStatusCode.NotFound)
             } else {
                 try {
-                    write.flush()
+                    write.flushAndClose()
                 } catch (e: Throwable) {
                     logger.warn(e) { "Can't flush response" }
                 }
             }
+            client.close()
             return
         }
         var called1 = false

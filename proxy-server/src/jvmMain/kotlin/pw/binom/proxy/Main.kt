@@ -73,9 +73,9 @@ object MainJvm {
 //                comSerialKoinModule(
 //                    serialName = lazyOf("/dev/ttyGS0")
 //                ),
-                module {
-                    single { TcpConnectProvider.Direct(get()) } bind TcpConnectProvider::class
-                },
+//                module {
+//                    single { TcpConnectProvider.Direct(get()) } bind TcpConnectProvider::class
+//                },
                 SelectorManagerKoinModule,
 //                module {
 //                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))

@@ -1,45 +1,84 @@
 package pw.binom.properties
 
+import io.ktor.network.selector.SelectorManager
+import org.koin.core.module.Module
+import org.koin.dsl.bind
 import org.koin.dsl.binds
 import org.koin.dsl.module
 import org.koin.dsl.onClose
+import pw.binom.TcpConnectProvider
 import pw.binom.channel.ChannelSelector
 import pw.binom.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.proxy.Socks5Server
+import pw.binom.services.TcpConnectService
 
 object ConfigModule {
     fun createModule(config: Configuration) =
         module(createdAtStart = true) {
             single { ChannelSelector() }
+            single { TcpConnectService(config.trafficRoute) }.bind(TcpConnectProvider::class)
             when (config.income) {
-                is Configuration.Income.Com -> single {
+                is Configuration.Income.Com -> single(createdAtStart = true) {
                     SerialIncomeService(
                         serialName = config.income.port,
                         baudRate = config.income.speed,
                         channelSelector = get(),
                         idOdd = true,
+                        name = ""
                     )
                 }
                     .onClose { it?.close() }
                     .binds(arrayOf(Multiplexer::class, IncomeService::class))
 
-                null -> {}
-            }
-            when (config.outcome) {
-                is Configuration.Income.Com -> single {
-                    SerialIncomeService(
-                        serialName = config.outcome.port,
-                        baudRate = config.outcome.speed,
+                is Configuration.Income.Tcp -> single(createdAtStart = true) {
+                    TcpIncomeService(
+                        port = config.income.port,
+                        host = config.income.bind,
                         channelSelector = get(),
-                        idOdd = false,
+                        selectorManager = get(),
                     )
                 }
                     .onClose { it?.close() }
-                    .binds(arrayOf(Multiplexer::class, IncomeService::class))
+                    .binds(arrayOf(IncomeService::class))
 
                 null -> {}
             }
+            config.outcomes?.forEach { (outcomeName, outcome) ->
+                when (outcome) {
+                    is Configuration.Outcome.Com -> single {
+                        SerialIncomeService(
+                            serialName = outcome.port,
+                            baudRate = outcome.speed,
+                            channelSelector = get(),
+                            idOdd = false,
+                            name = outcomeName
+                        )
+                    }
+                        .onClose { it?.close() }
+                        .binds(arrayOf(Multiplexer::class, OutcomeService::class))
+
+                    is Configuration.Outcome.Tcp -> single {
+                        TcpOutcomeService(
+                            port = outcome.port,
+                            host = outcome.host,
+                            channelSelector = get(),
+                            selectorManager = get(),
+                            name = outcomeName,
+                        )
+                    }
+                        .onClose { it?.close() }
+                        .binds(arrayOf(Multiplexer::class, OutcomeService::class))
+
+                    is Configuration.Outcome.Wrapper -> single {
+                        OutcomeWrapperService(
+                            name = outcomeName,
+                            outcome = outcome.outcome,
+                        )
+                    }
+                }
+            }
+
             config.proxies.forEach { proxy ->
                 when (proxy.type) {
                     Configuration.ProxyType.HTTP -> single {

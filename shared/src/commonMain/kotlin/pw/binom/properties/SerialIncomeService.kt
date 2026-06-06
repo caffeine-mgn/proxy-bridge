@@ -17,7 +17,8 @@ class SerialIncomeService(
     private val baudRate: Int,
     private val channelSelector: ChannelSelector,
     val idOdd: Boolean,
-) : IncomeService, Multiplexer, ConnectionAcceptor {
+    override val name: String,
+) : IncomeService, Multiplexer, ConnectionAcceptor, OutcomeService {
     private val acc = SerialConnectionAcceptor(
         serialName = serialName,
         baudRate = baudRate,
