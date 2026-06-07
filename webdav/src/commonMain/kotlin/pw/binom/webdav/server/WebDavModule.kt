@@ -16,7 +16,16 @@ fun Application.webDavModule(
 ) {
     routing {
         route(basePath) {
-            options {
+            installWebDavHandlers(fileSystem, basePath)
+            route("{...}") {
+                installWebDavHandlers(fileSystem, basePath)
+            }
+        }
+    }
+}
+
+private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: String) {
+    options {
                 call.response.headers.append("DAV", "1,2")
                 call.response.headers.append(
                     "Allow",
@@ -164,12 +173,12 @@ fun Application.webDavModule(
                 }
             }
         }
-    }
-}
 
 private fun resolvePath(call: RoutingCall, basePath: String): Path {
-    val raw = call.request.path().removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
-    return Path(raw)
+    val fullPath = call.request.path()
+    val raw = fullPath.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
+    val relative = raw.removePrefix("/")
+    return if (relative.isEmpty()) Path(".") else Path(relative)
 }
 
 private fun generateETag(metadata: pw.binom.webdav.fs.FileMetadata): String {
@@ -302,7 +311,8 @@ private suspend fun handleMoveCopy(
 
     val destUri = java.net.URI.create(destHeader)
     val destRaw = destUri.path.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
-    val destPath = Path(destRaw)
+    val destRelative = destRaw.removePrefix("/")
+    val destPath = if (destRelative.isEmpty()) Path(".") else Path(destRelative)
 
     val overwrite = call.request.headers["Overwrite"]?.lowercase() != "f"
     val destExists = fileSystem.getMetadata(destPath).isSuccess

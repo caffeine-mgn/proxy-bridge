@@ -15,22 +15,26 @@ class LocalFileSystem(
 
     private fun resolve(path: Path): Path {
         return if (path.isAbsolute) {
-            SystemFileSystem.resolve(path)
+            path
         } else {
-            SystemFileSystem.resolve(Path(root, path.toString()))
+            Path(root, path.toString())
         }
     }
 
     override suspend fun list(path: Path): Result<List<FileMetadata>> = runCatching {
         val resolved = resolve(path)
         SystemFileSystem.list(resolved).map { child ->
-            toMetadata(child)
+            val meta = SystemFileSystem.metadataOrNull(child)
+                ?: return@map toMetadata(child, kotlinx.io.files.FileMetadata())
+            toMetadata(child, meta)
         }
     }
 
     override suspend fun getMetadata(path: Path): Result<FileMetadata> = runCatching {
         val resolved = resolve(path)
-        toMetadata(resolved)
+        val meta = SystemFileSystem.metadataOrNull(resolved)
+            ?: error("File not found: $resolved")
+        toMetadata(resolved, meta)
     }
 
     override suspend fun readFile(path: Path, range: LongRange?): Result<ByteArray> = runCatching {
@@ -50,10 +54,19 @@ class LocalFileSystem(
         if (!overwrite && SystemFileSystem.exists(resolved)) {
             error("File already exists: $resolved")
         }
+        val parent = resolved.parent
+        if (parent != null) {
+            SystemFileSystem.createDirectories(parent)
+        }
         val buf = Buffer()
-        buf.write(content, 0, content.size)
+        if (content.isNotEmpty()) {
+            buf.write(content, 0, content.size)
+        }
         SystemFileSystem.sink(resolved).use { sink ->
-            sink.write(buf, buf.size)
+            if (buf.size > 0) {
+                sink.write(buf, buf.size)
+            }
+            sink.flush()
         }
     }
 
@@ -81,17 +94,7 @@ class LocalFileSystem(
         CopyOrMoveResult(success = true)
     }
 
-    private fun toMetadata(path: Path): FileMetadata {
-        val meta = SystemFileSystem.metadataOrNull(path)
-        if (meta == null) {
-            return FileMetadata(
-                path = path,
-                isDirectory = false,
-                isRegularFile = false,
-                size = 0,
-                lastModified = 0,
-            )
-        }
+    private fun toMetadata(path: Path, meta: kotlinx.io.files.FileMetadata): FileMetadata {
         return FileMetadata(
             path = path,
             isDirectory = meta.isDirectory,
