@@ -7,7 +7,7 @@ import pw.binom.webdav.fs.WebDavFileSystem
 
 private data class ResolvedMount(
     val fs: WebDavFileSystem,
-    val relativePath: Path,
+    val relativePath: String,
 )
 
 class MountedFileSystem : WebDavFileSystem {
@@ -29,52 +29,50 @@ class MountedFileSystem : WebDavFileSystem {
         val pathStr = path.toString().removePrefix("/").removeSuffix("/")
         val normalized = if (pathStr == ".") "" else pathStr
 
-        val best = mounts.maxByOrNull { (mountPath, _) ->
-            when {
-                mountPath.isEmpty() -> if (normalized.isEmpty()) 0 else -1
-                normalized == mountPath -> mountPath.length
-                normalized.startsWith("$mountPath/") -> mountPath.length
-                else -> -1
-            }
-        } ?: return null
+        val matching = mounts.filter { (mountPath, _) ->
+            mountPath.isEmpty() || normalized == mountPath || normalized.startsWith("$mountPath/")
+        }
+
+        val best = matching.maxByOrNull { it.first.length } ?: return null
 
         val (mountPath, mountedFs) = best
         val relative = when {
-            mountPath.isEmpty() -> "/"
-            normalized == mountPath -> "/"
-            else -> "/" + normalized.removePrefix("$mountPath/")
+            mountPath.isEmpty() && normalized.isEmpty() -> "."
+            mountPath.isEmpty() -> normalized
+            normalized == mountPath -> "."
+            else -> normalized.removePrefix("$mountPath/")
         }
-        return ResolvedMount(mountedFs, Path(relative))
+        return ResolvedMount(mountedFs, relative)
     }
 
     override suspend fun list(path: Path): Result<List<FileMetadata>> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.list(r.relativePath)
+        return r.fs.list(Path(r.relativePath))
     }
 
     override suspend fun getMetadata(path: Path): Result<FileMetadata> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.getMetadata(r.relativePath)
+        return r.fs.getMetadata(Path(r.relativePath))
     }
 
     override suspend fun readFile(path: Path, range: LongRange?): Result<ByteArray> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.readFile(r.relativePath, range)
+        return r.fs.readFile(Path(r.relativePath), range)
     }
 
     override suspend fun writeFile(path: Path, content: ByteArray, overwrite: Boolean): Result<Unit> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.writeFile(r.relativePath, content, overwrite)
+        return r.fs.writeFile(Path(r.relativePath), content, overwrite)
     }
 
     override suspend fun createDirectory(path: Path): Result<Unit> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.createDirectory(r.relativePath)
+        return r.fs.createDirectory(Path(r.relativePath))
     }
 
     override suspend fun delete(path: Path): Result<Unit> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.delete(r.relativePath)
+        return r.fs.delete(Path(r.relativePath))
     }
 
     override suspend fun move(source: Path, destination: Path): Result<CopyOrMoveResult> {
@@ -82,7 +80,7 @@ class MountedFileSystem : WebDavFileSystem {
         val dst = resolve(destination) ?: return Result.failure(IllegalArgumentException("No mount for destination: $destination"))
 
         return if (src.fs === dst.fs) {
-            src.fs.move(src.relativePath, dst.relativePath)
+            src.fs.move(Path(src.relativePath), Path(dst.relativePath))
         } else {
             crossMountMove(src, dst)
         }
@@ -93,22 +91,22 @@ class MountedFileSystem : WebDavFileSystem {
         val dst = resolve(destination) ?: return Result.failure(IllegalArgumentException("No mount for destination: $destination"))
 
         return if (src.fs === dst.fs) {
-            src.fs.copy(src.relativePath, dst.relativePath)
+            src.fs.copy(Path(src.relativePath), Path(dst.relativePath))
         } else {
             crossMountCopy(src, dst)
         }
     }
 
     private suspend fun crossMountMove(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val data = src.fs.readFile(src.relativePath).getOrThrow()
-        dst.fs.writeFile(dst.relativePath, data, overwrite = true).getOrThrow()
-        src.fs.delete(src.relativePath).getOrThrow()
+        val data = src.fs.readFile(Path(src.relativePath)).getOrThrow()
+        dst.fs.writeFile(Path(dst.relativePath), data, overwrite = true).getOrThrow()
+        src.fs.delete(Path(src.relativePath)).getOrThrow()
         CopyOrMoveResult(success = true)
     }
 
     private suspend fun crossMountCopy(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val data = src.fs.readFile(src.relativePath).getOrThrow()
-        dst.fs.writeFile(dst.relativePath, data, overwrite = true).getOrThrow()
+        val data = src.fs.readFile(Path(src.relativePath)).getOrThrow()
+        dst.fs.writeFile(Path(dst.relativePath), data, overwrite = true).getOrThrow()
         CopyOrMoveResult(success = true)
     }
 }

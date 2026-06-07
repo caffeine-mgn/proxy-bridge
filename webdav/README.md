@@ -63,7 +63,7 @@ Ktor-плагин (extension function на `Routing`), который прини
 - **6.3. [x] Реализация методов `WebDavFileSystem`** — каждый метод ищет подходящий mount и делегирует вызов
 - **6.4. [x] Mount/unmount** — `mount(path, fs)` и `unmount(path)`
 - **6.5. [x] MOVE/COPY между разными mount'ами** — fallback через read+write+delete
-- **6.6. [ ] Тесты**
+- **6.6. [x] Тесты** — 10 юнит-тестов на резолвинг, делегирование, move/copy cross-mount, unmount
 
 ## Технический долг
 
