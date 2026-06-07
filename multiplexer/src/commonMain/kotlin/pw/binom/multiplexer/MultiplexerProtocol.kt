@@ -104,8 +104,12 @@ object MultiplexerProtocol {
                 val cmd = buffer.readByte()
                 when (cmd) {
                     DATA -> {
-                        val channelId = buffer.lebInt()
-                        handlerOnData.onData(channelId = channelId, data = buffer)
+                        try {
+                            val channelId = buffer.lebInt()
+                            handlerOnData.onData(channelId = channelId, data = buffer)
+                        } catch (e: Throwable) {
+                            logger.error(e) { "Error on reading data" }
+                        }
                     }
 
                     CHANNEL_CLOSE -> {
@@ -128,7 +132,7 @@ object MultiplexerProtocol {
                 }
             }
         } catch (e: Throwable) {
-            logger.error { "ERROR ${e.stackTraceToString()}" }
+            logger.error(e) { "READ FINISHED WITH ERROR!!!" }
         } finally {
             logger.info { "reading finished!" }
         }

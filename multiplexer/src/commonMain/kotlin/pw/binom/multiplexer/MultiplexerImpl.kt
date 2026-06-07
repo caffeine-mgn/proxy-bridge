@@ -61,6 +61,8 @@ class MultiplexerImpl(
                     logical = outcome,
                     physical = output,
                 )
+            } catch (e: Throwable){
+                logger.error(e) { "Error on channel $id copy finished!" }
             } finally {
                 val e = CancellationException("Closed by outcome channel closed")
                 outcome.close(e)
@@ -112,40 +114,42 @@ class MultiplexerImpl(
     }
 
     private val readJob = ioCoroutineScope.launch {
-        MultiplexerProtocol.reading(
-            physical = input,
-            handlerOnData = { channelId, data ->
-                val channel = activeChannelsLock.locking { activeChannels[channelId] }
-                if (channel == null) {
-                    MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
-                } else {
-                    try {
-                        channel.income.send(data)
-                    } catch (e: CancellationException) {
-                        //ignore
+        supervisorScope {
+            MultiplexerProtocol.reading(
+                physical = input,
+                handlerOnData = { channelId, data ->
+                    val channel = activeChannelsLock.locking { activeChannels[channelId] }
+                    if (channel == null) {
+                        MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
+                    } else {
+                        try {
+                            channel.income.send(data)
+                        } catch (e: CancellationException) {
+                            //ignore
+                        }
                     }
-                }
-            },
-            channelClosed = { channelId ->
-                logger.info { "Income message for close channel $channelId" }
-                val channel = activeChannelsLock.locking {
-                    activeChannels.remove(channelId)
-                }
-                logger.info { "found channel $channel" }
-                channel?.close()
-            },
-            requestChannel = { channelId ->
-                incomeChannels.send(channelId)
-            },
-            newChannelAccepted = { channelId ->
-                val water = pendingChannelsLock.locking { pendingChannels.remove(channelId) }
-                if (water == null) {
-                    MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
-                } else {
-                    water.resume(Unit)
-                }
-            },
-        )
+                },
+                channelClosed = { channelId ->
+                    logger.info { "Income message for close channel $channelId" }
+                    val channel = activeChannelsLock.locking {
+                        activeChannels.remove(channelId)
+                    }
+                    logger.info { "found channel $channel" }
+                    channel?.close()
+                },
+                requestChannel = { channelId ->
+                    incomeChannels.send(channelId)
+                },
+                newChannelAccepted = { channelId ->
+                    val water = pendingChannelsLock.locking { pendingChannels.remove(channelId) }
+                    if (water == null) {
+                        MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
+                    } else {
+                        water.resume(Unit)
+                    }
+                },
+            )
+        }
     }
 
     override fun close() {

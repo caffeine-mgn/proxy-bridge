@@ -42,25 +42,29 @@ suspend fun connect(
     b: ReceiveChannel<Buffer>,
 ) {
     coroutineScope {
-        listOf(
-            launch(Dispatchers.IO) {
-                try {
-                    income.consumeEach { buffer ->
-                        a.send(buffer)
+        try {
+            listOf(
+                launch(Dispatchers.IO) {
+                    try {
+                        income.consumeEach { buffer ->
+                            a.send(buffer)
+                        }
+                    } finally {
+                        a.close()
                     }
-                } finally {
-                    a.close()
-                }
-            },
-            launch(Dispatchers.IO) {
-                try {
-                    b.consumeEach { buffer ->
-                        outcome.send(buffer)
+                },
+                launch(Dispatchers.IO) {
+                    try {
+                        b.consumeEach { buffer ->
+                            outcome.send(buffer)
+                        }
+                    } finally {
+                        outcome.close()
                     }
-                } finally {
-                    outcome.close()
-                }
-            }).joinAll()
+                }).joinAll()
+        } catch (e: Throwable) {
+            println("ERROR ON CONNECT method: ${e.message}")
+        }
     }
 }
 
@@ -72,21 +76,25 @@ suspend fun connect(
     b: ByteReadChannel,
 ) {
     coroutineScope {
-        listOf(
-            launch(Dispatchers.IO) {
-                try {
-                    income.copyTo(a)
-                } finally {
-                    a.flushAndClose()
-                }
-            },
-            launch(Dispatchers.IO) {
-                try {
-                    b.copyTo(outcome)
-                } finally {
-                    outcome.flushAndClose()
-                }
-            }).joinAll()
+        try {
+            listOf(
+                launch(Dispatchers.IO) {
+                    try {
+                        income.copyTo(a)
+                    } finally {
+                        a.flushAndClose()
+                    }
+                },
+                launch(Dispatchers.IO) {
+                    try {
+                        b.copyTo(outcome)
+                    } finally {
+                        outcome.flushAndClose()
+                    }
+                }).joinAll()
+        } catch (e: Throwable) {
+            println("ERROR ON CONNECT method: ${e.message}")
+        }
     }
 }
 
@@ -98,36 +106,40 @@ suspend fun connect(
     b: ByteReadChannel,
 ) {
     coroutineScope {
-        listOf(
-            launch(Dispatchers.IO) {
-                try {
-                    income.consumeEach { buffer ->
-                        a.writePacket(buffer)
-                        a.flush()
+        try {
+            listOf(
+                launch(Dispatchers.IO) {
+                    try {
+                        income.consumeEach { buffer ->
+                            a.writePacket(buffer)
+                            a.flush()
+                        }
+                    } finally {
+                        a.flushAndClose()
                     }
-                } finally {
-                    a.flushAndClose()
-                }
-            },
-            launch(Dispatchers.IO) {
-                try {
-                    while (isActive) {
-                        val buffer = Buffer()
-                        if (b.readBuffer.exhausted()) {
-                            val success = b.awaitContent(min = 1)
-                            if (!success) {
-                                break
+                },
+                launch(Dispatchers.IO) {
+                    try {
+                        while (isActive) {
+                            val buffer = Buffer()
+                            if (b.readBuffer.exhausted()) {
+                                val success = b.awaitContent(min = 1)
+                                if (!success) {
+                                    break
+                                }
+                            }
+                            val wasRead = b.readBuffer.copyTo(buffer)
+                            if (wasRead > 0) {
+                                outcome.send(buffer)
                             }
                         }
-                        val wasRead = b.readBuffer.copyTo(buffer)
-                        if (wasRead > 0) {
-                            outcome.send(buffer)
-                        }
+                    } finally {
+                        outcome.close()
                     }
-                } finally {
-                    outcome.close()
-                }
-            }).joinAll()
+                }).joinAll()
+        } catch (e: Throwable) {
+            println("ERROR ON CONNECT method: ${e.message}")
+        }
     }
 }
 

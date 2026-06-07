@@ -2,6 +2,7 @@ package pw.binom.com
 
 import com.fazecast.jSerialComm.SerialPort
 import io.ktor.utils.io.CancellationException
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -40,7 +41,7 @@ class SerialConnection(
             val outputStream = RawSinkSerialPort(port).buffered()
             val inputStream = RawSourceSerialPort(port).buffered()
 
-            val writeJob = CoroutineScope(Dispatchers.IO).launch {
+            val writeJob = CoroutineScope(Dispatchers.IO).launch(CoroutineName("Serial WRITE CHANNEL")) {
                 try {
                     output.consumeEach { buffer ->
                         outputStream.lebULong(buffer.size.toULong())
@@ -51,23 +52,29 @@ class SerialConnection(
                     // do nothing
                 } catch (e: Throwable) {
                     println("SerialConnection::writing error: ${e.stackTraceToString()}")
+                } finally {
+                    println("Serial WRITE CHANNEL FINISHED!")
                 }
             }
-            val readJob = CoroutineScope(Dispatchers.IO).launch {
-                while (isActive) {
-                    try {
-                        val size = inputStream.lebULong()
-                        val buffer = Buffer()
-                        inputStream.readFully(buffer, size.toLong())
-                        input.send(buffer)
-                    } catch (e: CancellationException) {
-                        // do nothing
-                    } catch (_: EOFException) {
-                        input.close()
-                        break
-                    } catch (e: Throwable) {
-                        println("SerialConnection::reading error: ${e.stackTraceToString()}")
+            val readJob = CoroutineScope(Dispatchers.IO).launch(CoroutineName("Serial READ CHANNEL")) {
+                try {
+                    while (isActive) {
+                        try {
+                            val size = inputStream.lebULong()
+                            val buffer = Buffer()
+                            inputStream.readFully(buffer, size.toLong())
+                            input.send(buffer)
+                        } catch (e: CancellationException) {
+                            // do nothing
+                        } catch (_: EOFException) {
+                            input.close()
+                            break
+                        } catch (e: Throwable) {
+                            println("SerialConnection::reading error: ${e.stackTraceToString()}")
+                        }
                     }
+                } finally {
+                    println("Serial READ CHANNEL FINISHED!")
                 }
             }
             return SerialConnection(

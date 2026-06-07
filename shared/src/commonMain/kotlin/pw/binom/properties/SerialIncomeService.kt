@@ -1,5 +1,6 @@
 package pw.binom.properties
 
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -28,7 +29,7 @@ class SerialIncomeService(
 
     private var currentMultiplexer: Multiplexer? = null
 
-    private val job = CoroutineScope(Dispatchers.IO).launch {
+    private val job = CoroutineScope(Dispatchers.IO + CoroutineName("Serial Main")).launch {
         while (isActive) {
             acc.connection().use { rawChannel ->
                 MultiplexerImpl(
@@ -40,13 +41,14 @@ class SerialIncomeService(
                         currentMultiplexer = multiplexer
                         while (isActive) {
                             val con = multiplexer.accept()
-                            CoroutineScope(Dispatchers.IO).launch(CurrentMultiplexer(multiplexer)) {
-                                con.use { channel ->
-                                    channelSelector.processing(
-                                        connection = channel,
-                                    )
+                            CoroutineScope(Dispatchers.IO)
+                                .launch(CurrentMultiplexer(multiplexer)+CoroutineName("Serial Main Processing")) {
+                                    con.use { channel ->
+                                        channelSelector.processing(
+                                            connection = channel,
+                                        )
+                                    }
                                 }
-                            }
                         }
                     } finally {
                         currentMultiplexer = null

@@ -45,7 +45,8 @@ class TcpConnectChannel(
             return if (ok == 0.toByte()) {
                 val error = buffer.readString()
                 val stacktrace = buffer.readString()
-                logger.info { "Can't connect to \"$host:$port\":$error\n$stacktrace" }
+//                logger.info { "Can't connect to \"$host:$port\":$error\n$stacktrace" }
+                logger.info { "Can't connect to \"$host:$port\":$error" }
                 null
             } else {
                 channel
