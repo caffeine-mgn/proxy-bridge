@@ -52,27 +52,18 @@ Ktor-плагин (extension function на `Routing`), который прини
 - Unit-тесты для LocalFileSystem (создание/удаление/чтение/запись файлов во временной директории) — 8 тестов
 - Интеграционные тесты для Ktor модуля (запуск тестового сервера на Netty, HTTP-запросы WebDAV методов) — 11 тестов
 
-### 6. [ ] MountedFileSystem — агрегирующая ФС (`pw.binom.webdav.fs.mounted`)
+### 6. [x] MountedFileSystem — агрегирующая ФС (`pw.binom.webdav.fs.mounted`)
 
 Реализация `WebDavFileSystem`, которая умеет объединять несколько других `WebDavFileSystem`,
 монтируя их в разные точки пути.
 
-```
-val mounted = MountedFileSystem().apply {
-    mount("/", localFs)        // default — всё что не подошло
-    mount("/remote", remoteFs) // /remote/... → remoteFs
-    mount("/home/user", usbFs) // /home/user/... → usbFs, приоритетнее /home
-}
-```
-
 Подзадачи:
-
-- **6.1. Mount entry** — модель данных: точка монтирования (путь) + экземпляр `WebDavFileSystem`
-- **6.2. Резолвинг** — по произвольному пути найти наиболее специфичную точку монтирования и вычислить относительный путь для делегирования. `/remote/test/file.txt` смонтирован на `/remote` → делегировать `fs.getMetadata("/test/file.txt")`.
-- **6.3. Реализация методов `WebDavFileSystem`** — каждый метод ищет подходящий mount и делегирует вызов. Если mount не найден — `Result.failure`.
-- **6.4. Mount/unmount** — `mount(path, fs)` и `unmount(path)`.
-- **6.5. MOVE/COPY между разными mount'ами** — если source и destination в разных mount'ах, fallback через read+write+delete. Если в одном — прямой вызов.
-- **6.6. Тесты** — юнит-тесты на резолвинг, делегирование, move/copy cross-mount, unmount.
+- **6.1. [x] Mount entry** — модель данных: точка монтирования (путь) + экземпляр `WebDavFileSystem`
+- **6.2. [x] Резолвинг** — по произвольному пути найти наиболее специфичную точку монтирования и вычислить относительный путь для делегирования
+- **6.3. [x] Реализация методов `WebDavFileSystem`** — каждый метод ищет подходящий mount и делегирует вызов
+- **6.4. [x] Mount/unmount** — `mount(path, fs)` и `unmount(path)`
+- **6.5. [x] MOVE/COPY между разными mount'ами** — fallback через read+write+delete
+- **6.6. [ ] Тесты**
 
 ## Технический долг
 
