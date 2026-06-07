@@ -19,7 +19,7 @@
 - `getMetadata(path)` — размер, mtime, etag, isDirectory, isFile
 - `exists(path)` — проверка существования
 
-### 2. [ ] Реализовать LocalFileSystem (`pw.binom.webdav.fs.local`)
+### 2. [x] Реализовать LocalFileSystem (`pw.binom.webdav.fs.local`)
 
 Имплементация FS Interface через `kotlinx.io.files.SystemFileSystem`.
 
