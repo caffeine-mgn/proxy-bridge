@@ -18,32 +18,33 @@ object ConfigModule {
         module(createdAtStart = true) {
             single { ChannelSelector() }
             single { TcpConnectService(config.trafficRoute) }.bind(TcpConnectProvider::class)
-            when (config.income) {
-                is Configuration.Income.Com -> single(createdAtStart = true) {
-                    SerialIncomeService(
-                        serialName = config.income.port,
-                        baudRate = config.income.speed,
-                        channelSelector = get(),
-                        idOdd = true,
-                        name = ""
-                    )
-                }
-                    .onClose { it?.close() }
-                    .binds(arrayOf(Multiplexer::class, IncomeService::class))
+            config.incomes.forEach {income->
+                when (income) {
+                    is Configuration.Income.Com -> single(createdAtStart = true) {
+                        SerialIncomeService(
+                            serialName = income.port,
+                            baudRate = income.speed,
+                            channelSelector = get(),
+                            idOdd = true,
+                            name = ""
+                        )
+                    }
+                        .onClose { it?.close() }
+                        .binds(arrayOf(Multiplexer::class, IncomeService::class))
 
-                is Configuration.Income.Tcp -> single(createdAtStart = true) {
-                    TcpIncomeService(
-                        port = config.income.port,
-                        host = config.income.bind,
-                        channelSelector = get(),
-                        selectorManager = get(),
-                    )
+                    is Configuration.Income.Tcp -> single(createdAtStart = true) {
+                        TcpIncomeService(
+                            port = income.port,
+                            host = income.bind,
+                            channelSelector = get(),
+                            selectorManager = get(),
+                        )
+                    }
+                        .onClose { it?.close() }
+                        .binds(arrayOf(IncomeService::class))
                 }
-                    .onClose { it?.close() }
-                    .binds(arrayOf(IncomeService::class))
-
-                null -> {}
             }
+
             config.outcomes?.forEach { (outcomeName, outcome) ->
                 when (outcome) {
                     is Configuration.Outcome.Com -> single {

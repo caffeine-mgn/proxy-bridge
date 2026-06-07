@@ -13,7 +13,7 @@ data class Configuration(
     /**
      * Список подключений, для ожидания подключения
      */
-    val income: Income? = null,
+    val incomes: List<Income> = emptyList(),
 
     /**
      * Список подключений для перенаправления запроса

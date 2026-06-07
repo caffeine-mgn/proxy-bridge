@@ -86,6 +86,7 @@ tasks.named<Jar>("jvmJar") {
 
 tasks {
     val jvmJar by getting(Jar::class)
+
     val copyToRaspberry by registering {
         dependsOn(jvmJar)
         inputs.file(jvmJar.archiveFile)
@@ -108,6 +109,28 @@ tasks {
                             "into" to "/opt/proxy"
                         )
                     )
+                })
+            })
+        }
+    }
+
+    val copyToWorkPc by registering {
+        dependsOn(copyToRaspberry)
+//        inputs.files(copyToRaspberry.get().outputs.files)
+        doLast {
+            val remote = Remote(
+                hashMapOf<String, Any?>(
+                    "host" to "192.168.76.108",
+                    "user" to "root",
+                    "port" to 22,
+                    "identity" to File("/home/subochev/.ssh/id_rsa"),
+                    "knownHosts" to AllowAnyHosts.instance
+                )
+            )
+            val ssh = Ssh.newService()
+            ssh.run(delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
+                session(remote, delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
+                    execute(listOf("/usr/bin/java","-jar","/opt/uploader/file-upload-service-jvm.jar","-p","/dev/ttyGS0", "-f", "/opt/proxy/proxy-server-jvm.jar"))
                 })
             })
         }
