@@ -8,7 +8,7 @@ data class Configuration(
     /**
      * Список проксей, которые нужно поднять и принимать подключение
      */
-    val proxies: List<ProxyConfig> = emptyList(),
+    val services: List<Service> = emptyList(),
 
     /**
      * Список подключений, для ожидания подключения
@@ -24,7 +24,6 @@ data class Configuration(
      * Настройка имен
      */
     val hostConfig: List<HostConfig> = emptyList(),
-    val services: Set<Service> = emptySet(),
     val tcpForwarding: List<SocketForwarding> = emptyList(),
     val trafficRoute: List<TrafficRoute> = emptyList(),
 ) {
@@ -58,15 +57,6 @@ data class Configuration(
 //        @Serializable
 //        @SerialName("ws")
 //        data class WebSocket(val bind: String = "0.0.0.0", val port: String, val endpoint: String = "/ws") : Income
-    }
-
-    @Serializable
-    sealed interface Service {
-        @Serializable
-        @SerialName("tcp-connect")
-        data class TcpConnect(
-            val hosts: List<HostConfig> = listOf(HostConfig(hosts = setOf("*"), filterMode = FilterMode.INCLUDE)),
-        ) : Service
     }
 
     @Serializable
@@ -116,14 +106,22 @@ data class Configuration(
     )
 
     @Serializable
-    data class ProxyConfig(val type: ProxyType, val bind: String = "0.0.0.0", val port: Int = 8080)
+    sealed interface Service {
+        @Serializable
+        @SerialName("http-proxy")
+        data class HttpProxy(val bind: String = "0.0.0.0", val port: Int = 8080) : Service
 
-    @Serializable
-    enum class ProxyType {
-        @SerialName("http")
-        HTTP,
+        @Serializable
+        @SerialName("socks5-proxy")
+        data class Socks5(val bind: String = "0.0.0.0", val port: Int = 1080) : Service
 
-        @SerialName("sock5")
-        SOCKS5,
+        @Serializable
+        @SerialName("tcp-port-forward")
+        data class TcpPortForward(
+            val bind: String = "0.0.0.0",
+            val localPort: Int = 1080,
+            val remotePort: Int,
+            val remoteHost: String,
+        ) : Service
     }
 }

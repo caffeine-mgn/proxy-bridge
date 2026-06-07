@@ -11,6 +11,7 @@ import pw.binom.channel.ChannelSelector
 import pw.binom.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.proxy.Socks5Server
+import pw.binom.services.PortForwardingService
 import pw.binom.services.TcpConnectService
 
 object ConfigModule {
@@ -18,7 +19,7 @@ object ConfigModule {
         module(createdAtStart = true) {
             single { ChannelSelector() }
             single { TcpConnectService(config.trafficRoute) }.bind(TcpConnectProvider::class)
-            config.incomes.forEach {income->
+            config.incomes.forEach { income ->
                 when (income) {
                     is Configuration.Income.Com -> single(createdAtStart = true) {
                         SerialIncomeService(
@@ -80,23 +81,34 @@ object ConfigModule {
                 }
             }
 
-            config.proxies.forEach { proxy ->
-                when (proxy.type) {
-                    Configuration.ProxyType.HTTP -> single {
+            config.services.forEach { service ->
+                when (service) {
+                    is Configuration.Service.HttpProxy -> single(createdAtStart = true) {
                         HttpProxy(
-                            port = proxy.port,
+                            port = service.port,
                             selector = get(),
                             onConnect = get(),
                         )
                     }.onClose { it?.close() }
 
-                    Configuration.ProxyType.SOCKS5 -> single {
+                    is Configuration.Service.Socks5 -> single(createdAtStart = true) {
                         Socks5Server(
-                            port = proxy.port,
+                            port = service.port,
                             selectorManager = get(),
                             authProvider = null,
                             onConnect = get(),
-                            bind = proxy.bind,
+                            bind = service.bind,
+                        )
+                    }.onClose { it?.close() }
+
+                    is Configuration.Service.TcpPortForward -> single(createdAtStart = true) {
+                        PortForwardingService(
+                            bindHost = service.bind,
+                            bindPort = service.localPort,
+                            remoteHost = service.remoteHost,
+                            remotePort = service.remotePort,
+                            tcpConnectProvider = get(),
+                            selectorManager = get(),
                         )
                     }.onClose { it?.close() }
                 }
