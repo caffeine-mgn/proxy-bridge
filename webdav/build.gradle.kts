@@ -34,6 +34,7 @@ kotlin {
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
                 api(libs.kotlinx.coroutines.test)
+                implementation(libs.ktor.server.test.host)
             }
         }
 

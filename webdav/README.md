@@ -25,7 +25,7 @@
 
 Без `java.io.File`, без JVM NIO2. Чистый kotlinx-io.
 
-### 3. [ ] Реализовать Ktor WebDAV Module (`pw.binom.webdav.server`)
+### 3. [x] Реализовать Ktor WebDAV Module (`pw.binom.webdav.server`)
 
 Ktor-плагин (extension function на `Routing`), который принимает FS Interface и обрабатывает WebDAV методы:
 
@@ -38,12 +38,14 @@ Ktor-плагин (extension function на `Routing`), который прини
 - **COPY** — копирование
 - **LOCK / UNLOCK** — блокировки (можно заглушку, т.к. многие клиенты требуют)
 
-### 4. [ ] Добавить зависимости в `build.gradle.kts`
+### 4. [x] Добавить зависимости в `build.gradle.kts`
 
-- `kotlinx-io` (уже есть в проекте, но в webdav не подключён)
-- `ktor-server-core` (уже есть)
-- `ktor-server-cio` или `ktor-server-netty` для запуска
-- `kotlinx-serialization-xml` — для формирования WebDAV XML ответов (PROPFIND)
+Модуль — библиотека, engine для запуска не нужен (предоставляется проектом-потребителем).
+
+Подключено:
+- `kotlinx-io-core` — для FS интерфейса и LocalFileSystem
+- `ktor-server-core` — для Ktor модуля
+- `ktor-server-test-host` — для интеграционных тестов
 
 ### 5. [ ] Написать тесты
 
