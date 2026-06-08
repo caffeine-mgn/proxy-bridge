@@ -8,12 +8,16 @@ data class FileMetadata(
     val isRegularFile: Boolean,
     val size: Long,
     val lastModified: Long,
-)
+) {
+    companion object;
+}
 
 data class CopyOrMoveResult(
     val success: Boolean,
     val errorMessage: String? = null,
-)
+) {
+    companion object;
+}
 
 interface WebDavFileSystem {
     suspend fun list(path: Path): Result<List<FileMetadata>>

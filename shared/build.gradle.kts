@@ -26,6 +26,7 @@ kotlin {
             api(kotlin("stdlib"))
             api(project(":multiplexer"))
             api(project(":com"))
+            api(project(":webdav"))
             api("com.fazecast:jSerialComm:2.11.0")
             api(libs.kotlinx.io.core)
             api(libs.koin.core)
