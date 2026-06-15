@@ -1,7 +1,6 @@
 package pw.binom.properties
 
-import io.ktor.network.selector.SelectorManager
-import org.koin.core.module.Module
+import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.binds
 import org.koin.dsl.module
@@ -101,7 +100,10 @@ object ConfigModule {
                         )
                     }.onClose { it?.close() }
 
-                    is Configuration.Service.TcpPortForward -> single(createdAtStart = true) {
+                    is Configuration.Service.TcpPortForward -> single(
+                        createdAtStart = true,
+                        qualifier = named("TcpPortForward ${service.bind}:${service.localPort}->${service.remoteHost}:${service.remotePort}")
+                    ) {
                         PortForwardingService(
                             bindHost = service.bind,
                             bindPort = service.localPort,

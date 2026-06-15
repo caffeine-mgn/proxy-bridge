@@ -7,6 +7,7 @@ import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import pw.binom.TcpConnectProvider
@@ -28,22 +29,25 @@ class PortForwardingService(
             logger.error(e) { "Can't bind to $bindHost:$bindPort" }
             return@launch
         }
+        logger.info { "Port forwarding started on $bindHost:$bindPort -> $remoteHost:$remotePort" }
         serverSocket.use { server ->
-            val newClient = server.accept()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val r = tcpConnectProvider.connect(remoteHost, remotePort)
-                    if (r !is TcpConnectProvider.ConnectResult.Success) {
-                        return@launch
+            while (isActive) {
+                val newClient = server.accept()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val r = tcpConnectProvider.connect(remoteHost, remotePort)
+                        if (r !is TcpConnectProvider.ConnectResult.Success) {
+                            return@launch
+                        }
+                        connect(
+                            outcome = r.writeChannel,
+                            income = r.readChannel,
+                            a = newClient.openWriteChannel(),
+                            b = newClient.openReadChannel(),
+                        )
+                    } catch (e: Throwable) {
+                        logger.info(e) { "Connection closed" }
                     }
-                    connect(
-                        outcome = r.writeChannel,
-                        income = r.readChannel,
-                        a = newClient.openWriteChannel(),
-                        b = newClient.openReadChannel(),
-                    )
-                } catch (e: Throwable) {
-                    logger.info(e) { "Connection closed" }
                 }
             }
         }

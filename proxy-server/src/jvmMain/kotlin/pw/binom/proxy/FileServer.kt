@@ -1,5 +1,5 @@
 package pw.binom.proxy
-
+/*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -71,3 +71,4 @@ class FileServer : KoinComponent, AutoCloseable {
         httpServer.stop()
     }
 }
+*/

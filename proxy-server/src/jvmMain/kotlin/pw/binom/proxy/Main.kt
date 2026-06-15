@@ -81,7 +81,7 @@ object MainJvm {
 //                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))
 //                },
                 module {
-                    single(createdAtStart = true) { FileServer() } onClose { it?.close() }
+//                    single(createdAtStart = true) { FileServer() } onClose { it?.close() }
                 },
                 module { single { TcpConnectChannel(get(), get(), get()) } },
                 module {
