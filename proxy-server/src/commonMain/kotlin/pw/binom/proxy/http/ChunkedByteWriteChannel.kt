@@ -1,7 +1,10 @@
-package pw.binom.http
+package pw.binom.proxy.http
 
-import io.ktor.utils.io.*
-import io.ktor.utils.io.core.*
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.InternalAPI
+import io.ktor.utils.io.core.toByteArray
+import io.ktor.utils.io.writeFully
+import io.ktor.utils.io.writeShort
 import kotlinx.io.Buffer
 import kotlinx.io.Sink
 
