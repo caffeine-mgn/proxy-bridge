@@ -1,4 +1,4 @@
-package pw.binom.properties
+package pw.binom.proxy.services
 
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.aSocket
@@ -9,10 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pw.binom.ByteChannelDuplexChannel
-import pw.binom.ConnectionAcceptor
 import pw.binom.channel.ChannelSelector
-import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.MultiplexerImpl
+import pw.binom.properties.CurrentMultiplexer
+import pw.binom.properties.IncomeService
 import kotlin.use
 
 class TcpIncomeService(

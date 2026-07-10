@@ -1,4 +1,4 @@
-package pw.binom.services
+package pw.binom.proxy.services
 
 import kotlinx.io.files.Path
 import pw.binom.webdav.fs.CopyOrMoveResult

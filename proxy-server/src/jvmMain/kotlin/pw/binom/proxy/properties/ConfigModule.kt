@@ -1,4 +1,4 @@
-package pw.binom.properties
+package pw.binom.proxy.properties
 
 import org.koin.core.qualifier.named
 import org.koin.dsl.bind
@@ -9,9 +9,16 @@ import pw.binom.TcpConnectProvider
 import pw.binom.channel.ChannelSelector
 import pw.binom.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
+import pw.binom.properties.Configuration
+import pw.binom.properties.IncomeService
+import pw.binom.properties.OutcomeService
+import pw.binom.properties.OutcomeWrapperService
 import pw.binom.proxy.Socks5Server
-import pw.binom.services.PortForwardingService
-import pw.binom.services.TcpConnectService
+import pw.binom.proxy.service.SerialIncomeService
+import pw.binom.proxy.services.PortForwardingService
+import pw.binom.proxy.services.TcpConnectService
+import pw.binom.proxy.services.TcpIncomeService
+import pw.binom.proxy.services.TcpOutcomeService
 
 object ConfigModule {
     fun createModule(config: Configuration) =

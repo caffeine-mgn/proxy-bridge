@@ -1,4 +1,4 @@
-package pw.binom.services
+package pw.binom.proxy.services
 
 import io.ktor.network.selector.SelectorManager
 import org.koin.core.component.KoinComponent

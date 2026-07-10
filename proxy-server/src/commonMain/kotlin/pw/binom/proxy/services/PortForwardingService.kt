@@ -1,4 +1,4 @@
-package pw.binom.services
+package pw.binom.proxy.services
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager

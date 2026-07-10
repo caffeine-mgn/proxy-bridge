@@ -1,4 +1,4 @@
-package pw.binom.properties
+package pw.binom.proxy.services
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
@@ -15,6 +15,8 @@ import pw.binom.channel.ChannelSelector
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
+import pw.binom.properties.CurrentMultiplexer
+import pw.binom.properties.OutcomeService
 import java.lang.AutoCloseable
 import kotlin.time.Duration.Companion.seconds
 import kotlin.use

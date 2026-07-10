@@ -1,4 +1,4 @@
-package pw.binom.properties
+package pw.binom.proxy.service
 
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -11,7 +11,9 @@ import pw.binom.com.SerialConnectionAcceptor
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
-import kotlin.use
+import pw.binom.properties.CurrentMultiplexer
+import pw.binom.properties.IncomeService
+import pw.binom.properties.OutcomeService
 
 class SerialIncomeService(
     private val serialName: String,
@@ -42,7 +44,7 @@ class SerialIncomeService(
                         while (isActive) {
                             val con = multiplexer.accept()
                             CoroutineScope(Dispatchers.IO)
-                                .launch(CurrentMultiplexer(multiplexer)+CoroutineName("Serial Main Processing")) {
+                                .launch(CurrentMultiplexer(multiplexer) + CoroutineName("Serial Main Processing")) {
                                     con.use { channel ->
                                         channelSelector.processing(
                                             connection = channel,
