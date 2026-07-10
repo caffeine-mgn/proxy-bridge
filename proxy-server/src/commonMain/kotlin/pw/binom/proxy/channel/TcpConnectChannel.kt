@@ -1,17 +1,16 @@
-package pw.binom.channel
+package pw.binom.proxy.channel
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
+import io.ktor.network.selector.SelectorManager
 import kotlinx.io.Buffer
 import kotlinx.io.readString
 import kotlinx.io.writeString
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import pw.binom.TcpConnectProvider
+import pw.binom.proxy.services.TcpConnectProvider
+import pw.binom.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
-import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.multiplexer.lebInt
 import pw.binom.multiplexer.lebString
 import pw.binom.utils.send

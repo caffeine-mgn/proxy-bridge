@@ -1,13 +1,7 @@
 package pw.binom.proxy
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.utils.io.cancel
-import io.ktor.utils.io.close
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
-import pw.binom.TcpConnectProvider
-import pw.binom.channel.TcpConnectChannel
-import kotlin.time.Duration.Companion.seconds
+import pw.binom.proxy.services.TcpConnectProvider
 
 class ConnectProcessingImpl(
     private val tcpConnectProvider: TcpConnectProvider,

@@ -1,4 +1,4 @@
-package pw.binom
+package pw.binom.proxy.services
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
@@ -9,12 +9,11 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readLine
 import io.ktor.utils.io.writeByteArray
-import pw.binom.channel.TcpConnectChannel
 import pw.binom.properties.OutcomeService
 import pw.binom.utils.StringUtils
 import pw.binom.utils.toByteChannel
-import java.io.StringWriter
 import kotlin.io.encoding.Base64
+import pw.binom.proxy.channel.TcpConnectChannel
 
 /**
  * Провайдер TCP-соединений.

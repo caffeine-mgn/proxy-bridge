@@ -12,7 +12,7 @@ import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.properties.CurrentMultiplexer
-import pw.binom.properties.IncomeService
+import pw.binom.proxy.services.IncomeService
 import pw.binom.properties.OutcomeService
 
 class SerialIncomeService(

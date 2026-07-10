@@ -12,7 +12,6 @@ import pw.binom.ByteChannelDuplexChannel
 import pw.binom.channel.ChannelSelector
 import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.properties.CurrentMultiplexer
-import pw.binom.properties.IncomeService
 import kotlin.use
 
 class TcpIncomeService(

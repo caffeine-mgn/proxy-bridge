@@ -5,12 +5,12 @@ import org.koin.dsl.bind
 import org.koin.dsl.binds
 import org.koin.dsl.module
 import org.koin.dsl.onClose
-import pw.binom.TcpConnectProvider
+import pw.binom.proxy.services.TcpConnectProvider
 import pw.binom.channel.ChannelSelector
 import pw.binom.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.properties.Configuration
-import pw.binom.properties.IncomeService
+import pw.binom.proxy.services.IncomeService
 import pw.binom.properties.OutcomeService
 import pw.binom.proxy.services.OutcomeWrapperService
 import pw.binom.proxy.Socks5Server

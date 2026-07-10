@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
-import pw.binom.TcpConnectProvider
 import pw.binom.utils.connect
 
 class PortForwardingService(

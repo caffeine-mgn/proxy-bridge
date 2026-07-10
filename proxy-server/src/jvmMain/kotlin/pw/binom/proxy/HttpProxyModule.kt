@@ -4,10 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import org.koin.dsl.module
 import org.koin.dsl.onClose
-import pw.binom.channel.TcpConnectChannel
 import pw.binom.http.HttpProxy
-import pw.binom.multiplexer.MultiplexerHolder
-import pw.binom.utils.connect
 
 fun HttpProxyModule(port: Int) = module {
     single(createdAtStart = true) {

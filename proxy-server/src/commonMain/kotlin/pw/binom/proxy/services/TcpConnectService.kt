@@ -2,7 +2,6 @@ package pw.binom.proxy.services
 
 import io.ktor.network.selector.SelectorManager
 import org.koin.core.component.KoinComponent
-import pw.binom.TcpConnectProvider
 import pw.binom.properties.Configuration
 import pw.binom.properties.OutcomeService
 
