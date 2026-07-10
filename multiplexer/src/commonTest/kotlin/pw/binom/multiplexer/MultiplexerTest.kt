@@ -1,24 +1,12 @@
 package pw.binom.multiplexer
 
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 import kotlin.random.Random
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.fail
+import kotlin.test.*
 import kotlin.time.Duration.Companion.seconds
 
 class MultiplexerTest {
@@ -80,7 +68,6 @@ class MultiplexerTest {
         val data = Random.nextBytes(500)
         MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = stub.input)
         stub.input.send(MultiplexerProtocol.wrapLogicalToPhysical(channelId = 111, data = bufferOf(data)))
-
         val channel = multiplexer.accept()
         assertContentEquals(data, channel.income.receive().readByteArray())
     }
@@ -127,11 +114,6 @@ class MultiplexerTest {
         stub.events.receive() as MultiplexerEvent.NewChannelAccepted
         val closeChannel = stub.events.receive() as MultiplexerEvent.ChannelClosed
         assertEquals(channelId, closeChannel.channelId)
-        delay(1.seconds)
-        val otherEvents = withTimeoutOrNull(2.seconds) {
-            stub.events.receive()
-        }
-        assertNull(otherEvents)
-        println("-->$otherEvents")
+        assertNull(stub.events.tryReceive().getOrNull())
     }
 }

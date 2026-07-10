@@ -8,35 +8,37 @@
   - **Location:** `MultiplexerImpl.kt:89–106`
   - **Описание:** `pendingChannelsLock` захвачен ДО `sendRequestNewChannel` (suspend) и отпущен ПОСЛЕ. На однопоточном диспатчере — deadlock. При `ClosedSendChannelException` lock утекает навсегда.
 
-- [ ] **#2. Suspend в finally VirtualChannel без NonCancellable — close-команда теряется**
-  - **Type:** Bug
-  - **Severity:** Error
-  - **Location:** `MultiplexerImpl.kt:56–63`
-  - **Описание:** В `finally` отменённой корутины `sendCloseChannel` выбрасывает `CancellationException` на первой suspension point. Remote не получает уведомление о закрытии канала.
+- [x] **~~#2. Suspend в finally VirtualChannel без NonCancellable — close-команда теряется~~** ✅ FIXED
+  - **Type:** Bug → **Concurrency**
+  - **Severity:** ~~Error~~ → ~~Warning~~
+  - **Location:** `MultiplexerImpl.kt:75–82`
+  - **Описание:** `close()` вызывал `job.cancel()` → корутина отменялась → `finally` не мог выполнить suspend-вызов `sendCloseChannel`. **Фикс:** `close()` → `outcome.close(CancellationException(...))` — корутина завершается graceful через `consumeEach`, `finally` работает без CancellationException. Close-уведомление доходит.
+  - **Тест покрывает:** `MultiplexerCyclesTest.test10Cycles` (10 create+close циклов), `MultiplexerRegressionTest.testCloseNotificationDelivered`
 
-- [ ] **#3. Race condition в createChannel() — данные могут прийти до регистрации в activeChannels**
+- [x] **~~#3. Race condition в createChannel() — данные могут прийти до регистрации в activeChannels~~** ✅ FIXED
   - **Type:** Concurrency
-  - **Severity:** Error
-  - **Location:** `MultiplexerImpl.kt:106–116`
-  - **Описание:** После `water.resume(Unit)` VirtualChannel ещё не зарегистрирован в `activeChannels` (4 строки ниже). `readJob` может получить DATA-пакет, счесть channelId неизвестным и послать ложный close.
+  - **Severity:** ~~Error~~ → ~~Fixed~~
+  - **Location:** `MultiplexerImpl.kt:44–52, 119–130, 166–177`
+  - **Описание:** DATA-пакет, пришедший ДО регистрации VirtualChannel в `activeChannels`, молча отбрасывался. **Фикс:** Добавлен `pendingData: HashMap<Int, MutableList<Buffer>>` с отдельным lock'ом. DATA для ещё не зарегистрированных каналов буферизуется. При `accept()`/`createChannel()` буфер сливается в `channel.income` через `trySend`.
+  - **Тест покрывает:** `MultiplexerAcceptTest.testDataBeforeAccept`, `testMultipleDataBeforeAccept`, `testLargePayloadBeforeAccept`
 
 - [ ] **#4. Утечка activeChannels при локальном закрытии VirtualChannel**
   - **Type:** Bug
   - **Severity:** Error
-  - **Location:** `MultiplexerImpl.kt:77–79, 129–133`
+  - **Location:** `MultiplexerImpl.kt:77–81, 134–138`
   - **Описание:** VirtualChannel удаляется из `activeChannels` только при remote-close. Local `close()` оставляет запись навсегда. HashMap неограниченно растёт.
 
-- [ ] **#5. testCloseOutside ловит CancellationException, но send бросает ClosedSendChannelException**
+- [x] **~~#5. testCloseOutside ловит CancellationException, но send бросает ClosedSendChannelException~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Error
+  - **Severity:** ~~Error~~ → ~~Fixed~~
   - **Location:** `MultiplexerTest.kt:116–118`
-  - **Описание:** `ClosedSendChannelException extends IllegalStateException`, а не `CancellationException`. Тест гарантированно упадёт — exception не будет пойман.
+  - **Описание:** Исправлено в соседнем чате. Тест теперь проходит.
 
-- [ ] **#6. Тестовые зависимости (coroutines.test, kotlin test) объявлены в commonMain вместо commonTest**
+- [x] **~~#6. Тестовые зависимости (coroutines.test, kotlin test) объявлены в commonMain вместо commonTest~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Error
-  - **Location:** `build.gradle.kts:38–41`
-  - **Описание:** Copy-paste ошибка — test-зависимости включены в `commonMain.dependencies`, что загрязняет production-артефакты. Оба блока `dependencies` ссылаются на `commonMain`.
+  - **Severity:** ~~Error~~ → ~~Fixed~~
+  - **Location:** `build.gradle.kts`
+  - **Описание:** Исправлено в соседнем чате. Зависимости перенесены в `commonTest`.
 
 ## Warning (11)
 
@@ -55,7 +57,7 @@
 - [ ] **#9. Нет cleanup при падении readJob — мультиплексор зависает**
   - **Type:** Bug
   - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:119–152`
+  - **Location:** `MultiplexerImpl.kt:152–196`
   - **Описание:** Если handler в readJob бросает non-CancellationException (напр. `ClosedSendChannelException`), readJob падает, а активные/pending каналы не очищены.
 
 - [ ] **#10. consumeEach в reading() закрывает внешний input-канал как side effect**
@@ -91,19 +93,18 @@
 - [ ] **#15. Race: close() очищает activeChannels до завершения readJob**
   - **Type:** Concurrency
   - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:156–167`
+  - **Location:** `MultiplexerImpl.kt:192–206`
   - **Описание:** `close()` вызывает `readJob.cancel()` (не мгновенно) затем `clear()`. readJob может успеть обработать DATA и отправить ложный `sendCloseChannel`.
 
-- [ ] **#16. VirtualChannel.close() vs close(cause) — разное поведение**
+- [x] **~~#16. VirtualChannel.close() vs close(cause) — разное поведение~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:80–82` (close) vs `DuplexChannel.kt:17` (close(cause))
-  - **Описание:** `close()` → `job.cancel()` (агрессивно), `close(cause)` → `outcome.close(cause)` (graceful). Конечное состояние одинаково, пути разные.
+  - **Severity:** ~~Warning~~ → ~~Fixed~~
+  - **Описание:** `close()` теперь вызывает `outcome.close()` (graceful), а не `job.cancel()`. Поведение унифицировано с `close(cause)` из DuplexChannel.
 
 - [ ] **#17. channelClosed handler — race между remove() и channel.close()**
   - **Type:** Concurrency
   - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:129–133`
+  - **Location:** `MultiplexerImpl.kt:138–143`
   - **Описание:** `activeChannels.remove(id)` под lock, `channel?.close()` без lock. Между ними возможен конфликт при переполнении Int.
 
 ## WeakWarning (10)
@@ -117,7 +118,7 @@
 - [ ] **#19. Typo: chanelJob вместо channelJob**
   - **Type:** Maintainability
   - **Severity:** WeakWarning
-  - **Location:** `MultiplexerImpl.kt:36, 114`
+  - **Location:** `MultiplexerImpl.kt:35, 115`
   - **Описание:** Пропущена буква 'l' в имени переменной (дважды: `accept` и `createChannel`).
 
 - [ ] **#20. Typo: coppingLogicalToPhysical вместо copyingLogicalToPhysical**
@@ -141,7 +142,7 @@
 - [ ] **#23. Channel(UNLIMITED) — отсутствие backpressure, риск OOM при перегрузке**
   - **Type:** Performance
   - **Severity:** WeakWarning
-  - **Location:** `MultiplexerImpl.kt:37, 55–56`
+  - **Location:** `MultiplexerImpl.kt:39, 57–58`
   - **Описание:** `VirtualChannel.income`, `outcome` и `incomeChannels` — все UNLIMITED. При перегрузке буфер растёт без ограничений.
 
 - [ ] **#24. Pattern duplication: три send-команды имеют идентичную структуру**
@@ -193,3 +194,17 @@
   - **Severity:** WeakWarning
   - **Location:** `DuplexChannel.kt:7`
   - **Описание:** `@Suppress("DEPRECATION_ERROR", "INVISIBLE_REFERENCE", ...)` отключает инкапсуляцию.
+
+---
+
+## Статус
+
+| Категория | Всего | Осталось | Исправлено |
+|-----------|-------|----------|------------|
+| Error | 6 | 2 (#1, #4) | 4 (#2, #3, #5, #6) |
+| Warning | 11 | 10 | 1 (#16) |
+| WeakWarning | 10 | 10 | 0 |
+| Info | 4 | 4 | 0 |
+| **Всего** | **31** | **26** | **5** |
+
+**Тестов:** 21, все проходят.

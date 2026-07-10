@@ -35,7 +35,20 @@ class MultiplexerImpl(
     private val pendingChannelsLock = AtomicBoolean(false)
     private val pendingChannels = HashMap<Int, CancellableContinuation<Unit>>()
     private val incomeChannels = Channel<Int>(Channel.UNLIMITED)
+    private val pendingDataLock = AtomicBoolean(false)
+    private val pendingData = HashMap<Int, MutableList<Buffer>>()
     private val logger = KotlinLogging.logger {}
+
+    private fun drainPendingData(channelId: Int, target: VirtualChannel) {
+        pendingDataLock.locking {
+            val buffered = pendingData.remove(channelId)
+            if (buffered != null) {
+                for (buf in buffered) {
+                    target.income.trySend(buf)
+                }
+            }
+        }
+    }
 
     override suspend fun accept(): DuplexChannel {
         val incomeChannelId = incomeChannels.receive()
@@ -45,6 +58,7 @@ class MultiplexerImpl(
         activeChannelsLock.locking {
             activeChannels[incomeChannelId] = chanelJob
         }
+        drainPendingData(incomeChannelId, chanelJob)
         MultiplexerProtocol.sendResponseNewChannel(channelId = incomeChannelId, physical = output)
         return chanelJob
     }
@@ -67,7 +81,11 @@ class MultiplexerImpl(
                 val e = CancellationException("Closed by outcome channel closed")
                 outcome.close(e)
                 income.cancel(e)
-                MultiplexerProtocol.sendCloseChannel(channelId = id, physical = output)
+                try {
+                    MultiplexerProtocol.sendCloseChannel(channelId = id, physical = output)
+                } catch (_: CancellationException) {
+                    // ignore — already cancelled, close notification best-effort
+                }
             }
         }
 
@@ -78,7 +96,7 @@ class MultiplexerImpl(
         }
 
         override fun close() {
-            job.cancel()
+            outcome.close(CancellationException("Channel closed"))
         }
     }
 
@@ -110,6 +128,7 @@ class MultiplexerImpl(
         activeChannelsLock.locking {
             activeChannels[newChannelId] = chanelJob
         }
+        drainPendingData(newChannelId, chanelJob)
         return chanelJob
     }
 
@@ -120,7 +139,10 @@ class MultiplexerImpl(
                 handlerOnData = { channelId, data ->
                     val channel = activeChannelsLock.locking { activeChannels[channelId] }
                     if (channel == null) {
-                        MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
+                        // Канал ещё не зарегистрирован — буферизуем
+                        pendingDataLock.locking {
+                            pendingData.getOrPut(channelId) { mutableListOf() }.add(data)
+                        }
                     } else {
                         try {
                             channel.income.send(data)
@@ -161,6 +183,9 @@ class MultiplexerImpl(
         pendingChannelsLock.locking {
             pendingChannels.values.forEach { it.cancel() }
             pendingChannels.clear()
+        }
+        pendingDataLock.locking {
+            pendingData.clear()
         }
         incomeChannels.cancel()
     }
