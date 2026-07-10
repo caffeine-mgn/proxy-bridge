@@ -1,12 +1,25 @@
-package pw.binom.http
+package pw.binom.proxy.http
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.http.*
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
-import io.ktor.utils.io.*
+import io.ktor.http.Headers
+import io.ktor.http.HeadersBuilder
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.Url
+import io.ktor.network.selector.SelectorManager
+import io.ktor.network.sockets.Socket
+import io.ktor.network.sockets.aSocket
+import io.ktor.network.sockets.openReadChannel
+import io.ktor.network.sockets.openWriteChannel
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.readLineStrict
+import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import pw.binom.http.ChunkedByteWriteChannel
+import pw.binom.http.ConnectionEstablished
+import pw.binom.http.contentLength
 import pw.binom.proxy.ConnectProcessing
 import pw.binom.proxy.ProxyingRawContext
 

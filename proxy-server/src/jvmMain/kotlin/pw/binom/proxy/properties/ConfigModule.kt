@@ -7,7 +7,7 @@ import org.koin.dsl.module
 import org.koin.dsl.onClose
 import pw.binom.proxy.services.TcpConnectProvider
 import pw.binom.channel.ChannelSelector
-import pw.binom.http.HttpProxy
+import pw.binom.proxy.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.properties.Configuration
 import pw.binom.proxy.services.IncomeService
