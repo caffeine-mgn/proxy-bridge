@@ -1,6 +1,5 @@
-package pw.binom.channel
+package pw.binom.proxy.channel
 
-import io.ktor.network.selector.SelectorManager
 import kotlinx.io.Buffer
 import pw.binom.multiplexer.DuplexChannel
 

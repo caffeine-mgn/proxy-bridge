@@ -3,7 +3,7 @@ package pw.binom.proxy.services
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.core.component.KoinComponent
 import org.koin.dsl.module
-import pw.binom.channel.ChannelHandler
+import pw.binom.proxy.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 
 class ChannelSelectorService : KoinComponent {

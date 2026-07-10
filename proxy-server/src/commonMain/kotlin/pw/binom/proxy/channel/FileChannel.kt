@@ -6,7 +6,6 @@ import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import pw.binom.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.boolean
 import pw.binom.multiplexer.lebInt

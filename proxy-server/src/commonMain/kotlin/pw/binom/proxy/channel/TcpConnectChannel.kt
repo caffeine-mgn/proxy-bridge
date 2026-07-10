@@ -8,7 +8,6 @@ import kotlinx.io.writeString
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import pw.binom.proxy.services.TcpConnectProvider
-import pw.binom.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.lebInt
