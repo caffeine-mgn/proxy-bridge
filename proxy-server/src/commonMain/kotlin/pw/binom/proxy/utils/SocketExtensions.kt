@@ -1,4 +1,4 @@
-package pw.binom.utils
+package pw.binom.proxy.utils
 
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*

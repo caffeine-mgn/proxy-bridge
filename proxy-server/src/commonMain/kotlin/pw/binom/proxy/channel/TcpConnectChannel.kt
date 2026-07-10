@@ -12,7 +12,7 @@ import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.lebInt
 import pw.binom.multiplexer.lebString
-import pw.binom.utils.send
+import pw.binom.proxy.utils.send
 
 class TcpConnectChannel(
     val selector: SelectorManager,
@@ -87,7 +87,7 @@ class TcpConnectChannel(
         val socketOutcome = socket.writeChannel
 
         try {
-            pw.binom.utils.connect(
+            pw.binom.proxy.utils.connect(
                 outcome = channel.outcome,
                 income = channel.income,
                 a = socketOutcome,

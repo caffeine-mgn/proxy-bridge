@@ -13,7 +13,7 @@ import pw.binom.multiplexer.lebString
 import pw.binom.multiplexer.list
 import pw.binom.multiplexer.nullable
 import pw.binom.utils.read
-import pw.binom.utils.send
+import pw.binom.proxy.utils.send
 import pw.binom.utils.write
 import pw.binom.webdav.fs.CopyOrMoveResult
 import pw.binom.webdav.fs.FileMetadata

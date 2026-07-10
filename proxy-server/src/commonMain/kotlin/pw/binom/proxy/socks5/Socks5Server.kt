@@ -1,11 +1,12 @@
-package pw.binom.proxy
+package pw.binom.proxy.socks5
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
-import java.net.InetAddress
+import pw.binom.proxy.ConnectProcessing
+import pw.binom.proxy.ProxyingRawContext
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 

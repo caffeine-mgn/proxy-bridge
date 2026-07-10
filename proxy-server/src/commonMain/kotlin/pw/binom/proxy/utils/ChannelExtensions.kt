@@ -1,16 +1,10 @@
-package pw.binom.utils
+package pw.binom.proxy.utils
 
-import io.ktor.network.sockets.openReadChannel
-import io.ktor.network.sockets.openWriteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.CancellationException
 import io.ktor.utils.io.InternalAPI
-import io.ktor.utils.io.close
 import io.ktor.utils.io.copyTo
-import io.ktor.utils.io.core.isEmpty
-import io.ktor.utils.io.core.readAvailable
-import io.ktor.utils.io.writeBuffer
 import io.ktor.utils.io.writePacket
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -26,6 +20,7 @@ import kotlinx.io.Buffer
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import pw.binom.io.buildBuffer
+import pw.binom.utils.copyTo
 
 fun SendChannel<Buffer>.toByteChannel(): ByteWriteChannel = ByteWriteChannelByChannel(this)
 fun ReceiveChannel<Buffer>.toByteChannel(): ByteReadChannel = ByteReadChannelByChannel(this)

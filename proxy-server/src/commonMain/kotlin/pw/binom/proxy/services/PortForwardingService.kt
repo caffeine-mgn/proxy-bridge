@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
-import pw.binom.utils.connect
+import pw.binom.proxy.utils.connect
 
 class PortForwardingService(
     private val bindHost: String,

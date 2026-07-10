@@ -56,7 +56,7 @@ class ConnectProcessingImpl(
 //            return
 //        }
         try {
-            pw.binom.utils.connect(
+            pw.binom.proxy.utils.connect(
                 outcome = channel.second,
                 income = channel.first,
                 a = result.writeChannel,

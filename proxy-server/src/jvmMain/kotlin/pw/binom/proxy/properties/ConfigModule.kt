@@ -13,7 +13,7 @@ import pw.binom.properties.Configuration
 import pw.binom.proxy.services.IncomeService
 import pw.binom.properties.OutcomeService
 import pw.binom.proxy.services.OutcomeWrapperService
-import pw.binom.proxy.Socks5Server
+import pw.binom.proxy.socks5.Socks5Server
 import pw.binom.proxy.service.SerialIncomeService
 import pw.binom.proxy.services.PortForwardingService
 import pw.binom.proxy.services.TcpConnectService

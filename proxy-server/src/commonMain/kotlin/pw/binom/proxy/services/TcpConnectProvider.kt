@@ -11,7 +11,7 @@ import io.ktor.utils.io.readLine
 import io.ktor.utils.io.writeByteArray
 import pw.binom.properties.OutcomeService
 import pw.binom.utils.StringUtils
-import pw.binom.utils.toByteChannel
+import pw.binom.proxy.utils.toByteChannel
 import kotlin.io.encoding.Base64
 import pw.binom.proxy.channel.TcpConnectChannel
 

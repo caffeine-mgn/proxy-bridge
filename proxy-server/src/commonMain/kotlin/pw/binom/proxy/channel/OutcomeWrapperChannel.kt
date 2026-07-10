@@ -6,8 +6,8 @@ import org.koin.core.component.KoinComponent
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.lebString
 import pw.binom.properties.OutcomeService
-import pw.binom.utils.connect
-import pw.binom.utils.send
+import pw.binom.proxy.utils.connect
+import pw.binom.proxy.utils.send
 
 /**
  * [OutcomeWrapperChannel] — протокольный обработчик для проброса (bridge)
