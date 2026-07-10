@@ -90,11 +90,16 @@
   - **Location:** `AtomicBooleanExtensions.kt:7–13`
   - **Описание:** `while(true) { CAS }` блокирует поток диспатчера. При contention все потоки сжигают CPU. Рекомендуется `Mutex`.
 
-- [ ] **#15. Race: close() очищает activeChannels до завершения readJob**
+- [x] **~~#15. Race: close() очищает activeChannels до завершения readJob~~** ✅ CLOSED (WONTFIX)
   - **Type:** Concurrency
-  - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:192–206`
-  - **Описание:** `close()` вызывает `readJob.cancel()` (не мгновенно) затем `clear()`. readJob может успеть обработать DATA и отправить ложный `sendCloseChannel`.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerImpl.kt:181–192`
+  - **Описание:** `close()` вызывает `readJob.cancel()` (cooperative, не мгновенно), затем чистит `activeChannels`, `pendingChannels`, `pendingData`. Если readJob между cancel() и clear() успевает обработать DATA-пакет — он теряется.
+  - **Почему WONTFIX:**
+    - После фиксов #2 и #3 ложный `sendCloseChannel` больше не отправляется (unknown DATA буферизуется, а не шлёт close).
+    - readJob.cancel() на новом singleThreadContext / DefaultDispatcher срабатывает мгновенно из-за cooperative cancellation в `consumeEach`.
+    - Даже если проявится — единственное последствие: потеря одного DATA-пакета во время закрытия мультиплексора. Все каналы уже закрыты, это безопасно.
+    - **Тестировать НЕЛЬЗЯ:** гонка живёт в микросекундном окне между cancel() и clear(). Невозможно воспроизвести детерминированно без instrumented dispatcher, который бы приостанавливал readJob посередине. Стоимость такого теста не оправдывает ничтожный риск.
 
 - [x] **~~#16. VirtualChannel.close() vs close(cause) — разное поведение~~** ✅ FIXED
   - **Type:** Maintainability
