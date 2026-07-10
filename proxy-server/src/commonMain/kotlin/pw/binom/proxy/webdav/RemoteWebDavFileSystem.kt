@@ -1,7 +1,7 @@
-package pw.binom.io
+package pw.binom.proxy.webdav
 
 import kotlinx.io.files.Path
-import pw.binom.channel.FileChannel
+import pw.binom.proxy.channel.FileChannel
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.properties.OutcomeService
 import pw.binom.webdav.fs.CopyOrMoveResult

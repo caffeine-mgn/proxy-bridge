@@ -18,7 +18,7 @@ import org.koin.core.context.startKoin
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import pw.binom.*
-import pw.binom.channel.FileChannel
+import pw.binom.proxy.channel.FileChannel
 import pw.binom.proxy.channel.TcpConnectChannel
 import pw.binom.proxy.io.SelectorManagerKoinModule
 import pw.binom.multiplexer.DuplexChannel

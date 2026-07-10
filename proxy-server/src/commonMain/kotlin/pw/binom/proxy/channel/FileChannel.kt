@@ -1,4 +1,4 @@
-package pw.binom.channel
+package pw.binom.proxy.channel
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.io.Buffer
@@ -6,8 +6,16 @@ import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import pw.binom.multiplexer.*
-import pw.binom.utils.*
+import pw.binom.channel.ChannelHandler
+import pw.binom.multiplexer.DuplexChannel
+import pw.binom.multiplexer.boolean
+import pw.binom.multiplexer.lebInt
+import pw.binom.multiplexer.lebString
+import pw.binom.multiplexer.list
+import pw.binom.multiplexer.nullable
+import pw.binom.utils.read
+import pw.binom.utils.send
+import pw.binom.utils.write
 import pw.binom.webdav.fs.CopyOrMoveResult
 import pw.binom.webdav.fs.FileMetadata
 import pw.binom.webdav.fs.WebDavFileSystem
@@ -194,7 +202,7 @@ class FileChannel(
     }
 
     private suspend fun handleGetMetadata(buffer: Buffer, channel: DuplexChannel) {
-        val path = Path(buffer.lebString())
+        val path = kotlinx.io.files.Path(buffer.lebString())
         val result = fileSystem.getMetadata(path)
         channel.send {
             result.fold(
@@ -210,7 +218,7 @@ class FileChannel(
     }
 
     private suspend fun handleReadFile(buffer: Buffer, channel: DuplexChannel) {
-        val path = Path(buffer.lebString())
+        val path = kotlinx.io.files.Path(buffer.lebString())
         val range = buffer.nullable { LongRange.read(it) }
         val result = fileSystem.readFile(path, range)
         channel.send {
@@ -228,7 +236,7 @@ class FileChannel(
     }
 
     private suspend fun handleWriteFile(buffer: Buffer, channel: DuplexChannel) {
-        val path = Path(buffer.lebString())
+        val path = kotlinx.io.files.Path(buffer.lebString())
         val size = buffer.lebInt()
         val content = buffer.readByteArray(size)
         val overwrite = buffer.boolean()
@@ -242,7 +250,7 @@ class FileChannel(
     }
 
     private suspend fun handleCreateDirectory(buffer: Buffer, channel: DuplexChannel) {
-        val path = Path(buffer.lebString())
+        val path = kotlinx.io.files.Path(buffer.lebString())
         val result = fileSystem.createDirectory(path)
         channel.send {
             result.fold(
@@ -253,7 +261,7 @@ class FileChannel(
     }
 
     private suspend fun handleDelete(buffer: Buffer, channel: DuplexChannel) {
-        val path = Path(buffer.lebString())
+        val path = kotlinx.io.files.Path(buffer.lebString())
         val result = fileSystem.delete(path)
         channel.send {
             result.fold(
@@ -264,8 +272,8 @@ class FileChannel(
     }
 
     private suspend fun handleMove(buffer: Buffer, channel: DuplexChannel) {
-        val source = Path(buffer.lebString())
-        val destination = Path(buffer.lebString())
+        val source = kotlinx.io.files.Path(buffer.lebString())
+        val destination = kotlinx.io.files.Path(buffer.lebString())
         val result = fileSystem.move(source, destination)
         channel.send {
             result.fold(
@@ -281,8 +289,8 @@ class FileChannel(
     }
 
     private suspend fun handleCopy(buffer: Buffer, channel: DuplexChannel) {
-        val source = Path(buffer.lebString())
-        val destination = Path(buffer.lebString())
+        val source = kotlinx.io.files.Path(buffer.lebString())
+        val destination = kotlinx.io.files.Path(buffer.lebString())
         val result = fileSystem.copy(source, destination)
         channel.send {
             result.fold(
