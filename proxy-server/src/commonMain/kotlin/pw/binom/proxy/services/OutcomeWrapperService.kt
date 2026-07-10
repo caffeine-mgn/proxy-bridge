@@ -1,7 +1,7 @@
 package pw.binom.proxy.services
 
 import org.koin.core.component.KoinComponent
-import pw.binom.channel.OutcomeWrapperChannel
+import pw.binom.proxy.channel.OutcomeWrapperChannel
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.properties.OutcomeService
 
@@ -17,7 +17,7 @@ import pw.binom.properties.OutcomeService
  *    к удалённому хосту).
  * 3. Поверх этого канала отправляет протокольное сообщение (ID=3) с именем
  *    целевого outcome на удалённую сторону.
- * 4. Удалённая сторона ([pw.binom.channel.OutcomeWrapperChannel.income]) получает запрос, находит
+ * 4. Удалённая сторона ([OutcomeWrapperChannel.income]) получает запрос, находит
  *    у себя outcome по имени, создаёт канал к нему и соединяет (bridge) два канала
  *    — таким образом, инициатор получает прямой канал к нужному удалённому ресурсу.
  *

@@ -1,10 +1,9 @@
-package pw.binom.channel
+package pw.binom.proxy.channel
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.io.Buffer
-import kotlinx.io.readString
-import kotlinx.io.writeString
 import org.koin.core.component.KoinComponent
+import pw.binom.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.lebString
 import pw.binom.properties.OutcomeService
