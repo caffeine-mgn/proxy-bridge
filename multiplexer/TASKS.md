@@ -23,11 +23,13 @@
   - **Описание:** DATA-пакет, пришедший ДО регистрации VirtualChannel в `activeChannels`, молча отбрасывался. **Фикс:** Добавлен `pendingData: HashMap<Int, MutableList<Buffer>>` с отдельным lock'ом. DATA для ещё не зарегистрированных каналов буферизуется. При `accept()`/`createChannel()` буфер сливается в `channel.income` через `trySend`.
   - **Тест покрывает:** `MultiplexerAcceptTest.testDataBeforeAccept`, `testMultipleDataBeforeAccept`, `testLargePayloadBeforeAccept`
 
-- [ ] **#4. Утечка activeChannels при локальном закрытии VirtualChannel**
+- [x] **~~#4. Утечка activeChannels при локальном закрытии VirtualChannel~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Error
-  - **Location:** `MultiplexerImpl.kt:77–81, 134–138`
-  - **Описание:** VirtualChannel удаляется из `activeChannels` только при remote-close. Local `close()` оставляет запись навсегда. HashMap неограниченно растёт.
+  - **Severity:** ~~Error~~
+  - **Location:** `MultiplexerImpl.kt:84` (добавлено в finally блок job'ы VirtualChannel)
+  - **Описание:** VirtualChannel удалялся из `activeChannels` только при remote-close. Local `close()` оставлял запись навсегда. HashMap неограниченно рос.
+  - **Фикс:** Добавлен `activeChannelsLock.locking { activeChannels.remove(id) }` в `finally` блок корутины VirtualChannel. При любом завершении job'ы (local close, remote close, отмена income) канал гарантированно удаляется из activeChannels.
+  - **Тесты:** `MultiplexerRegressionTest.testLocalCloseCleansUpActiveChannels` (10 create+close, затем новый канал работает), `MultiplexerRegressionTest.testAcceptAndLocalCloseLeavesMuxOperational` (5 accept+close, затем новый канал работает)
 
 - [x] **~~#5. testCloseOutside ловит CancellationException, но send бросает ClosedSendChannelException~~** ✅ FIXED
   - **Type:** Bug

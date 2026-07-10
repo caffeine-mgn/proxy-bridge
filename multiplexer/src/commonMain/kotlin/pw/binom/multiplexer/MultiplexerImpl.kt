@@ -88,6 +88,9 @@ class MultiplexerImpl(
                 } catch (_: CancellationException) {
                     // ignore — already cancelled, close notification best-effort
                 }
+                activeChannelsLock.locking {
+                    activeChannels.remove(id)
+                }
             }
         }
 

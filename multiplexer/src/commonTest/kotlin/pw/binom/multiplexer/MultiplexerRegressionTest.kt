@@ -200,4 +200,84 @@ class MultiplexerRegressionTest {
             events.cancel()
         }
     }
+
+    @Test
+    fun testLocalCloseCleansUpActiveChannels() {
+        testWithTimeout(10.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Create and locally close several channels
+            repeat(10) {
+                val d = CompletableDeferred<DuplexChannel>()
+                launch(Dispatchers.Unconfined) {
+                    d.complete(multiplexer.createChannel())
+                }
+                val request = events.receive() as MultiplexerEvent.ChannelRequest
+                MultiplexerProtocol.sendResponseNewChannel(request.channelId, input)
+                val channel = d.await()
+                // Local close — should remove from activeChannels
+                channel.close()
+                events.receive() as MultiplexerEvent.ChannelClosed
+            }
+
+            // Verify multiplexer still works: create new channel and exchange data
+            val data = Random.nextBytes(500)
+            val chDef = CompletableDeferred<DuplexChannel>()
+            launch(Dispatchers.Unconfined) {
+                chDef.complete(multiplexer.createChannel())
+            }
+            val request = events.receive() as MultiplexerEvent.ChannelRequest
+            MultiplexerProtocol.sendResponseNewChannel(request.channelId, input)
+            val channel = chDef.await()
+            channel.outcome.send(bufferOf(data))
+
+            val channelData = events.receive() as MultiplexerEvent.ChannelData
+            assertEquals(request.channelId, channelData.channelId)
+            assertContentEquals(data, channelData.data.readByteArray())
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
+
+    @Test
+    fun testAcceptAndLocalCloseLeavesMuxOperational() {
+        testWithTimeout(10.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Accept and locally close several channels
+            repeat(5) {
+                MultiplexerProtocol.sendRequestNewChannel(channelId = it + 1, physical = input)
+                val channel = multiplexer.accept()
+                channel.close()
+                events.receive() as MultiplexerEvent.NewChannelAccepted
+                events.receive() as MultiplexerEvent.ChannelClosed
+            }
+
+            // Accept a new channel and send data — proves mux works
+            val data = Random.nextBytes(100)
+            val newId = 999
+            MultiplexerProtocol.sendRequestNewChannel(channelId = newId, physical = input)
+            val channel = multiplexer.accept()
+            channel.outcome.send(bufferOf(data))
+
+            events.receive() as MultiplexerEvent.NewChannelAccepted
+            val channelData = events.receive() as MultiplexerEvent.ChannelData
+            assertEquals(newId, channelData.channelId)
+            assertContentEquals(data, channelData.data.readByteArray())
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
 }
