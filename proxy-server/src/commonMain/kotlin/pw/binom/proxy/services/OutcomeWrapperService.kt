@@ -1,22 +1,23 @@
-package pw.binom.properties
+package pw.binom.proxy.services
 
 import org.koin.core.component.KoinComponent
 import pw.binom.channel.OutcomeWrapperChannel
 import pw.binom.multiplexer.DuplexChannel
+import pw.binom.properties.OutcomeService
 
 /**
- * [OutcomeWrapperService] — это сервис-обёртка над другим [OutcomeService],
+ * [OutcomeWrapperService] — это сервис-обёртка над другим [pw.binom.properties.OutcomeService],
  * позволяющий мультиплексировать несколько логических outcome-соединений через
  * одно физическое транспортное соединение (например, TCP или COM-порт).
  *
  * Архитектурно класс решает задачу **проксирования/маршрутизации**:
  * 1. Класс получает имя целевого outcome (поле [outcome]) и находит настоящий
- *    [OutcomeService] по этому имени в DI-контейнере Koin.
+ *    [pw.binom.properties.OutcomeService] по этому имени в DI-контейнере Koin.
  * 2. Создаёт канал через найденный сервис (например, открывает TCP-соединение
  *    к удалённому хосту).
  * 3. Поверх этого канала отправляет протокольное сообщение (ID=3) с именем
  *    целевого outcome на удалённую сторону.
- * 4. Удалённая сторона ([OutcomeWrapperChannel.income]) получает запрос, находит
+ * 4. Удалённая сторона ([pw.binom.channel.OutcomeWrapperChannel.income]) получает запрос, находит
  *    у себя outcome по имени, создаёт канал к нему и соединяет (bridge) два канала
  *    — таким образом, инициатор получает прямой канал к нужному удалённому ресурсу.
  *
@@ -35,7 +36,7 @@ import pw.binom.multiplexer.DuplexChannel
  * доступный через TCP-соединение `remote-link`.
  *
  * @param name имя этого сервиса (используется для lookup в DI).
- * @param outcome имя целевого [OutcomeService], к которому подключаться удалённо.
+ * @param outcome имя целевого [pw.binom.properties.OutcomeService], к которому подключаться удалённо.
  */
 class OutcomeWrapperService(
     override val name: String,

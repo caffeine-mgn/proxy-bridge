@@ -12,7 +12,7 @@ import pw.binom.multiplexer.Multiplexer
 import pw.binom.properties.Configuration
 import pw.binom.properties.IncomeService
 import pw.binom.properties.OutcomeService
-import pw.binom.properties.OutcomeWrapperService
+import pw.binom.proxy.services.OutcomeWrapperService
 import pw.binom.proxy.Socks5Server
 import pw.binom.proxy.service.SerialIncomeService
 import pw.binom.proxy.services.PortForwardingService
