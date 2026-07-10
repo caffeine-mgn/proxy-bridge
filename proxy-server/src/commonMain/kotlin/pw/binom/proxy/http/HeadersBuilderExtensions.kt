@@ -1,4 +1,4 @@
-package pw.binom.http
+package pw.binom.proxy.http
 
 import io.ktor.http.HeadersBuilder
 

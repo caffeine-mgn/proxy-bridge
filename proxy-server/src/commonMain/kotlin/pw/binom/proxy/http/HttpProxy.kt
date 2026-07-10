@@ -17,8 +17,6 @@ import io.ktor.utils.io.readLineStrict
 import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import pw.binom.http.ConnectionEstablished
-import pw.binom.http.contentLength
 import pw.binom.proxy.ConnectProcessing
 import pw.binom.proxy.ProxyingRawContext
 

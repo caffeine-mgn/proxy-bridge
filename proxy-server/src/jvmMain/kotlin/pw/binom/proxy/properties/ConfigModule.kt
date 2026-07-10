@@ -6,7 +6,7 @@ import org.koin.dsl.binds
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 import pw.binom.proxy.services.TcpConnectProvider
-import pw.binom.channel.ChannelSelector
+import pw.binom.proxy.services.ChannelSelectorService
 import pw.binom.proxy.http.HttpProxy
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.properties.Configuration
@@ -23,7 +23,7 @@ import pw.binom.proxy.services.TcpOutcomeService
 object ConfigModule {
     fun createModule(config: Configuration) =
         module(createdAtStart = true) {
-            single { ChannelSelector() }
+            single { ChannelSelectorService() }
             single { TcpConnectService(config.trafficRoute) }.bind(TcpConnectProvider::class)
             config.incomes.forEach { income ->
                 when (income) {
@@ -31,7 +31,7 @@ object ConfigModule {
                         SerialIncomeService(
                             serialName = income.port,
                             baudRate = income.speed,
-                            channelSelector = get(),
+                            channelSelectorService = get(),
                             idOdd = true,
                             name = ""
                         )
@@ -43,7 +43,7 @@ object ConfigModule {
                         TcpIncomeService(
                             port = income.port,
                             host = income.bind,
-                            channelSelector = get(),
+                            channelSelectorService = get(),
                             selectorManager = get(),
                         )
                     }
@@ -58,7 +58,7 @@ object ConfigModule {
                         SerialIncomeService(
                             serialName = outcome.port,
                             baudRate = outcome.speed,
-                            channelSelector = get(),
+                            channelSelectorService = get(),
                             idOdd = false,
                             name = outcomeName
                         )
@@ -70,7 +70,7 @@ object ConfigModule {
                         TcpOutcomeService(
                             port = outcome.port,
                             host = outcome.host,
-                            channelSelector = get(),
+                            channelSelectorService = get(),
                             selectorManager = get(),
                             name = outcomeName,
                         )

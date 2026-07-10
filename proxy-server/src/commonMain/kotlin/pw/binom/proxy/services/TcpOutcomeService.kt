@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pw.binom.ByteChannelDuplexChannel
-import pw.binom.channel.ChannelSelector
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
@@ -25,7 +24,7 @@ class TcpOutcomeService(
     private val port: Int,
     private val host: String,
     private val selectorManager: SelectorManager,
-    private val channelSelector: ChannelSelector,
+    private val channelSelectorService: ChannelSelectorService,
     override val name: String,
 ) : OutcomeService, AutoCloseable {
     private val logger = KotlinLogging.logger {}
@@ -58,7 +57,7 @@ class TcpOutcomeService(
                                 while (isActive) {
                                     CoroutineScope(Dispatchers.IO).launch(CurrentMultiplexer(multiplexer)) {
                                         con.use { channel ->
-                                            channelSelector.processing(
+                                            channelSelectorService.processing(
                                                 connection = channel,
                                             )
                                         }

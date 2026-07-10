@@ -20,7 +20,7 @@ import org.koin.dsl.module
 import pw.binom.*
 import pw.binom.channel.FileChannel
 import pw.binom.proxy.channel.TcpConnectChannel
-import pw.binom.io.SelectorManagerKoinModule
+import pw.binom.proxy.io.SelectorManagerKoinModule
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.MultiplexerHolder
 import pw.binom.multiplexer.MultiplexerImpl

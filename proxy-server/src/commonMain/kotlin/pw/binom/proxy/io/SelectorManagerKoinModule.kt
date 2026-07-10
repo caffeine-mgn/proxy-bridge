@@ -1,4 +1,4 @@
-package pw.binom.io
+package pw.binom.proxy.io
 
 import io.ktor.network.selector.SelectorManager
 import kotlinx.coroutines.Dispatchers

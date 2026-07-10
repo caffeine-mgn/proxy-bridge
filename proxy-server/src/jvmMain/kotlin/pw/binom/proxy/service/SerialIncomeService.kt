@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pw.binom.ConnectionAcceptor
-import pw.binom.channel.ChannelSelector
+import pw.binom.proxy.services.ChannelSelectorService
 import pw.binom.com.SerialConnectionAcceptor
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.Multiplexer
@@ -18,7 +18,7 @@ import pw.binom.properties.OutcomeService
 class SerialIncomeService(
     private val serialName: String,
     private val baudRate: Int,
-    private val channelSelector: ChannelSelector,
+    private val channelSelectorService: ChannelSelectorService,
     val idOdd: Boolean,
     override val name: String,
 ) : IncomeService, Multiplexer, ConnectionAcceptor, OutcomeService {
@@ -46,7 +46,7 @@ class SerialIncomeService(
                             CoroutineScope(Dispatchers.IO)
                                 .launch(CurrentMultiplexer(multiplexer) + CoroutineName("Serial Main Processing")) {
                                     con.use { channel ->
-                                        channelSelector.processing(
+                                        channelSelectorService.processing(
                                             connection = channel,
                                         )
                                     }

@@ -1,15 +1,15 @@
-package pw.binom.channel
+package pw.binom.proxy.services
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.network.selector.SelectorManager
 import org.koin.core.component.KoinComponent
 import org.koin.dsl.module
+import pw.binom.channel.ChannelHandler
 import pw.binom.multiplexer.DuplexChannel
 
-class ChannelSelector : KoinComponent {
+class ChannelSelectorService : KoinComponent {
     companion object {
         val module = module {
-            single { ChannelSelector() }
+            single { ChannelSelectorService() }
         }
     }
 
