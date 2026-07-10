@@ -50,15 +50,15 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.loggeing)
         }
-        commonMain.dependencies {
-            implementation(libs.kotlinx.coroutines.test)
+        commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
-//        val runnableTest by creating {
-//            dependsOn(commonTest.get())
-//            dependsOn(jvmTest.get())
-//            dependsOn(linuxTest.get())
-//            dependsOn(mingwTest.get())
-//        }
+        jvmTest {
+            dependsOn(commonTest.get())
+            dependencies {
+                implementation(libs.slf4j.simple)
+            }
+        }
     }
 }
