@@ -2,11 +2,12 @@
 
 ## Error (6)
 
-- [ ] **#1. Spinlock удерживается через suspend-вызов в createChannel() — гарантированный deadlock**
+- [x] **~~#1. Spinlock удерживается через suspend-вызов в createChannel() — гарантированный deadlock~~** ✅ FIXED
   - **Type:** Concurrency
-  - **Severity:** Error
-  - **Location:** `MultiplexerImpl.kt:89–106`
-  - **Описание:** `pendingChannelsLock` захвачен ДО `sendRequestNewChannel` (suspend) и отпущен ПОСЛЕ. На однопоточном диспатчере — deadlock. При `ClosedSendChannelException` lock утекает навсегда.
+  - **Severity:** ~~Error~~
+  - **Location:** `MultiplexerImpl.kt:105–126`
+  - **Описание:** `pendingChannelsLock` был `AtomicBoolean` (spinlock, блокирует поток). Lock захвачен ДО `sendRequestNewChannel` (suspend). На однопоточном диспатчере — deadlock. При non-CancellationException (напр. `ClosedSendChannelException`) lock утекал навсегда.
+  - **Фикс:** Заменён на `Mutex` из kotlinx.coroutines. `Mutex.lock()` — suspend, не блокирует поток. Остальные корутины на том же потоке продолжают работу. Добавлен `catch(e: Throwable)` — любой exception корректно отпускает lock. `invokeOnCancellation` теперь напрямую удаляет из `pendingChannels` без повторного захвата lock'а (уже удерживается этой корутиной).
 
 - [x] **~~#2. Suspend в finally VirtualChannel без NonCancellable — close-команда теряется~~** ✅ FIXED
   - **Type:** Bug → **Concurrency**

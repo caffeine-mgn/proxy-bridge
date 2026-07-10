@@ -5,6 +5,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.AtomicInt
@@ -32,7 +34,7 @@ class MultiplexerImpl(
     private val idGenerator = AtomicInt(if (idOdd) 1 else 0)
     private val activeChannelsLock = AtomicBoolean(false)
     private val activeChannels = HashMap<Int, VirtualChannel>()
-    private val pendingChannelsLock = AtomicBoolean(false)
+    private val pendingChannelsMutex = Mutex()
     private val pendingChannels = HashMap<Int, CancellableContinuation<Unit>>()
     private val incomeChannels = Channel<Int>(Channel.UNLIMITED)
     private val pendingDataLock = AtomicBoolean(false)
@@ -104,24 +106,22 @@ class MultiplexerImpl(
     override suspend fun createChannel(): DuplexChannel {
         val newChannelId = idGenerator.addAndFetch(2)
 
-        pendingChannelsLock.lock()
+        pendingChannelsMutex.lock()
         try {
             MultiplexerProtocol.sendRequestNewChannel(
                 channelId = newChannelId,
                 physical = output,
             )
-        } catch (e: CancellationException) {
-            pendingChannelsLock.unlock()
+        } catch (e: Throwable) {
+            pendingChannelsMutex.unlock()
             throw e
         }
-        suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine<Unit> { cont ->
             cont.invokeOnCancellation {
-                pendingChannelsLock.locking {
-                    pendingChannels.remove(newChannelId)
-                }
+                pendingChannels.remove(newChannelId)
             }
             pendingChannels[newChannelId] = cont
-            pendingChannelsLock.unlock()
+            pendingChannelsMutex.unlock()
         }
 
         val chanelJob = VirtualChannel(id = newChannelId)
@@ -163,7 +163,7 @@ class MultiplexerImpl(
                     incomeChannels.send(channelId)
                 },
                 newChannelAccepted = { channelId ->
-                    val water = pendingChannelsLock.locking { pendingChannels.remove(channelId) }
+                    val water = pendingChannelsMutex.withLock { pendingChannels.remove(channelId) }
                     if (water == null) {
                         MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
                     } else {
@@ -180,9 +180,11 @@ class MultiplexerImpl(
             activeChannels.values.forEach { it.close() }
             activeChannels.clear()
         }
-        pendingChannelsLock.locking {
-            pendingChannels.values.forEach { it.cancel() }
-            pendingChannels.clear()
+        kotlinx.coroutines.runBlocking {
+            pendingChannelsMutex.withLock {
+                pendingChannels.values.forEach { it.cancel() }
+                pendingChannels.clear()
+            }
         }
         pendingDataLock.locking {
             pendingData.clear()
