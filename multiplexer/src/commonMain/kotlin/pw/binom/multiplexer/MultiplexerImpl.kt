@@ -157,9 +157,10 @@ class MultiplexerImpl(
                     },
                     channelClosed = { channelId ->
                         logger.info { "Income message for close channel $channelId" }
-                        activeChannelsMutex.withLock {
-                            activeChannels.remove(channelId)?.close()
+                        val toClose = activeChannelsMutex.withLock {
+                            activeChannels.remove(channelId)
                         }
+                        toClose?.close()
                     },
                     requestChannel = { channelId ->
                         incomeChannels.send(channelId)
@@ -180,12 +181,12 @@ class MultiplexerImpl(
         } catch (e: Throwable) {
             logger.error(e) { "readJob crashed — cleaning up multiplexer" }
             // Close all active channels to signal failure to users
-            activeChannelsMutex.withLock {
-                activeChannels.values.forEach {
-                    it.cancel()          // closes income immediately
-                    it.close()           // starts graceful shutdown of outcome
-                }
-                activeChannels.clear()
+            val channelsToClose = activeChannelsMutex.withLock {
+                activeChannels.values.toList().also { activeChannels.clear() }
+            }
+            channelsToClose.forEach {
+                it.cancel()          // closes income immediately
+                it.close()           // starts graceful shutdown of outcome
             }
             kotlinx.coroutines.runBlocking {
                 pendingChannelsMutex.withLock {
@@ -204,10 +205,10 @@ class MultiplexerImpl(
     override fun close() {
         readJob.cancel()
         kotlinx.coroutines.runBlocking {
-            activeChannelsMutex.withLock {
-                activeChannels.values.forEach { it.close() }
-                activeChannels.clear()
+            val channelsToClose = activeChannelsMutex.withLock {
+                activeChannels.values.toList().also { activeChannels.clear() }
             }
+            channelsToClose.forEach { it.close() }
             pendingChannelsMutex.withLock {
                 pendingChannels.values.forEach { it.cancel() }
                 pendingChannels.clear()

@@ -1,227 +1,136 @@
-# Multiplexer Module — Review Tasks
+# Multiplexer — проблемы и улучшения
 
-## Error (6)
-
-- [x] **~~#1. Spinlock удерживается через suspend-вызов в createChannel() — гарантированный deadlock~~** ✅ FIXED
-  - **Type:** Concurrency
-  - **Severity:** ~~Error~~
-  - **Location:** `MultiplexerImpl.kt:105–126`
-  - **Описание:** `pendingChannelsLock` был `AtomicBoolean` (spinlock, блокирует поток). Lock захвачен ДО `sendRequestNewChannel` (suspend). На однопоточном диспатчере — deadlock. При non-CancellationException (напр. `ClosedSendChannelException`) lock утекал навсегда.
-  - **Фикс:** Заменён на `Mutex` из kotlinx.coroutines. `Mutex.lock()` — suspend, не блокирует поток. Остальные корутины на том же потоке продолжают работу. Добавлен `catch(e: Throwable)` — любой exception корректно отпускает lock. `invokeOnCancellation` теперь напрямую удаляет из `pendingChannels` без повторного захвата lock'а (уже удерживается этой корутиной).
-
-- [x] **~~#2. Suspend в finally VirtualChannel без NonCancellable — close-команда теряется~~** ✅ FIXED
-  - **Type:** Bug → **Concurrency**
-  - **Severity:** ~~Error~~ → ~~Warning~~
-  - **Location:** `MultiplexerImpl.kt:75–82`
-  - **Описание:** `close()` вызывал `job.cancel()` → корутина отменялась → `finally` не мог выполнить suspend-вызов `sendCloseChannel`. **Фикс:** `close()` → `outcome.close(CancellationException(...))` — корутина завершается graceful через `consumeEach`, `finally` работает без CancellationException. Close-уведомление доходит.
-  - **Тест покрывает:** `MultiplexerCyclesTest.test10Cycles` (10 create+close циклов), `MultiplexerRegressionTest.testCloseNotificationDelivered`
-
-- [x] **~~#3. Race condition в createChannel() — данные могут прийти до регистрации в activeChannels~~** ✅ FIXED
-  - **Type:** Concurrency
-  - **Severity:** ~~Error~~ → ~~Fixed~~
-  - **Location:** `MultiplexerImpl.kt:44–52, 119–130, 166–177`
-  - **Описание:** DATA-пакет, пришедший ДО регистрации VirtualChannel в `activeChannels`, молча отбрасывался. **Фикс:** Добавлен `pendingData: HashMap<Int, MutableList<Buffer>>` с отдельным lock'ом. DATA для ещё не зарегистрированных каналов буферизуется. При `accept()`/`createChannel()` буфер сливается в `channel.income` через `trySend`.
-  - **Тест покрывает:** `MultiplexerAcceptTest.testDataBeforeAccept`, `testMultipleDataBeforeAccept`, `testLargePayloadBeforeAccept`
-
-- [x] **~~#4. Утечка activeChannels при локальном закрытии VirtualChannel~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Error~~
-  - **Location:** `MultiplexerImpl.kt:84` (добавлено в finally блок job'ы VirtualChannel)
-  - **Описание:** VirtualChannel удалялся из `activeChannels` только при remote-close. Local `close()` оставлял запись навсегда. HashMap неограниченно рос.
-  - **Фикс:** Добавлен `activeChannelsLock.locking { activeChannels.remove(id) }` в `finally` блок корутины VirtualChannel. При любом завершении job'ы (local close, remote close, отмена income) канал гарантированно удаляется из activeChannels.
-  - **Тесты:** `MultiplexerRegressionTest.testLocalCloseCleansUpActiveChannels` (10 create+close, затем новый канал работает), `MultiplexerRegressionTest.testAcceptAndLocalCloseLeavesMuxOperational` (5 accept+close, затем новый канал работает)
-
-- [x] **~~#5. testCloseOutside ловит CancellationException, но send бросает ClosedSendChannelException~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Error~~ → ~~Fixed~~
-  - **Location:** `MultiplexerTest.kt:116–118`
-  - **Описание:** Исправлено в соседнем чате. Тест теперь проходит.
-
-- [x] **~~#6. Тестовые зависимости (coroutines.test, kotlin test) объявлены в commonMain вместо commonTest~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Error~~ → ~~Fixed~~
-  - **Location:** `build.gradle.kts`
-  - **Описание:** Исправлено в соседнем чате. Зависимости перенесены в `commonTest`.
-
-## Warning (11)
-
-- [x] **~~#7. DuplexChannel.cancel(cause: Throwable?) игнорирует параметр cause~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Warning~~
-  - **Location:** `DuplexChannel.kt:64–67`
-  - **Описание:** `cancel(cause: Throwable?)` вызывал `income.cancel()` без передачи `cause`. **Фикс:** передан `CancellationException(cause?.message, cause)`.
-  - **Тест:** `MultiplexerRegressionTest.testCancelWithCausePropagatesToIncome`
-
-- [x] **~~#8. Неизвестная команда протокола молча игнорируется в when(cmd)~~** ✅ FIXED
-  - **Type:** Security
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerProtocol.kt:128–130`
-  - **Описание:** Добавлена `else`-ветка с `logger.warn`. Неизвестные команды логируются, байты не съедаются (следующий буфер читается нормально).
-  - **Тест:** `MultiplexerRegressionTest.testUnknownCommandDoesNotCrash` (уже был)
-
-- [x] **~~#9. Нет cleanup при падении readJob — мультиплексор зависает~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerImpl.kt:148–175`
-  - **Описание:** Если handler в readJob бросает non-CancellationException (напр. `ClosedSendChannelException`), readJob падал, а активные/pending каналы не очищены.
-  - **Фикс:** readJob обёрнут в `try { supervisorScope { ... } } catch (e: CancellationException) { throw e } catch (e: Throwable) { ... cleanup ... }`. В crash-хендлере: все активные каналы закрываются (`cancel()` + `close()`), pending-каналы отменяются, pendingData и incomeChannels очищаются.
-  - **Тест:** `MultiplexerRegressionTest.testReadJobCrashCleanup` — проверяет что `close()` работает после завершения readJob (все стейты согласованы). Детерминированный тест на non-Cancellation crash невозможен — все текущие хендлеры не выбрасывают не-Cancellation исключения в нормальной работе.
-
-- [x] **~~#10. consumeEach в reading() закрывает внешний input-канал как side effect~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerProtocol.kt:96–99`
-  - **Описание:** `consumeEach` заменён на `while (true) { receiveCatching().getOrNull() ?: break }`. Ручной цикл не вызывает `cancel()` на канале при завершении.
-
-- [x] **~~#11. Неравномерная обработка ошибок между командами протокола~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerProtocol.kt:113–138`
-  - **Описание:** DATA-ветка была обёрнута в `try-catch(Throwable)`, CHANNEL_CLOSE/REQUEST/ACCEPT — нет. **Фикс:** во все 3 ветки добавлен `try-catch(e: Throwable)` с `logger.error.`
-
-- [x] **~~#12. DuplexChannel.cancel()/close() затрагивают только одну сторону~~** ✅ FIXED
-  - **Type:** Bug
-  - **Severity:** ~~Warning~~
-  - **Location:** `DuplexChannel.kt:64–81`
-  - **Описание:** `cancel()` → `income.cancel()`, `close()` → `outcome.close()`. Пользователь не получал полной остановки.
-  - **Фикс:**
-    - **DuplexChannel (интерфейс):** `cancel()` закрывает income + outcome (`income.cancel(ce)` + `outcome.close(ce)`).
-    - **DuplexChannel:** `close()` закрывает outcome + income (`outcome.close(ce)` + `income.cancel(ce)`).
-    - **VirtualChannel:** `close()` закрывает только outcome (graceful). Income закрывается асинхронно в `finally` job'ы. `cancel()` наследует из DuplexChannel — закрывает обе стороны сразу.
-  - **Тесты:** `MultiplexerRegressionTest.testCancelClosesBothSides` (isClosedForReceive + isClosedForSend), `MultiplexerRegressionTest.testCloseClosesBothSides` (isClosedForSend)
-
-- [x] **~~#13. CancellationException логируется как READ FINISHED WITH ERROR~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerProtocol.kt:151–152`
-  - **Описание:** Добавлен `catch (e: CancellationException) { }` ПЕРЕД `catch (e: Throwable)`. CancellationException при нормальной отмене не логируется.
-
-- [x] **~~#14. Busy-wait spinlock без backoff в корутинном контексте~~** ✅ FIXED
-  - **Type:** Performance
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerImpl.kt:35` (activeChannelsLock → Mutex), `MultiplexerImpl.kt:60,91,131,144,160,185,208`
-  - **Описание:** `activeChannelsLock` был `AtomicBoolean` (spinlock, блокирует поток). Заменён на `Mutex`. Аналог #1 для `activeChannelsLock`. В suspend-контекстах используется `withLock { }`, в `close()` — `runBlocking { withLock { } }`.
-
-- [x] **~~#15. Race: close() очищает activeChannels до завершения readJob~~** ✅ CLOSED (WONTFIX)
-  - **Type:** Concurrency
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerImpl.kt:181–192`
-  - **Описание:** `close()` вызывает `readJob.cancel()` (cooperative, не мгновенно), затем чистит `activeChannels`, `pendingChannels`, `pendingData`. Если readJob между cancel() и clear() успевает обработать DATA-пакет — он теряется.
-  - **Почему WONTFIX:**
-    - После фиксов #2 и #3 ложный `sendCloseChannel` больше не отправляется (unknown DATA буферизуется, а не шлёт close).
-    - readJob.cancel() на новом singleThreadContext / DefaultDispatcher срабатывает мгновенно из-за cooperative cancellation в `consumeEach`.
-    - Даже если проявится — единственное последствие: потеря одного DATA-пакета во время закрытия мультиплексора. Все каналы уже закрыты, это безопасно.
-    - **Тестировать НЕЛЬЗЯ:** гонка живёт в микросекундном окне между cancel() и clear(). Невозможно воспроизвести детерминированно без instrumented dispatcher, который бы приостанавливал readJob посередине. Стоимость такого теста не оправдывает ничтожный риск.
-
-- [x] **~~#16. VirtualChannel.close() vs close(cause) — разное поведение~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~Warning~~ → ~~Fixed~~
-  - **Описание:** `close()` теперь вызывает `outcome.close()` (graceful), а не `job.cancel()`. Поведение унифицировано с `close(cause)` из DuplexChannel.
-
-- [x] **~~#17. channelClosed handler — race между remove() и channel.close()~~** ✅ FIXED
-  - **Type:** Concurrency
-  - **Severity:** ~~Warning~~
-  - **Location:** `MultiplexerImpl.kt:160–165`
-  - **Описание:** `close()` перенесён внутрь `withLock { remove(id)?.close() }`. VirtualChannel.job's `finally` с `remove(id)` безопасно ждёт освобождения мутекса (разные корутины).
-
-## WeakWarning (10)
-
-- [x] **~~#18. Две мёртвые функции LEB128 в Leb.kt~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `Leb.kt`
-  - **Описание:** Удалены `writeUnsignedLeb128` (дубль `writeUnsignedLeb1282`) и `EncodeLeb128` (42 строки, не используется, игнорирует параметр `len`).
-
-- [x] **~~#19. Typo: chanelJob вместо channelJob~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerImpl.kt`
-  - **Описание:** Переименовано через IDE: `chanelJob` → `channelJob` (6 вхождений).
-
-- [x] **~~#20. Typo: coppingLogicalToPhysical вместо copyingLogicalToPhysical~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerProtocol.kt:65`
-  - **Описание:** Переименовано через IDE: `coppingLogicalToPhysical` → `copyingLogicalToPhysical`.
-
-- [x] **~~#21. bufferOf пишет ByteArray побайтово вместо bulk write~~** ✅ FIXED
-  - **Type:** Performance
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `Utils.kt:7–13`
-  - **Описание:** `bytes.forEach { buffer.writeByte(it) }` → `buffer.write(bytes)`.
-
-- [x] **~~#22. Избыточная аллокация + копирование в wrapLogicalToPhysical~~** ✅ FIXED
-  - **Type:** Performance
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerProtocol.kt:82`
-  - **Описание:** `data.readFully(resultBuffer, data.size)` заменён на `resultBuffer.transferFrom(data)` — перемещение сегментов без копирования.
-
-- [x] **~~#23. Channel(UNLIMITED) — отсутствие backpressure, риск OOM при перегрузке~~** 🚫 WONTFIX
-  - **Type:** Performance
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerImpl.kt:39, 57–58`
-  - **Описание:** Выбор буферизации — ответственность потребителя. Multiplexer не должен навязывать backpressure, т.к. не знает сценарий использования.
-
-- [x] **~~#24. Pattern duplication: три send-команды имеют идентичную структуру~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerProtocol.kt:18–56`
-  - **Описание:** Вынесен приватный helper `sendCommand(cmd, channelId, physical)`. Три публичные функции делегируют ему.
-
-- [x] **~~#25. Three when-ветки выполняют одинаковую последовательность~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerProtocol.kt:115–140`
-  - **Описание:** Вынесен `handleChannelEvent(buffer, logPrefix, handler)` — lebInt → log → handler.onEvent с try-catch.
-
-- [x] **~~#26. MultiplexerHolder.close() — race между load() и close()~~** ✅ FIXED
-  - **Type:** Concurrency
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `MultiplexerHolder.kt:27–29`
-  - **Описание:** Заменён на CAS-цикл: `instance.load()` + `compareAndSet(m, null)` — атомарный `getAndSet`. Два потока не могут одновременно закрыть один instance.
-
-- [x] **~~#27. invokeOnClose делегирует только outcome, игнорируя income~~** 🚫 WONTFIX
-  - **Type:** Design
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `DuplexChannel.kt:19`
-  - **Описание:** Дизайн-решение: `invokeOnClose` привязан к outcome как к основной транспортной шине. VirtualChannel обходит это через init-блок. Без редизайна контракта не починить.
-
-## Info (4)
-
-- [x] **~~#28. Int overflow при 2 млрд созданий каналов~~** ✅ FIXED
-  - **Type:** Maintainability
-  - **Severity:** ~~Info~~
-  - **Location:** `MultiplexerImpl.kt:32, 110`
-  - **Описание:** `AtomicInt` заменён на `AtomicLong`. 9 × 10¹⁸ операций до переполнения.
-
-- [x] **~~#29. LEB128 readUnsigned не дочитывает лишние байты при превышении maxBits~~** ✅ FIXED
-  - **Type:** Security
-  - **Severity:** ~~Info~~
-  - **Location:** `Leb.kt:18–24, 45–50`
-  - **Описание:** При `maxBytes <= 0` и наличии continuation-байтов — дочитывает их до терминатора. Фикс в `readUnsigned` и `readSigned`.
-
-- [x] **~~#30. MultiplexerEvent.kt дублирует сигнатуры handler'ов reading()~~** 🚫 WONTFIX
-  - **Type:** Maintainability
-  - **Severity:** ~~Info~~
-  - **Location:** `MultiplexerEvent.kt:1–44`
-  - **Описание:** Утилитарный хелпер для тестов. Рефакторинг (слияние с reading()) усложнит читаемость тестов без выгоды.
-
-- [x] **~~#31. Тяжёлое @Suppress — хрупкость при обновлении корутин~~** 🚫 WONTFIX
-  - **Type:** Maintainability
-  - **Severity:** ~~WeakWarning~~
-  - **Location:** `DuplexChannel.kt:7`
-  - **Описание:** `@Suppress` необходим для override непубличных методов корутин. Без альтернативы (нет открытого API для этой функциональности).
+> Результат полного ревью кода модуля `multiplexer` (июль 2025).
 
 ---
 
-## Статус
+## ERROR
 
-| Категория | Всего | Закрыто | WONTFIX | Открыто |
-|-----------|-------|---------|---------|--------|
-| Error | 6 | 6 | 0 | 0 |
-| Warning | 11 | 11 | 0 | 0 |
-| WeakWarning | 10 | 7 | 3 | 0 |
-| Info | 4 | 2 | 2 | 0 |
-| **Всего** | **31** | **25** | **6** | **0** |
+- [x] **#1** **Deadlock при close() — Mutex не reentrant**
+  `activeChannelsMutex` захватывается в `MultiplexerImpl.close()`, затем вызывается `channel.close()` → `outcome.close()` → `income.invokeOnClose` → `job.cancel()` → `job.finally` блок пытается захватить тот же `activeChannelsMutex.withLock { activeChannels.remove(id) }`.  
+  Mutex из kotlinx.coroutines НЕ reentrant — поток зависает навсегда.  
+  Аналогичная проблема в `readJob.catch(e:Throwable)` — блоки ~189–195.  
+  **Решение:** либо выносить `remove` за пределы Mutex, либо использовать Mutex с рекурсивной семантикой (отсутствует в kotlinx.coroutines).
 
-**Тестов:** 21, все проходят.
+- [ ] **#2** **createChannel() — ручной lock/unlock без finally — утечка мьютекса при отмене**  
+  `pendingChannelsMutex.lock()` в строке 129, затем `unlock()` вручную внутри `suspendCancellableCoroutine`. Если корутина отменяется ДО вызова `unlock()`, мьютекс остаётся заблокированным навсегда.  
+  **Решение:** использовать `withLock` либо гарантировать unlock через try/finally.
+
+## WARNING
+
+- [ ] **#3** **AtomicBoolean spinlock (busy-wait) в pendingDataLock**  
+  `AtomicBoolean.lock()` реализует busy-wait spinlock без yield/park — сжигает CPU ядро при конкуренции.  
+  Хотя в памяти предыдущего ревью сказано, что все spinlock'и заменены на Mutex, `pendingDataLock` остался на AtomicBoolean.  
+  **Решение:** заменить на `Mutex` из kotlinx.coroutines.sync (как сделано для `activeChannelsMutex`).
+
+- [ ] **#4** **MultiplexerHolder.close() — busy-wait CAS spinlock**  
+  `while (true) { val m = instance.load(); if (m == null || instance.compareAndSet(m, null)) { m?.close(); break } }` — busy-wait loop.  
+  **Решение:** заменить на Mutex или переписать проще (single-threaded предполагается).
+
+- [ ] **#5** **CoroutineScope не закрывается — утечка корутин**  
+  `MultiplexerImpl(...)` принимает `ioCoroutineScope`, но не сохраняет его для очистки.  
+  При `close()` job'ы отменяются через `readJob.cancel()`, но сама дочерняя корутина `VirtualChannel.job` запускается через `ioCoroutineScope.launch` — после закрытия всех каналов scope не отменяется.  
+  В перспективе может привести к утечке при пересоздании мультиплексоров.
+
+- [ ] **#6** **`consumeEach` закрывает input при завершении — несоответствие поведения**  
+  `MultiplexerProtocol.copyingLogicalToPhysical` использует `consumeEach`, который при завершении (нормальном или ошибке) закрывает `logical` (канал outcome).  
+  В `VirtualChannel.job.finally` вызывается `outcome.close(e)`, который на уже закрытом канале — no-op. Работает, но семантика неочевидная.  
+  **Решение:** использовать ручной `while`-цикл (по аналогии с `reading()`).
+
+- [ ] **#7** **Buffer allocation на каждую команду/пакет**  
+  `sendCommand()` (строка 17) создаёт новый `Buffer()` на каждую команду.  
+  `wrapLogicalToPhysical()` (строка 65) создаёт новый `Buffer()` на каждый DATA-пакет.  
+  При высокой нагрузке (сотни тысяч пакетов/сек) — избыточный GC pressure.  
+  **Решение:** рассмотреть пул буферов или переиспользование при известном максимальном размере.
+
+- [ ] **#8** **logger.info для каждого accept/createChannel/close — многословно в production**  
+  `sendCloseChannel`, `sendRequestNewChannel`, `sendResponseNewChannel`, `handleChannelEvent` — все логируют `info` на каждое событие, включая `channelId`.  
+  При 100+ каналов/сек это десятки лог-строк.  
+  **Решение:** понизить до `debug` или сделать конфигурируемым.
+
+## WEAK WARNING
+
+- [ ] **#9** **readJob крашится с CancellationException — неоптимальный catch**  
+  Строка ~175: `catch (e: CancellationException) { throw e }` перехватывает, логически ничего не делает и пробрасывает.  
+  Можно просто не ловить — CancellationException не остановит supervisorScope.  
+  **Решение:** удалить catch CancellationException или оставить комментарий.
+
+- [ ] **#10** **Typo: `chanelJob` вместо `channelJob`**  
+  `MultiplexerImpl.createChannel()` строка 147: `val chanelJob = VirtualChannel(...)`.  
+  **Решение:** переименовать в `channelJob`.
+
+- [ ] **#11** **Typo: `water` вместо `waiter`**  
+  `MultiplexerImpl` строка 161: `val water = pendingChannelsMutex.withLock { ... }`.  
+  **Решение:** переименовать в `waiter` (или `continuation`).
+
+- [ ] **#12** **Dead code: `Leb.writeUnsignedLeb1282`**  
+  Функция никогда не вызывается напрямую — `writeUnsignedLeb1282` используется только через `Sink.lebULong`, который в свою очередь не вызывается нигде в `commonMain`.  
+  **Решение:** либо удалить, либо пометить `@PublishedApi internal`, если планируется экспорт.
+
+- [ ] **#13** **Dead code: `SourceExtensions.lebULong/lebUInt/lebLong/boolean/lebString/list/nullable`**  
+  Все эти функции не используются в `commonMain`.  
+  **Решение:** удалить или переместить в отдельный файл для внешнего использования.
+
+- [ ] **#14** **Dead code: `SinkExtensions.lebUInt/lebULong/lebLong/lebString/boolean/list/nullable`**  
+  Аналогично #13 — не используются в `commonMain`.  
+  **Решение:** удалить или переместить.
+
+- [ ] **#15** **Dead code: `RawSourceExtensions.kt`**  
+  Весь файл `RawSourceExtensions.kt` (функция `readFully`) не используется нигде в модуле.  
+  **Решение:** удалить или перенести туда, где используется.
+
+- [ ] **#16** **`MultiplexerProtocol.HandlerOnChannel` — functional interface не нужен**  
+  `fun interface HandlerOnChannel` и `HandlerOnData` — используются как обычные SAM-интерфейсы.  
+  Лучше заменить на простые suspend-лямбды типа `suspend (channelId: Int) -> Unit`, убрав лишние интерфейсы.
+
+- [ ] **#17** **`MultiplexerImpl.readJob` — supervisorScope оборачивает всю reading(), включая CancellationException**  
+  supervisorScope не передаёт CancellationException детям, что правильно. Но в `reading()` CancellationException ловится и swallowing не происходит.  
+  В итоге `reading()` выходит по CancellationException → supervisorScope завершается нормально → readJob завершается.  
+  Потенциально запутанная цепочка — стоит упростить.
+
+- [ ] **#18** **`VirtualChannel.job.finally` отправляет `sendCloseChannel` после закрытия output**  
+  `outcome.close(e)` вызывается до `sendCloseChannel(channelId, physical=output)`. Если outcome — это тот же Physical канал, то send по закрытому каналу упадёт.  
+  Хотя есть `catch (_: Throwable)` — это best-effort. Лучше сначала отправить close, потом чистить локальные каналы.
+
+- [ ] **#19** **`drainPendingData` использует `trySend` вместо `send`**  
+  `trySend` для UNLIMITED канала всегда успешен, так что разницы нет.  
+  Но семантически `send` (suspend) точнее — если когда-то канал перестанет быть UNLIMITED, `trySend` молча потеряет данные.  
+  **Решение:** использовать `send`.
+
+- [ ] **#20** **Нет проверки на переполнение Int при LEB128-декодинге**  
+  `Source.lebInt()` использует `maxBits = Int.SIZE_BITS = 32`. LEB128-поток может содержать значение > 2³¹-1 (signed) — в этом случае результат обрежется до Int silently.  
+  **Решение:** добавить валидацию диапазона или проверять в MultiplexerProtocol.
+
+## INFO
+
+- [ ] **#21** **`DuplexChannel` — `@Suppress` для `DEPRECATION_ERROR`, `INVISIBLE_MEMBER` и др.**  
+  Подавление ошибок компиляции для переопределения методов `offer`, `poll`, `onReceiveOrNull` — очень хрупко.  
+  При обновлении kotlinx.coroutines может перестать компилироваться.  
+  **Решение:** задокументировать, на какой версии корутин работает, и мониторить при обновлениях.
+
+- [ ] **#22** **Тесты используют `newSingleThreadContext` + `runBlocking` для изоляции — дублирование**  
+  `MultiplexerRegressionTest`, `MultiplexerAcceptTest`, `MultiplexerCyclesTest` — везде копипаста вспомогательной функции.  
+  **Решение:** вынести общий хелпер в `Utils.kt`.
+
+- [ ] **#23** **Интеграционные тесты без `withTimeout`**  
+  `MultiplexerIntegrationTest` запускает все тесты в `runBlocking` без `withTimeout`.  
+  При deadlock'е (см. #1) тест зависает навсегда и не падает с таймаутом.  
+  **Решение:** добавить `withTimeout`.
+
+- [ ] **#24** **LEB128-декодинг дочитывает continuation-байты при overflow**  
+  `readUnsigned` и `readSigned` при превышении `maxBytes` продолжают читать байты, чтобы сохранить выравнивание.  
+  Если данные повреждены (бесконечный поток continuation-байтов), цикл не остановится.  
+  **Решение:** добавить лимит на количество дочитываемых байт.
+
+- [ ] **#25** **`MultiplexerImpl` принимает `Channel<Buffer>`, но протокол использует `ReceiveChannel`/`SendChannel`**  
+  Конструктор принимает конкретную реализацию `Channel<Buffer>`, хотя поля `input`/`output` типизированы как интерфейсы.  
+  **Решение:** принимать интерфейсы, а не конкретную реализацию.
+
+- [ ] **#26** **Двойное логирование в `handleChannelEvent` и `reading`**  
+  В `reading()` для DATA: логирование через `logger.error(e)` при ошибке.  
+  В `handleChannelEvent`: то же самое. При ошибке CHANNEL_CLOSE/REQUEST/ACCEPT будет два лога — один внутри `handleChannelEvent`, второй... нет, `handleChannelEvent` не в try-catch вызывающего. Так что только один.  
+  Но для DATA есть try-catch в вызывающем коде + внутри handler — избыточно.
+
+- [ ] **#27** **Нет тестов для MultiplexerHolder**  
+  `MultiplexerHolder` — важный infrastructure класс, но не покрыт тестами.  
+  **Решение:** добавить unit-тесты.
