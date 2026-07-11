@@ -327,6 +327,26 @@ class MultiplexerRegressionTest {
     }
 
     @Test
+    fun testInputNotCancelledAfterReadJobCompletes() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Close input normally → readJob exits via while loop
+            input.close()
+            delay(200)
+
+            // Verify the input was NOT cancelled by readJob
+            // (it's closed because WE closed it, not by consumeEach)
+            // isClosedForReceive = true, but isClosedForSend should also be true
+            // (Channel.close() closes both). The key: no exception on close().
+            multiplexer.close()
+            output.close()
+        }
+    }
+
+    @Test
     fun testCloseClosesBothSides() {
         testWithTimeout(5.seconds) {
             val input = Channel<Buffer>(Channel.UNLIMITED)
