@@ -1,6 +1,8 @@
 package pw.binom.multiplexer
 
 object Leb {
+    @PublishedApi internal const val MAX_DRAIN_BYTES = 10
+
     inline fun readUnsigned(maxBits: Int, readByte: () -> Byte): ULong {
         var maxBytes = (maxBits + 6) / 7
         var shift = 0
@@ -15,8 +17,10 @@ object Leb {
         shift += 7
             maxBytes--
             if (maxBytes <= 0) {
-                // Consume remaining continuation bytes to keep buffer aligned
+                var drainCount = 0
                 while ((byte and 0x80u) != 0.toUByte()) {
+                    if (++drainCount > MAX_DRAIN_BYTES)
+                        throw IllegalArgumentException("Malformed LEB128: too many continuation bytes")
                     byte = readByte().toUByte()
                 }
                 break
@@ -39,8 +43,10 @@ object Leb {
                 break
             maxBytes--
             if (maxBytes <= 0) {
-                // Consume remaining continuation bytes to keep buffer aligned
+                var drainCount = 0
                 while ((byte and 0x80u) != 0.toUByte()) {
+                    if (++drainCount > MAX_DRAIN_BYTES)
+                        throw IllegalArgumentException("Malformed LEB128: too many continuation bytes")
                     byte = readByte().toUByte()
                 }
                 break

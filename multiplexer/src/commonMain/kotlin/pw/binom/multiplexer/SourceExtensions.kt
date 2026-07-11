@@ -14,11 +14,19 @@ fun Source.lebLong() = Leb.readSigned(maxBits = Long.SIZE_BITS) {
 
 fun Source.lebUInt() = Leb.readUnsigned(maxBits = UInt.SIZE_BITS) {
     readByte()
-}.toUInt()
+}.let {
+    if (it > UInt.MAX_VALUE.toULong())
+        throw IllegalArgumentException("LEB128 value $it does not fit into UInt")
+    it.toUInt()
+}
 
 fun Source.lebInt() = Leb.readSigned(maxBits = Int.SIZE_BITS) {
     readByte()
-}.toInt()
+}.let {
+    if (it < Int.MIN_VALUE.toLong() || it > Int.MAX_VALUE.toLong())
+        throw IllegalArgumentException("LEB128 value $it does not fit into Int")
+    it.toInt()
+}
 
 
 fun Sink.lebString(value: String) {
