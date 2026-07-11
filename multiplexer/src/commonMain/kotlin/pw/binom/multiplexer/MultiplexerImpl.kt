@@ -16,7 +16,7 @@ class MultiplexerImpl(
     val input: ReceiveChannel<Buffer>,
     val output: SendChannel<Buffer>,
     idOdd: Boolean,
-    private val ioCoroutineScope: CoroutineScope
+    ioCoroutineScope: CoroutineScope
 ) : Multiplexer {
     constructor(
         channel: DuplexChannel,
@@ -29,6 +29,7 @@ class MultiplexerImpl(
         ioCoroutineScope = ioCoroutineScope,
     )
 
+    private val scope = CoroutineScope(ioCoroutineScope.coroutineContext + Job())
     private val idGenerator = AtomicLong(if (idOdd) 1L else 0L)
     private val activeChannelsMutex = Mutex()
     private val activeChannels = HashMap<Int, VirtualChannel>()
@@ -68,7 +69,7 @@ class MultiplexerImpl(
     ) : DuplexChannel, AutoCloseable {
         override val income = Channel<Buffer>(Channel.UNLIMITED)
         override val outcome = Channel<Buffer>(Channel.UNLIMITED)
-        private val job = ioCoroutineScope.launch(CoroutineName("Output channel $id")) {
+        private val job = scope.launch(CoroutineName("Output channel $id")) {
             try {
                 MultiplexerProtocol.copyingLogicalToPhysical(
                     channelId = id,
@@ -142,7 +143,7 @@ class MultiplexerImpl(
         return channelJob
     }
 
-    private val readJob = ioCoroutineScope.launch {
+    private val readJob = scope.launch {
         try {
             supervisorScope {
                 MultiplexerProtocol.reading(
@@ -210,6 +211,7 @@ class MultiplexerImpl(
     }
 
     override fun close() {
+        scope.cancel()
         readJob.cancel()
         kotlinx.coroutines.runBlocking {
             val channelsToClose = activeChannelsMutex.withLock {

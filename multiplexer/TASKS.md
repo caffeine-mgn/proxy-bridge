@@ -27,7 +27,7 @@
   `while (true) { val m = instance.load(); if (m == null || instance.compareAndSet(m, null)) { m?.close(); break } }` — busy-wait loop.  
   **Решение:** заменить на Mutex или переписать проще (single-threaded предполагается).
 
-- [ ] **#5** **CoroutineScope не закрывается — утечка корутин**  
+- [x] **#5** **CoroutineScope не закрывается — утечка корутин**
   `MultiplexerImpl(...)` принимает `ioCoroutineScope`, но не сохраняет его для очистки.  
   При `close()` job'ы отменяются через `readJob.cancel()`, но сама дочерняя корутина `VirtualChannel.job` запускается через `ioCoroutineScope.launch` — после закрытия всех каналов scope не отменяется.  
   В перспективе может привести к утечке при пересоздании мультиплексоров.
