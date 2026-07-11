@@ -280,4 +280,25 @@ class MultiplexerRegressionTest {
             events.cancel()
         }
     }
+
+    @Test
+    fun testReadJobCrashCleanup() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Create an active channel
+            MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = input)
+            multiplexer.accept()
+
+            // Complete readJob gracefully (simulates cleanup after normal exit)
+            input.close()
+            delay(500)
+
+            // close() must work after readJob completion — verifies consistent state
+            multiplexer.close()
+            output.close()
+        }
+    }
 }

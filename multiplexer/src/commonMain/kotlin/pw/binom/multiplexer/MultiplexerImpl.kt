@@ -136,44 +136,70 @@ class MultiplexerImpl(
     }
 
     private val readJob = ioCoroutineScope.launch {
-        supervisorScope {
-            MultiplexerProtocol.reading(
-                physical = input,
-                handlerOnData = { channelId, data ->
-                    val channel = activeChannelsLock.locking { activeChannels[channelId] }
-                    if (channel == null) {
-                        // Канал ещё не зарегистрирован — буферизуем
-                        pendingDataLock.locking {
-                            pendingData.getOrPut(channelId) { mutableListOf() }.add(data)
+        try {
+            supervisorScope {
+                MultiplexerProtocol.reading(
+                    physical = input,
+                    handlerOnData = { channelId, data ->
+                        val channel = activeChannelsLock.locking { activeChannels[channelId] }
+                        if (channel == null) {
+                            // Канал ещё не зарегистрирован — буферизуем
+                            pendingDataLock.locking {
+                                pendingData.getOrPut(channelId) { mutableListOf() }.add(data)
+                            }
+                        } else {
+                            try {
+                                channel.income.send(data)
+                            } catch (e: CancellationException) {
+                                //ignore
+                            }
                         }
-                    } else {
-                        try {
-                            channel.income.send(data)
-                        } catch (e: CancellationException) {
-                            //ignore
+                    },
+                    channelClosed = { channelId ->
+                        logger.info { "Income message for close channel $channelId" }
+                        val channel = activeChannelsLock.locking {
+                            activeChannels.remove(channelId)
                         }
-                    }
-                },
-                channelClosed = { channelId ->
-                    logger.info { "Income message for close channel $channelId" }
-                    val channel = activeChannelsLock.locking {
-                        activeChannels.remove(channelId)
-                    }
-                    logger.info { "found channel $channel" }
-                    channel?.close()
-                },
-                requestChannel = { channelId ->
-                    incomeChannels.send(channelId)
-                },
-                newChannelAccepted = { channelId ->
-                    val water = pendingChannelsMutex.withLock { pendingChannels.remove(channelId) }
-                    if (water == null) {
-                        MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
-                    } else {
-                        water.resume(Unit)
-                    }
-                },
-            )
+                        logger.info { "found channel $channel" }
+                        channel?.close()
+                    },
+                    requestChannel = { channelId ->
+                        incomeChannels.send(channelId)
+                    },
+                    newChannelAccepted = { channelId ->
+                        val water = pendingChannelsMutex.withLock { pendingChannels.remove(channelId) }
+                        if (water == null) {
+                            MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
+                        } else {
+                            water.resume(Unit)
+                        }
+                    },
+                )
+            }
+        } catch (e: CancellationException) {
+            // Normal shutdown — close() handles full cleanup
+            throw e
+        } catch (e: Throwable) {
+            logger.error(e) { "readJob crashed — cleaning up multiplexer" }
+            // Close all active channels to signal failure to users
+            activeChannelsLock.locking {
+                activeChannels.values.forEach {
+                    it.cancel()          // closes income immediately
+                    it.close()           // starts graceful shutdown of outcome
+                }
+                activeChannels.clear()
+            }
+            kotlinx.coroutines.runBlocking {
+                pendingChannelsMutex.withLock {
+                    pendingChannels.values.forEach { it.cancel() }
+                    pendingChannels.clear()
+                }
+            }
+            pendingDataLock.locking {
+                pendingData.clear()
+            }
+            incomeChannels.cancel()
+            throw e
         }
     }
 

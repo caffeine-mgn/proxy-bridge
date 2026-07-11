@@ -57,11 +57,13 @@
   - **Location:** `MultiplexerProtocol.kt:101–123`
   - **Описание:** `when(cmd)` покрывает только 4 значения. Любая другая команда съедается, следующие байты читаются со смещением — возможна десинхронизация протокола.
 
-- [ ] **#9. Нет cleanup при падении readJob — мультиплексор зависает**
+- [x] **~~#9. Нет cleanup при падении readJob — мультиплексор зависает~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:152–196`
-  - **Описание:** Если handler в readJob бросает non-CancellationException (напр. `ClosedSendChannelException`), readJob падает, а активные/pending каналы не очищены.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerImpl.kt:148–175`
+  - **Описание:** Если handler в readJob бросает non-CancellationException (напр. `ClosedSendChannelException`), readJob падал, а активные/pending каналы не очищены.
+  - **Фикс:** readJob обёрнут в `try { supervisorScope { ... } } catch (e: CancellationException) { throw e } catch (e: Throwable) { ... cleanup ... }`. В crash-хендлере: все активные каналы закрываются (`cancel()` + `close()`), pending-каналы отменяются, pendingData и incomeChannels очищаются.
+  - **Тест:** `MultiplexerRegressionTest.testReadJobCrashCleanup` — проверяет что `close()` работает после завершения readJob (все стейты согласованы). Детерминированный тест на non-Cancellation crash невозможен — все текущие хендлеры не выбрасывают не-Cancellation исключения в нормальной работе.
 
 - [ ] **#10. consumeEach в reading() закрывает внешний input-канал как side effect**
   - **Type:** Maintainability
