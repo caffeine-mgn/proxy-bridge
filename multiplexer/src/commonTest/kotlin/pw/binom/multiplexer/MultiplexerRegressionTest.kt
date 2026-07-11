@@ -301,4 +301,27 @@ class MultiplexerRegressionTest {
             output.close()
         }
     }
+
+    @Test
+    fun testCancelWithCausePropagatesToIncome() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = input)
+            val channel = multiplexer.accept()
+
+            val cause: Throwable = RuntimeException("custom cancel cause")
+            channel.cancel(cause)
+
+            assertTrue(channel.isClosedForReceive, "income should be closed after cancel")
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
 }

@@ -45,11 +45,12 @@
 
 ## Warning (11)
 
-- [ ] **#7. DuplexChannel.cancel(cause: Throwable?) игнорирует параметр cause**
+- [x] **~~#7. DuplexChannel.cancel(cause: Throwable?) игнорирует параметр cause~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Warning
-  - **Location:** `DuplexChannel.kt:48–50`
-  - **Описание:** `cancel(cause: Throwable?)` вызывает `income.cancel()` без передачи `cause`, теряя причину отмены.
+  - **Severity:** ~~Warning~~
+  - **Location:** `DuplexChannel.kt:64–67`
+  - **Описание:** `cancel(cause: Throwable?)` вызывал `income.cancel()` без передачи `cause`. **Фикс:** передан `CancellationException(cause?.message, cause)`.
+  - **Тест:** `MultiplexerRegressionTest.testCancelWithCausePropagatesToIncome`
 
 - [ ] **#8. Неизвестная команда протокола молча игнорируется в when(cmd)**
   - **Type:** Security
