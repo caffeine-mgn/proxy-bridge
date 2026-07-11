@@ -1,25 +1,37 @@
 package pw.binom.multiplexer
 
-import kotlin.concurrent.atomics.AtomicReference
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-@OptIn(ExperimentalAtomicApi::class)
 class MultiplexerHolder : Multiplexer, Lazy<Multiplexer> {
-    private val instance = AtomicReference<Multiplexer?>(null)
-    inline fun <T> use(instance: Multiplexer, func: () -> T) =
+    private val lock = Mutex()
+    @Volatile
+    @PublishedApi internal
+    var instance: Multiplexer? = null
+
+    inline fun <T> use(mux: Multiplexer, func: () -> T) =
         try {
-            set(instance)
+            instance = mux
             func()
         } finally {
-            remove()
+            instance = null
         }
 
-    fun set(instance: Multiplexer) {
-        this.instance.store(instance)
+    fun set(mux: Multiplexer) {
+        runBlocking {
+            lock.withLock {
+                instance = mux
+            }
+        }
     }
 
     fun remove() {
-        instance.store(null)
+        runBlocking {
+            lock.withLock {
+                instance = null
+            }
+        }
     }
 
     override suspend fun accept(): DuplexChannel = value.accept()
@@ -27,17 +39,18 @@ class MultiplexerHolder : Multiplexer, Lazy<Multiplexer> {
     override suspend fun createChannel(): DuplexChannel = value.createChannel()
 
     override fun close() {
-        while (true) {
-            val m = instance.load()
-            if (m == null || instance.compareAndSet(m, null)) {
-                m?.close()
-                break
+        val m = runBlocking {
+            lock.withLock {
+                val m = instance
+                instance = null
+                m
             }
         }
+        m?.close()
     }
 
     override val value: Multiplexer
-        get() = instance.load() ?: throw IllegalStateException("Multiplexer not defined")
+        get() = instance ?: throw IllegalStateException("Multiplexer not defined")
 
-    override fun isInitialized(): Boolean = instance.load() != null
+    override fun isInitialized(): Boolean = instance != null
 }

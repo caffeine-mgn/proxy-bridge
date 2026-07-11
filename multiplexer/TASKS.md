@@ -23,7 +23,7 @@
   Хотя в памяти предыдущего ревью сказано, что все spinlock'и заменены на Mutex, `pendingDataLock` остался на AtomicBoolean.  
   **Решение:** заменить на `Mutex` из kotlinx.coroutines.sync (как сделано для `activeChannelsMutex`).
 
-- [ ] **#4** **MultiplexerHolder.close() — busy-wait CAS spinlock**  
+- [x] **#4** **MultiplexerHolder.close() — busy-wait CAS spinlock**
   `while (true) { val m = instance.load(); if (m == null || instance.compareAndSet(m, null)) { m?.close(); break } }` — busy-wait loop.  
   **Решение:** заменить на Mutex или переписать проще (single-threaded предполагается).
 
