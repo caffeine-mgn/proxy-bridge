@@ -55,11 +55,11 @@
   Можно просто не ловить — CancellationException не остановит supervisorScope.  
   **Решение:** удалить catch CancellationException или оставить комментарий.
 
-- [ ] **#10** **Typo: `chanelJob` вместо `channelJob`**  
+- [x] **#10** **Typo: `chanelJob` вместо `channelJob`**
   `MultiplexerImpl.createChannel()` строка 147: `val chanelJob = VirtualChannel(...)`.  
   **Решение:** переименовать в `channelJob`.
 
-- [ ] **#11** **Typo: `water` вместо `waiter`**  
+- [x] **#11** **Typo: `water` вместо `waiter`**
   `MultiplexerImpl` строка 161: `val water = pendingChannelsMutex.withLock { ... }`.  
   **Решение:** переименовать в `waiter` (или `continuation`).
 
@@ -92,7 +92,7 @@
   `outcome.close(e)` вызывается до `sendCloseChannel(channelId, physical=output)`. Если outcome — это тот же Physical канал, то send по закрытому каналу упадёт.  
   Хотя есть `catch (_: Throwable)` — это best-effort. Лучше сначала отправить close, потом чистить локальные каналы.
 
-- [ ] **#19** **`drainPendingData` использует `trySend` вместо `send`**  
+- [x] **#19** **`drainPendingData` использует `trySend` вместо `send`**
   `trySend` для UNLIMITED канала всегда успешен, так что разницы нет.  
   Но семантически `send` (suspend) точнее — если когда-то канал перестанет быть UNLIMITED, `trySend` молча потеряет данные.  
   **Решение:** использовать `send`.
@@ -122,7 +122,7 @@
   Если данные повреждены (бесконечный поток continuation-байтов), цикл не остановится.  
   **Решение:** добавить лимит на количество дочитываемых байт.
 
-- [ ] **#25** **`MultiplexerImpl` принимает `Channel<Buffer>`, но протокол использует `ReceiveChannel`/`SendChannel`**  
+- [x] **#25** **`MultiplexerImpl` принимает `Channel<Buffer>`, но протокол использует `ReceiveChannel`/`SendChannel`**
   Конструктор принимает конкретную реализацию `Channel<Buffer>`, хотя поля `input`/`output` типизированы как интерфейсы.  
   **Решение:** принимать интерфейсы, а не конкретную реализацию.
 

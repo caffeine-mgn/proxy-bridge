@@ -45,7 +45,7 @@ class MultiplexerImpl(
             val buffered = pendingData.remove(channelId)
             if (buffered != null) {
                 for (buf in buffered) {
-                    target.income.trySend(buf)
+                    target.income.send(buf)
                 }
             }
         }
@@ -174,11 +174,11 @@ class MultiplexerImpl(
                         incomeChannels.send(channelId)
                     },
                     newChannelAccepted = { channelId ->
-                        val water = pendingChannelsMutex.withLock { pendingChannels.remove(channelId) }
-                        if (water == null) {
+                        val waiter = pendingChannelsMutex.withLock { pendingChannels.remove(channelId) }
+                        if (waiter == null) {
                             MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
                         } else {
-                            water.complete(Unit)
+                            waiter.complete(Unit)
                         }
                     },
                 )
