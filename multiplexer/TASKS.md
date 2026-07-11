@@ -12,13 +12,13 @@
   Аналогичная проблема в `readJob.catch(e:Throwable)` — блоки ~189–195.  
   **Решение:** либо выносить `remove` за пределы Mutex, либо использовать Mutex с рекурсивной семантикой (отсутствует в kotlinx.coroutines).
 
-- [ ] **#2** **createChannel() — ручной lock/unlock без finally — утечка мьютекса при отмене**  
+- [x] **#2** **createChannel() — ручной lock/unlock без finally — утечка мьютекса при отмене**
   `pendingChannelsMutex.lock()` в строке 129, затем `unlock()` вручную внутри `suspendCancellableCoroutine`. Если корутина отменяется ДО вызова `unlock()`, мьютекс остаётся заблокированным навсегда.  
   **Решение:** использовать `withLock` либо гарантировать unlock через try/finally.
 
 ## WARNING
 
-- [ ] **#3** **AtomicBoolean spinlock (busy-wait) в pendingDataLock**  
+- [x] **#3** **AtomicBoolean spinlock (busy-wait) в pendingDataLock**
   `AtomicBoolean.lock()` реализует busy-wait spinlock без yield/park — сжигает CPU ядро при конкуренции.  
   Хотя в памяти предыдущего ревью сказано, что все spinlock'и заменены на Mutex, `pendingDataLock` остался на AtomicBoolean.  
   **Решение:** заменить на `Mutex` из kotlinx.coroutines.sync (как сделано для `activeChannelsMutex`).

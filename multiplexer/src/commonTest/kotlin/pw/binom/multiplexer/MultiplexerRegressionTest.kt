@@ -401,4 +401,96 @@ class MultiplexerRegressionTest {
             events.cancel()
         }
     }
+
+    @Test
+    fun testCancelledCreateChannelDoesNotLeakMutex() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Запускаем createChannel, отменяем ДО отправки ACCEPT
+            val job = launch(Dispatchers.Unconfined) {
+                multiplexer.createChannel()
+            }
+            val request = events.receive() as MultiplexerEvent.ChannelRequest
+            job.cancel()
+            job.join()
+
+            // Пытаемся создать новый канал — если мьютекс утек, тест зависнет до timeout
+            val data = Random.nextBytes(100)
+            val chDef = CompletableDeferred<DuplexChannel>()
+            launch(Dispatchers.Unconfined) {
+                chDef.complete(multiplexer.createChannel())
+            }
+            val request2 = events.receive() as MultiplexerEvent.ChannelRequest
+            MultiplexerProtocol.sendResponseNewChannel(request2.channelId, input)
+            val channel = chDef.await()
+            channel.outcome.send(bufferOf(data))
+
+            val channelData = events.receive() as MultiplexerEvent.ChannelData
+            assertEquals(request2.channelId, channelData.channelId)
+            assertContentEquals(data, channelData.data.readByteArray())
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
+
+    @Test
+    fun testConcurrentCloseDoesNotDeadlock() {
+        testWithTimeout(10.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+            val n = 5
+
+            // Создаём n каналов
+            val defs = (1..n).map {
+                val d = CompletableDeferred<DuplexChannel>()
+                launch(Dispatchers.Unconfined) {
+                    d.complete(multiplexer.createChannel())
+                }
+                d
+            }
+            val channels = (1..n).map {
+                val request = events.receive() as MultiplexerEvent.ChannelRequest
+                MultiplexerProtocol.sendResponseNewChannel(request.channelId, input)
+            }.let { defs.awaitAll() }
+
+            // Параллельно шлём данные
+            val sendJobs = channels.mapIndexed { i, ch ->
+                launch {
+                    repeat(3) {
+                        ch.outcome.send(bufferOf(Random.nextBytes(64)))
+                        delay(1)
+                    }
+                }
+            }
+            val drainJobs = channels.map { ch ->
+                launch {
+                    try {
+                        while (true) ch.income.receive()
+                    } catch (_: CancellationException) { /* ok */ }
+                }
+            }
+
+            // Дожидаемся отправки, потом закрываем мультиплексор
+            sendJobs.forEach { it.join() }
+            delay(50)
+
+            // close() не должен deadlock'нуться — timeout теста поймает зависание
+            multiplexer.close()
+
+            // Чистим
+            input.close()
+            output.close()
+            events.cancel()
+            drainJobs.forEach { it.cancel() }
+        }
+    }
 }

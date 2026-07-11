@@ -8,10 +8,8 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
-import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
-import kotlin.coroutines.resume
 
 @OptIn(ExperimentalAtomicApi::class)
 class MultiplexerImpl(
@@ -35,14 +33,14 @@ class MultiplexerImpl(
     private val activeChannelsMutex = Mutex()
     private val activeChannels = HashMap<Int, VirtualChannel>()
     private val pendingChannelsMutex = Mutex()
-    private val pendingChannels = HashMap<Int, CancellableContinuation<Unit>>()
+    private val pendingChannels = HashMap<Int, CompletableDeferred<Unit>>()
     private val incomeChannels = Channel<Int>(Channel.UNLIMITED)
-    private val pendingDataLock = AtomicBoolean(false)
+    private val pendingDataLock = Mutex()
     private val pendingData = HashMap<Int, MutableList<Buffer>>()
     private val logger = KotlinLogging.logger {}
 
-    private fun drainPendingData(channelId: Int, target: VirtualChannel) {
-        pendingDataLock.locking {
+    private suspend fun drainPendingData(channelId: Int, target: VirtualChannel) {
+        pendingDataLock.withLock {
             val buffered = pendingData.remove(channelId)
             if (buffered != null) {
                 for (buf in buffered) {
@@ -109,30 +107,39 @@ class MultiplexerImpl(
     override suspend fun createChannel(): DuplexChannel {
         val newChannelId = idGenerator.addAndFetch(2L).toInt()
 
-        pendingChannelsMutex.lock()
+        val deferred = CompletableDeferred<Unit>()
+        pendingChannelsMutex.withLock {
+            pendingChannels[newChannelId] = deferred
+        }
+
         try {
             MultiplexerProtocol.sendRequestNewChannel(
                 channelId = newChannelId,
                 physical = output,
             )
         } catch (e: Throwable) {
-            pendingChannelsMutex.unlock()
-            throw e
-        }
-        suspendCancellableCoroutine<Unit> { cont ->
-            cont.invokeOnCancellation {
+            pendingChannelsMutex.withLock {
                 pendingChannels.remove(newChannelId)
             }
-            pendingChannels[newChannelId] = cont
-            pendingChannelsMutex.unlock()
+            deferred.completeExceptionally(e)
+            throw e
         }
 
-        val chanelJob = VirtualChannel(id = newChannelId)
-        activeChannelsMutex.withLock {
-            activeChannels[newChannelId] = chanelJob
+        try {
+            deferred.await()
+        } catch (e: CancellationException) {
+            pendingChannelsMutex.withLock {
+                pendingChannels.remove(newChannelId)
+            }
+            throw e
         }
-        drainPendingData(newChannelId, chanelJob)
-        return chanelJob
+
+        val channelJob = VirtualChannel(id = newChannelId)
+        activeChannelsMutex.withLock {
+            activeChannels[newChannelId] = channelJob
+        }
+        drainPendingData(newChannelId, channelJob)
+        return channelJob
     }
 
     private val readJob = ioCoroutineScope.launch {
@@ -144,7 +151,7 @@ class MultiplexerImpl(
                         val channel = activeChannelsMutex.withLock { activeChannels[channelId] }
                         if (channel == null) {
                             // Канал ещё не зарегистрирован — буферизуем
-                            pendingDataLock.locking {
+                            pendingDataLock.withLock {
                                 pendingData.getOrPut(channelId) { mutableListOf() }.add(data)
                             }
                         } else {
@@ -170,7 +177,7 @@ class MultiplexerImpl(
                         if (water == null) {
                             MultiplexerProtocol.sendCloseChannel(channelId = channelId, physical = output)
                         } else {
-                            water.resume(Unit)
+                            water.complete(Unit)
                         }
                     },
                 )
@@ -194,7 +201,7 @@ class MultiplexerImpl(
                     pendingChannels.clear()
                 }
             }
-            pendingDataLock.locking {
+            pendingDataLock.withLock {
                 pendingData.clear()
             }
             incomeChannels.cancel()
@@ -213,9 +220,9 @@ class MultiplexerImpl(
                 pendingChannels.values.forEach { it.cancel() }
                 pendingChannels.clear()
             }
-        }
-        pendingDataLock.locking {
-            pendingData.clear()
+            pendingDataLock.withLock {
+                pendingData.clear()
+            }
         }
         incomeChannels.cancel()
     }
