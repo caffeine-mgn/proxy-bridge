@@ -79,14 +79,14 @@ class MultiplexerImpl(
             } catch (e: Throwable){
                 logger.error(e) { "Error on channel $id copy finished!" }
             } finally {
-                val e = CancellationException("Closed by outcome channel closed")
-                outcome.close(e)
-                income.cancel(e)
                 try {
                     MultiplexerProtocol.sendCloseChannel(channelId = id, physical = output)
                 } catch (_: Throwable) {
                     // best-effort — close notification may fail if output is already closed
                 }
+                val e = CancellationException("Closed by outcome channel closed")
+                outcome.close(e)
+                income.cancel(e)
                 activeChannelsMutex.withLock {
                     activeChannels.remove(id)
                 }
@@ -211,20 +211,24 @@ class MultiplexerImpl(
     }
 
     override fun close() {
-        scope.cancel()
-        readJob.cancel()
-        kotlinx.coroutines.runBlocking {
-            val channelsToClose = activeChannelsMutex.withLock {
-                activeChannels.values.toList().also { activeChannels.clear() }
+        try {
+            scope.cancel()
+            readJob.cancel()
+            kotlinx.coroutines.runBlocking {
+                val channelsToClose = activeChannelsMutex.withLock {
+                    activeChannels.values.toList().also { activeChannels.clear() }
+                }
+                channelsToClose.forEach { it.close() }
+                pendingChannelsMutex.withLock {
+                    pendingChannels.values.forEach { it.cancel() }
+                    pendingChannels.clear()
+                }
+                pendingDataLock.withLock {
+                    pendingData.clear()
+                }
             }
-            channelsToClose.forEach { it.close() }
-            pendingChannelsMutex.withLock {
-                pendingChannels.values.forEach { it.cancel() }
-                pendingChannels.clear()
-            }
-            pendingDataLock.withLock {
-                pendingData.clear()
-            }
+        } catch (e: Throwable) {
+            logger.error(e) { "Error during multiplexer close" }
         }
         incomeChannels.cancel()
     }

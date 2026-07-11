@@ -88,7 +88,7 @@
   В итоге `reading()` выходит по CancellationException → supervisorScope завершается нормально → readJob завершается.  
   Потенциально запутанная цепочка — стоит упростить.
 
-- [ ] **#18** **`VirtualChannel.job.finally` отправляет `sendCloseChannel` после закрытия output**  
+- [x] **#18** **`VirtualChannel.job.finally` отправляет `sendCloseChannel` после закрытия output**
   `outcome.close(e)` вызывается до `sendCloseChannel(channelId, physical=output)`. Если outcome — это тот же Physical канал, то send по закрытому каналу упадёт.  
   Хотя есть `catch (_: Throwable)` — это best-effort. Лучше сначала отправить close, потом чистить локальные каналы.
 
