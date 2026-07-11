@@ -30,20 +30,8 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
 import kotlin.use
 
-
 suspend fun clientProcessing(channel: DuplexChannel) {
     val first = channel.income.receive()
-
-}
-
-val bluetoothAddress = "10:5F:AD:ED:55:16" //рабочий бук
-//val bluetoothAddress = "00:1A:7D:DA:71:11" //мой компьютер
-
-object SerialPortSerevrCommand : CliktCommand() {
-    val port by option("-p", "--port").required()
-    override fun run() {
-        TODO("Not yet implemented")
-    }
 }
 
 private val logger = KotlinLogging.logger("GLOBAL")
@@ -53,6 +41,8 @@ object MainJvm {
     @JvmStatic
     @JvmName("main")
     fun mainJvm(args: Array<String>) {
+        val enableTray = args.contains("--tray")
+
         val configFile = Path("config.yaml")
         if (!SystemFileSystem.exists(configFile)) {
             println("Config file missing")
@@ -95,6 +85,13 @@ object MainJvm {
         Runtime.getRuntime().addShutdownHook(Thread {
             closed.store(true)
         })
+
+        if (enableTray) {
+            TrayManager.show {
+                System.exit(0)
+            }
+        }
+
         while (!closed.load()) {
             Thread.sleep(1000)
         }
