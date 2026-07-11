@@ -18,7 +18,6 @@ import org.koin.core.context.startKoin
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import pw.binom.*
-import pw.binom.proxy.channel.FileChannel
 import pw.binom.proxy.channel.TcpConnectChannel
 import pw.binom.proxy.io.SelectorManagerKoinModule
 import pw.binom.multiplexer.DuplexChannel
@@ -26,8 +25,6 @@ import pw.binom.multiplexer.MultiplexerHolder
 import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.proxy.properties.ConfigModule
 import pw.binom.properties.Configuration
-import pw.binom.webdav.fs.WebDavFileSystem
-import pw.binom.webdav.fs.local.LocalFileSystem
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
@@ -80,7 +77,6 @@ object MainJvm {
 //                    single { MultiplexerHolder() } binds (arrayOf(Multiplexer::class, MultiplexerHolder::class))
 //                },
                 module {
-                    single { LocalFileSystem(Path("/")) }.bind(WebDavFileSystem::class)
 //                    single(createdAtStart = true) { FileServer() } onClose { it?.close() }
                 },
                 module { single { TcpConnectChannel(get(), get(), get()) } },
@@ -89,7 +85,6 @@ object MainJvm {
                         ConnectProcessingImpl(get())
                     }.bind(ConnectProcessing::class)
                 },
-                FileChannel.module,
                 TcpConnectChannel.module,
 //                HttpProxyModule(port = 8077),
 //                Sock5ProxyModule(port = 1080),

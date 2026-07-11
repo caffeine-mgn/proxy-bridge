@@ -1,7 +1,9 @@
 package pw.binom.webdav
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.io.Buffer
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import org.junit.After
@@ -24,16 +26,26 @@ class LocalFileSystemTest {
     private val fs = LocalFileSystem(tempDir)
 
     private suspend fun readAll(path: Path, range: LongRange? = null): ByteArray {
-        val chunks = mutableListOf<ByteArray>()
-        fs.readFile(path, range) { chunks.add(it) }.getOrThrow()
-        return if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
+        val source = fs.readFile(path, range)
+        val buf = Buffer()
+        while (true) {
+            val read = source.readAtMostTo(buf, 8192)
+            if (read <= 0) break
+        }
+        val size = buf.size.toInt()
+        val data = ByteArray(size)
+        buf.readAtMostTo(data, 0, size)
+        source.close()
+        return data
     }
 
     private suspend fun writeAll(path: Path, content: ByteArray, overwrite: Boolean = true) {
-        var called = false
-        fs.writeFile(path, overwrite) {
-            if (!called) { called = true; content } else null
-        }.getOrThrow()
+        val sink = fs.writeFile(path, overwrite)
+        val buf = Buffer()
+        buf.write(content, 0, content.size)
+        sink.write(buf, buf.size)
+        sink.flush()
+        sink.close()
     }
 
     @Before
@@ -72,8 +84,7 @@ class LocalFileSystemTest {
     @Test
     fun `delete file`() = testRun {
         val path = Path("todelete.txt")
-        val writeResult = fs.writeFile(path, overwrite = true) { null }
-        assertTrue(writeResult.isSuccess)
+        fs.writeFile(path, overwrite = true).use { it.flush() }
         val metaAfterWrite = fs.getMetadata(path)
         assertTrue(metaAfterWrite.isSuccess)
         fs.delete(path).getOrThrow()
@@ -83,8 +94,7 @@ class LocalFileSystemTest {
 
     @Test
     fun `move file`() = testRun {
-        val writeResult = fs.writeFile(Path("source.txt"), overwrite = true) { "move me".encodeToByteArray() }
-        assertTrue(writeResult.isSuccess)
+        writeAll(Path("source.txt"), "move me".encodeToByteArray())
         fs.move(Path("source.txt"), Path("dest.txt")).getOrThrow()
         assertTrue(fs.getMetadata(Path("source.txt")).isFailure)
         assertTrue(fs.getMetadata(Path("dest.txt")).isSuccess)
@@ -92,15 +102,15 @@ class LocalFileSystemTest {
 
     @Test
     fun `copy file`() = testRun {
-        fs.writeFile(Path("src.txt"), overwrite = true) { "copy me".encodeToByteArray() }.getOrThrow()
+        writeAll(Path("src.txt"), "copy me".encodeToByteArray())
         fs.copy(Path("src.txt"), Path("dst.txt")).getOrThrow()
         assertTrue(fs.getMetadata(Path("src.txt")).isSuccess)
         assertTrue(fs.getMetadata(Path("dst.txt")).isSuccess)
     }
 
     @Test
-    fun `get metadata`() = testRun {
-        fs.writeFile(Path("meta.txt"), overwrite = true) { "data".encodeToByteArray() }.getOrThrow()
+    fun `get metadata`() = runTest(timeout = 5.seconds) {
+        writeAll(Path("meta.txt"), "data".encodeToByteArray())
         val meta = fs.getMetadata(Path("meta.txt")).getOrThrow()
         assertTrue(meta.isRegularFile)
         assertFalse(meta.isDirectory)

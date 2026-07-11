@@ -1,46 +1,41 @@
 package pw.binom.proxy.services
 
+import kotlinx.io.RawSink
+import kotlinx.io.RawSource
 import kotlinx.io.files.Path
 import pw.binom.webdav.fs.CopyOrMoveResult
 import pw.binom.webdav.fs.FileMetadata
 import pw.binom.webdav.fs.WebDavFileSystem
-import pw.binom.webdav.fs.mounted.MountedFileSystem
 
 class WebDavFileSystemService : WebDavFileSystem {
 
-    private val mountedFileSystem = MountedFileSystem()
+    private var delegate: WebDavFileSystem? = null
+
+    fun setDelegate(fs: WebDavFileSystem) {
+        delegate = fs
+    }
 
     override suspend fun list(path: Path): Result<List<FileMetadata>> =
-        mountedFileSystem.list(path)
+        delegate?.list(path) ?: Result.failure(IllegalStateException("No delegate set"))
 
     override suspend fun getMetadata(path: Path): Result<FileMetadata> =
-        mountedFileSystem.getMetadata(path)
+        delegate?.getMetadata(path) ?: Result.failure(IllegalStateException("No delegate set"))
 
-    override suspend fun readFile(
-        path: Path,
-        range: LongRange?,
-        onChunk: suspend (ByteArray) -> Unit,
-    ): Result<Unit> = mountedFileSystem.readFile(path, range, onChunk)
+    override suspend fun readFile(path: Path, range: LongRange?): RawSource =
+        delegate?.readFile(path, range) ?: throw IllegalStateException("No delegate set")
 
-    override suspend fun writeFile(
-        path: Path,
-        overwrite: Boolean,
-        nextChunk: suspend () -> ByteArray?,
-    ): Result<Unit> = mountedFileSystem.writeFile(path = path, overwrite = overwrite, nextChunk = nextChunk)
+    override suspend fun writeFile(path: Path, overwrite: Boolean): RawSink =
+        delegate?.writeFile(path, overwrite) ?: throw IllegalStateException("No delegate set")
 
     override suspend fun createDirectory(path: Path): Result<Unit> =
-        mountedFileSystem.createDirectory(path)
+        delegate?.createDirectory(path) ?: Result.failure(IllegalStateException("No delegate set"))
 
     override suspend fun delete(path: Path): Result<Unit> =
-        mountedFileSystem.delete(path)
+        delegate?.delete(path) ?: Result.failure(IllegalStateException("No delegate set"))
 
-    override suspend fun move(
-        source: Path,
-        destination: Path
-    ): Result<CopyOrMoveResult> = mountedFileSystem.move(source = source, destination = destination)
+    override suspend fun move(source: Path, destination: Path): Result<CopyOrMoveResult> =
+        delegate?.move(source, destination) ?: Result.failure(IllegalStateException("No delegate set"))
 
-    override suspend fun copy(
-        source: Path,
-        destination: Path
-    ): Result<CopyOrMoveResult> = mountedFileSystem.copy(source = source, destination = destination)
+    override suspend fun copy(source: Path, destination: Path): Result<CopyOrMoveResult> =
+        delegate?.copy(source, destination) ?: Result.failure(IllegalStateException("No delegate set"))
 }

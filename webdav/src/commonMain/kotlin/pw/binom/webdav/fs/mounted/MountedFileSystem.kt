@@ -1,5 +1,7 @@
 package pw.binom.webdav.fs.mounted
 
+import kotlinx.io.RawSink
+import kotlinx.io.RawSource
 import kotlinx.io.files.Path
 import pw.binom.webdav.fs.CopyOrMoveResult
 import pw.binom.webdav.fs.FileMetadata
@@ -9,6 +11,8 @@ private data class ResolvedMount(
     val fs: WebDavFileSystem,
     val relativePath: String,
 )
+
+private const val DEFAULT_BUFFER_SIZE = 8192L
 
 class MountedFileSystem : WebDavFileSystem {
 
@@ -46,23 +50,74 @@ class MountedFileSystem : WebDavFileSystem {
     }
 
     override suspend fun list(path: Path): Result<List<FileMetadata>> {
-        val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.list(Path(r.relativePath))
+        val pathStr = path.toString().removePrefix("/").removeSuffix("/")
+        if (pathStr == "." || pathStr.isEmpty()) {
+            // корень: показываем содержимое корневой ФС + mount-точки как директории
+            val rootEntries = mounts.firstOrNull { it.first.isEmpty() }
+                ?.second?.list(Path("."))?.getOrDefault(emptyList()) ?: emptyList()
+            val mountDirs = mounts.filter { it.first.isNotEmpty() }.map { (mountPath, _) ->
+                val name = mountPath.split("/").first()
+                FileMetadata(
+                    path = Path(name),
+                    isDirectory = true,
+                    isRegularFile = false,
+                    size = 0,
+                    lastModified = 0,
+                )
+            }.distinctBy { it.path }
+            return Result.success(rootEntries + mountDirs)
+        }
+        val r = resolve(path)
+        if (r == null) {
+            println("[MountedFileSystem] list: no mount for path=$path (mounts=${mounts.map { it.first }})")
+            return Result.failure(IllegalArgumentException("No mount for path: $path"))
+        }
+        println("[MountedFileSystem] list: path=$path -> relativePath='${r.relativePath}'")
+        return try {
+            r.fs.list(Path(r.relativePath))
+        } catch (e: Exception) {
+            println("[MountedFileSystem] list: error from inner fs: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
     override suspend fun getMetadata(path: Path): Result<FileMetadata> {
-        val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.getMetadata(Path(r.relativePath))
+        val pathStr = path.toString().removePrefix("/").removeSuffix("/")
+        if (pathStr == "." || pathStr.isEmpty()) {
+            return Result.success(FileMetadata(
+                path = Path("."),
+                isDirectory = true,
+                isRegularFile = false,
+                size = 0,
+                lastModified = 0,
+            ))
+        }
+        val r = resolve(path)
+        if (r == null) {
+            println("[MountedFileSystem] getMetadata: no mount for path=$path (mounts=${mounts.map { it.first }})")
+            return Result.failure(IllegalArgumentException("No mount for path: $path"))
+        }
+        println("[MountedFileSystem] getMetadata: path=$path -> relativePath='${r.relativePath}'")
+        return try {
+            r.fs.getMetadata(Path(r.relativePath))
+        } catch (e: Exception) {
+            println("[MountedFileSystem] getMetadata: error from inner fs: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
-    override suspend fun readFile(path: Path, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> {
-        val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.readFile(Path(r.relativePath), range, onChunk)
+    override suspend fun readFile(path: Path, range: LongRange?): RawSource {
+        val r = resolve(path) ?: error("No mount for path: $path")
+        println("[MountedFileSystem] readFile: path=$path -> relativePath='${r.relativePath}'")
+        return r.fs.readFile(Path(r.relativePath), range)
     }
 
-    override suspend fun writeFile(path: Path, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> {
-        val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.writeFile(Path(r.relativePath), overwrite, nextChunk)
+    override suspend fun writeFile(path: Path, overwrite: Boolean): RawSink {
+        val r = resolve(path) ?: error("No mount for path: $path")
+        println("[MountedFileSystem] writeFile: path=$path -> relativePath='${r.relativePath}'")
+        return r.fs.writeFile(Path(r.relativePath), overwrite)
     }
 
     override suspend fun createDirectory(path: Path): Result<Unit> {
@@ -98,23 +153,37 @@ class MountedFileSystem : WebDavFileSystem {
     }
 
     private suspend fun crossMountMove(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val chunks = mutableListOf<ByteArray>()
-        src.fs.readFile(Path(src.relativePath)) { chunk -> chunks.add(chunk) }.getOrThrow()
-        var idx = 0
-        dst.fs.writeFile(Path(dst.relativePath), overwrite = true) {
-            if (idx < chunks.size) chunks[idx++] else null
-        }.getOrThrow()
+        val buf = kotlinx.io.Buffer()
+        src.fs.readFile(Path(src.relativePath)).use { source ->
+            val tmp = kotlinx.io.Buffer()
+            while (true) {
+                val read = source.readAtMostTo(tmp, DEFAULT_BUFFER_SIZE)
+                if (read <= 0) break
+                buf.write(tmp, read)
+            }
+        }
+        dst.fs.writeFile(Path(dst.relativePath), overwrite = true).use { sink ->
+            if (buf.size > 0) sink.write(buf, buf.size)
+            sink.flush()
+        }
         src.fs.delete(Path(src.relativePath)).getOrThrow()
         CopyOrMoveResult(success = true)
     }
 
     private suspend fun crossMountCopy(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val chunks = mutableListOf<ByteArray>()
-        src.fs.readFile(Path(src.relativePath)) { chunk -> chunks.add(chunk) }.getOrThrow()
-        var idx = 0
-        dst.fs.writeFile(Path(dst.relativePath), overwrite = true) {
-            if (idx < chunks.size) chunks[idx++] else null
-        }.getOrThrow()
+        val buf = kotlinx.io.Buffer()
+        src.fs.readFile(Path(src.relativePath)).use { source ->
+            val tmp = kotlinx.io.Buffer()
+            while (true) {
+                val read = source.readAtMostTo(tmp, DEFAULT_BUFFER_SIZE)
+                if (read <= 0) break
+                buf.write(tmp, read)
+            }
+        }
+        dst.fs.writeFile(Path(dst.relativePath), overwrite = true).use { sink ->
+            if (buf.size > 0) sink.write(buf, buf.size)
+            sink.flush()
+        }
         CopyOrMoveResult(success = true)
     }
 }

@@ -15,11 +15,31 @@ fun Application.webDavModule(
     fileSystem: WebDavFileSystem,
     basePath: String = "/dav",
 ) {
+    println("[WebDAV] Configuring module: basePath=$basePath")
+
     routing {
         route(basePath) {
+            println("[WebDAV] Registering handlers at: $basePath")
             installWebDavHandlers(fileSystem, basePath)
+            route("/") {
+                installWebDavHandlers(fileSystem, basePath)
+            }
             route("{...}") {
                 installWebDavHandlers(fileSystem, basePath)
+            }
+        }
+
+        // catch-all for unmatched (registered LAST)
+        route("/") {
+            handle {
+println("[WebDAV] UNMATCHED ROOT: ${call.request.path()}")
+                call.respond(HttpStatusCode.NotFound)
+            }
+        }
+        route("{...}") {
+            handle {
+println("[WebDAV] UNMATCHED: ${call.request.path()}")
+                call.respond(HttpStatusCode.NotFound)
             }
         }
     }
@@ -99,27 +119,29 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
 
                 val fileSize = metadata.size
                 val rangeHeader = call.request.header("Range")
-                val range = parseRange(rangeHeader, fileSize)
+                val byteRange = parseRange(rangeHeader, fileSize)
+                val range = byteRange?.let { it.first..it.last }
 
-                if (range != null) {
+                if (byteRange != null) {
                     call.response.status(HttpStatusCode.PartialContent)
-                    call.response.header("Content-Range", "bytes ${range.first}-${range.last}/$fileSize")
-                    val chunks = mutableListOf<ByteArray>()
-                    fileSystem.readFile(targetPath, range.first..range.last) { chunks.add(it) }.getOrElse {
-                        return@get call.respond(HttpStatusCode.InternalServerError)
+                    call.response.header("Content-Range", "bytes ${byteRange.first}-${byteRange.last}/$fileSize")
+                }
+                call.response.header("Accept-Ranges", "bytes")
+                call.response.header("Content-Length", "$fileSize")
+
+                call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
+                    val source = fileSystem.readFile(targetPath, range)
+                    source.use { src ->
+                        val buf = Buffer()
+                        while (true) {
+                            val read = src.readAtMostTo(buf, 8192)
+                            if (read <= 0) break
+                            val size = buf.size.toInt()
+                            val bytes = ByteArray(size)
+                            buf.readAtMostTo(bytes, 0, size)
+                            writeFully(bytes)
+                        }
                     }
-                    val data = if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
-                    call.response.header("Content-Length", "${data.size}")
-                    call.respondBytes(data)
-                } else {
-                    call.response.header("Accept-Ranges", "bytes")
-                    call.response.header("Content-Length", "$fileSize")
-                    val chunks = mutableListOf<ByteArray>()
-                    fileSystem.readFile(targetPath) { chunks.add(it) }.getOrElse {
-                        return@get call.respond(HttpStatusCode.InternalServerError)
-                    }
-                    val data = if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
-                    call.respondBytes(data)
                 }
             }
 
@@ -130,36 +152,29 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
 
                 val ifMatch = call.request.header("If-Match")
                 if (ifMatch != null && etag != null && !matchETag(ifMatch, etag)) {
-                    return@put call.respond(HttpStatusCode.PreconditionFailed, "ETag mismatch")
+                    return@put call.respond(HttpStatusCode.PreconditionFailed)
                 }
                 if (ifMatch?.trim() == "*" && existingMeta == null) {
-                    return@put call.respond(HttpStatusCode.PreconditionFailed, "File must exist for If-Match: *")
+                    return@put call.respond(HttpStatusCode.PreconditionFailed)
                 }
 
-                val parentPath = targetPath.parent
-                if (parentPath != null) {
-                    fileSystem.createDirectory(parentPath)
+                try {
+                    val sink = fileSystem.writeFile(targetPath, overwrite = true)
+                    sink.use { s ->
+                        val channel = call.request.receiveChannel()
+                        while (!channel.isClosedForRead) {
+                            val packet = channel.readRemaining() ?: break
+                            if (packet.exhausted()) break
+                            val sinkBuf = Buffer()
+                            packet.transferTo(sinkBuf)
+                            s.write(sinkBuf, sinkBuf.size)
+                        }
+                        s.flush()
+                    }
+                    call.respond(HttpStatusCode.Created)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, e.message ?: "Write failed")
                 }
-
-                val readChannel = call.request.receiveChannel()
-                val allData = Buffer()
-                while (!readChannel.isClosedForRead) {
-                    val pkt = readChannel.readRemaining() ?: break
-                    if (pkt.exhausted()) break
-                    pkt.transferTo(allData)
-                }
-                var sent = false
-                fileSystem.writeFile(targetPath, overwrite = true) {
-                    if (sent) return@writeFile null
-                    sent = true
-                    if (allData.size <= 0L) return@writeFile null
-                    val bytes = ByteArray(allData.size.toInt())
-                    allData.readAtMostTo(bytes, 0, bytes.size)
-                    bytes
-                }.getOrElse {
-                    return@put call.respond(HttpStatusCode.InternalServerError, it.message ?: "Failed to write file")
-                }
-                call.respond(HttpStatusCode.Created)
             }
 
             delete {
@@ -277,7 +292,7 @@ private suspend fun appendPropfindEntry(
 }
 
 private fun buildHref(path: Path, basePath: String): String {
-    val pathStr = path.toString()
+    val pathStr = path.toString().replace('\\', '/')
     val normalized = if (pathStr.startsWith("/")) pathStr else "/$pathStr"
     return "$basePath$normalized"
 }

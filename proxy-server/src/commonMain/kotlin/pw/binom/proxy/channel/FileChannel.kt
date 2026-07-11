@@ -4,8 +4,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.io.Buffer
 import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
-import org.koin.dsl.bind
-import org.koin.dsl.module
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.boolean
 import pw.binom.multiplexer.lebInt
@@ -20,10 +18,11 @@ import pw.binom.webdav.fs.FileMetadata
 import pw.binom.webdav.fs.WebDavFileSystem
 
 class FileChannel(
-    private val fileSystem: WebDavFileSystem,
+    private val fsResolver: (String) -> WebDavFileSystem?,
 ) : ChannelHandler {
     companion object {
         const val ID: Byte = 2
+        private const val CHUNK_SIZE = 8192L
         private const val LIST: Byte = 1
         private const val GET_METADATA: Byte = 2
         private const val READ_FILE: Byte = 3
@@ -32,10 +31,6 @@ class FileChannel(
         private const val DELETE: Byte = 6
         private const val MOVE: Byte = 7
         private const val COPY: Byte = 8
-
-        val module = module {
-            single { FileChannel(get()) } bind ChannelHandler::class
-        }
     }
 
     private val logger = KotlinLogging.logger {}
@@ -43,24 +38,40 @@ class FileChannel(
     override val id: Byte
         get() = ID
 
-    suspend fun getMetadata(channel: DuplexChannel, path: String): Result<FileMetadata> {
+    private fun resolveFs(fsName: String): WebDavFileSystem {
+        val fs = fsResolver(fsName)
+        if (fs == null) {
+            logger.error { "FileChannel.resolveFs: file system '$fsName' not found (registered: N/A)" }
+            error("File system '$fsName' not found")
+        }
+        logger.debug { "FileChannel.resolveFs: resolved '$fsName' -> $fs" }
+        return fs
+    }
+
+    suspend fun getMetadata(channel: DuplexChannel, fsName: String, path: String): Result<FileMetadata> {
+        logger.info { "FileChannel.getMetadata: fsName=$fsName, path=$path" }
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(GET_METADATA)
             lebString(path)
         }
         return channel.receive().use { buffer ->
             if (buffer.boolean()) {
-                Result.success(FileMetadata.read(buffer))
+                val meta = FileMetadata.read(buffer)
+                logger.info { "FileChannel.getMetadata: success -> $meta" }
+                Result.success(meta)
             } else {
-                Result.failure(IllegalStateException())
+                logger.warn { "FileChannel.getMetadata: remote returned failure" }
+                Result.failure(IllegalStateException("Remote getMetadata failed for fs=$fsName path=$path"))
             }
         }
     }
 
-    suspend fun list(channel: DuplexChannel, path: String): Result<List<FileMetadata>> {
+    suspend fun list(channel: DuplexChannel, fsName: String, path: String): Result<List<FileMetadata>> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(LIST)
             lebString(path)
         }
@@ -73,9 +84,10 @@ class FileChannel(
         }
     }
 
-    suspend fun readFile(channel: DuplexChannel, path: String, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> {
+    suspend fun readFile(channel: DuplexChannel, fsName: String, path: String, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(READ_FILE)
             lebString(path)
             nullable(range) { it.write(this) }
@@ -94,9 +106,10 @@ class FileChannel(
         return Result.success(Unit)
     }
 
-    suspend fun writeFile(channel: DuplexChannel, path: String, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> {
+    suspend fun writeFile(channel: DuplexChannel, fsName: String, path: String, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(WRITE_FILE)
             lebString(path)
             boolean(overwrite)
@@ -120,9 +133,10 @@ class FileChannel(
         }
     }
 
-    suspend fun createDirectory(channel: DuplexChannel, path: String): Result<Unit> {
+    suspend fun createDirectory(channel: DuplexChannel, fsName: String, path: String): Result<Unit> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(CREATE_DIRECTORY)
             lebString(path)
         }
@@ -135,9 +149,10 @@ class FileChannel(
         }
     }
 
-    suspend fun delete(channel: DuplexChannel, path: String): Result<Unit> {
+    suspend fun delete(channel: DuplexChannel, fsName: String, path: String): Result<Unit> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(DELETE)
             lebString(path)
         }
@@ -150,9 +165,10 @@ class FileChannel(
         }
     }
 
-    suspend fun move(channel: DuplexChannel, source: String, destination: String): Result<CopyOrMoveResult> {
+    suspend fun move(channel: DuplexChannel, fsName: String, source: String, destination: String): Result<CopyOrMoveResult> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(MOVE)
             lebString(source)
             lebString(destination)
@@ -166,9 +182,10 @@ class FileChannel(
         }
     }
 
-    suspend fun copy(channel: DuplexChannel, source: String, destination: String): Result<CopyOrMoveResult> {
+    suspend fun copy(channel: DuplexChannel, fsName: String, source: String, destination: String): Result<CopyOrMoveResult> {
         channel.send {
             writeByte(ID)
+            lebString(fsName)
             writeByte(COPY)
             lebString(source)
             lebString(destination)
@@ -183,22 +200,38 @@ class FileChannel(
     }
 
     override suspend fun income(channel: DuplexChannel, buffer: Buffer) {
-        val cmd = buffer.readByte()
-        when (cmd) {
-            LIST -> handleList(buffer, channel)
-            GET_METADATA -> handleGetMetadata(buffer, channel)
-            READ_FILE -> handleReadFile(buffer, channel)
-            WRITE_FILE -> handleWriteFile(buffer, channel)
-            CREATE_DIRECTORY -> handleCreateDirectory(buffer, channel)
-            DELETE -> handleDelete(buffer, channel)
-            MOVE -> handleMove(buffer, channel)
-            COPY -> handleCopy(buffer, channel)
+        var fsName = "?"
+        var cmd: Byte = -1
+        try {
+            fsName = buffer.lebString()
+            cmd = buffer.readByte()
+            logger.info { "FileChannel.income: cmd=$cmd, fsName=$fsName" }
+            when (cmd) {
+                LIST -> handleList(buffer, channel, fsName)
+                GET_METADATA -> handleGetMetadata(buffer, channel, fsName)
+                READ_FILE -> handleReadFile(buffer, channel, fsName)
+                WRITE_FILE -> handleWriteFile(buffer, channel, fsName)
+                CREATE_DIRECTORY -> handleCreateDirectory(buffer, channel, fsName)
+                DELETE -> handleDelete(buffer, channel, fsName)
+                MOVE -> handleMove(buffer, channel, fsName)
+                COPY -> handleCopy(buffer, channel, fsName)
+                else -> logger.error { "FileChannel.income: unknown cmd=$cmd" }
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "FileChannel.income: error processing (cmd=$cmd, fsName=$fsName)" }
+            try {
+                channel.send {
+                    boolean(false)
+                }
+            } catch (_: Exception) {}
         }
     }
 
-    private suspend fun handleList(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleList(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = Path(buffer.lebString())
-        val result = fileSystem.list(path)
+        logger.info { "FileChannel.handleList: fs=$fsName, path=$path" }
+        val result = fs.list(path)
         channel.send {
             result.fold(
                 onSuccess = { list ->
@@ -212,9 +245,11 @@ class FileChannel(
         }
     }
 
-    private suspend fun handleGetMetadata(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleGetMetadata(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
-        val result = fileSystem.getMetadata(path)
+        logger.info { "FileChannel.handleGetMetadata: fs=$fsName, path=$path" }
+        val result = fs.getMetadata(path)
         channel.send {
             result.fold(
                 onSuccess = { meta ->
@@ -228,48 +263,74 @@ class FileChannel(
         }
     }
 
-    private suspend fun handleReadFile(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleReadFile(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
         val range = buffer.nullable { LongRange.read(it) }
-        val result = fileSystem.readFile(path, range) { chunk ->
+        try {
+            val source = fs.readFile(path, range)
+            source.use { src ->
+                channel.send {
+                    boolean(true)
+                }
+                var tmp = Buffer()
+                while (true) {
+                    val read = src.readAtMostTo(tmp, CHUNK_SIZE)
+                    if (read <= 0) break
+                    val size = tmp.size.toInt()
+                    val data = ByteArray(size)
+                    tmp.readAtMostTo(data, 0, size)
+                    tmp = Buffer()
+                    channel.send {
+                        lebInt(size)
+                        write(data)
+                    }
+                }
+                channel.send {
+                    lebInt(0)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "FileChannel.handleReadFile: error" }
             channel.send {
-                lebInt(chunk.size)
-                write(chunk)
+                boolean(false)
             }
         }
-        channel.send {
-            result.fold(
-                onSuccess = {
-                    boolean(true)
-                    lebInt(0)
-                },
-                onFailure = {
-                    boolean(false)
-                }
-            )
-        }
     }
 
-    private suspend fun handleWriteFile(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleWriteFile(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
         val overwrite = buffer.boolean()
-        val result = fileSystem.writeFile(path, overwrite) {
-            val buf = channel.receive()
-            val size = buf.lebInt()
-            if (size == 0) return@writeFile null
-            buf.readByteArray(size)
-        }
-        channel.send {
-            result.fold(
-                onSuccess = { boolean(true) },
-                onFailure = { boolean(false) }
-            )
+        try {
+            val sink = fs.writeFile(path, overwrite)
+            sink.use { s ->
+                while (true) {
+                    val buf = channel.receive()
+                    val size = buf.lebInt()
+                    if (size == 0) break
+                    val data = buf.readByteArray(size)
+                    val tmp = Buffer()
+                    tmp.write(data, 0, size)
+                    s.write(tmp, tmp.size)
+                }
+                s.flush()
+            }
+            channel.send {
+                boolean(true)
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "FileChannel.handleWriteFile: error" }
+            channel.send {
+                boolean(false)
+            }
         }
     }
 
-    private suspend fun handleCreateDirectory(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleCreateDirectory(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
-        val result = fileSystem.createDirectory(path)
+        val result = fs.createDirectory(path)
         channel.send {
             result.fold(
                 onSuccess = { boolean(true) },
@@ -278,9 +339,10 @@ class FileChannel(
         }
     }
 
-    private suspend fun handleDelete(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleDelete(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
-        val result = fileSystem.delete(path)
+        val result = fs.delete(path)
         channel.send {
             result.fold(
                 onSuccess = { boolean(true) },
@@ -289,10 +351,11 @@ class FileChannel(
         }
     }
 
-    private suspend fun handleMove(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleMove(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val source = kotlinx.io.files.Path(buffer.lebString())
         val destination = kotlinx.io.files.Path(buffer.lebString())
-        val result = fileSystem.move(source, destination)
+        val result = fs.move(source, destination)
         channel.send {
             result.fold(
                 onSuccess = { res ->
@@ -306,10 +369,11 @@ class FileChannel(
         }
     }
 
-    private suspend fun handleCopy(buffer: Buffer, channel: DuplexChannel) {
+    private suspend fun handleCopy(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        val fs = resolveFs(fsName)
         val source = kotlinx.io.files.Path(buffer.lebString())
         val destination = kotlinx.io.files.Path(buffer.lebString())
-        val result = fileSystem.copy(source, destination)
+        val result = fs.copy(source, destination)
         channel.send {
             result.fold(
                 onSuccess = { res ->

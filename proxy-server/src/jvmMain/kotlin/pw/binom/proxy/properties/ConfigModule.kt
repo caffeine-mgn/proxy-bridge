@@ -19,12 +19,21 @@ import pw.binom.proxy.services.PortForwardingService
 import pw.binom.proxy.services.TcpConnectService
 import pw.binom.proxy.services.TcpIncomeService
 import pw.binom.proxy.services.TcpOutcomeService
+import pw.binom.proxy.channel.FileChannel
+import pw.binom.proxy.channel.ChannelHandler
+import pw.binom.proxy.webdav.RemoteWebDavFileSystem
+import pw.binom.webdav.fs.WebDavFileSystem
+import pw.binom.webdav.fs.local.LocalFileSystem
+import pw.binom.webdav.fs.mounted.MountedFileSystem
+import pw.binom.proxy.WebDavServer
+import kotlinx.io.files.Path
 
 object ConfigModule {
     fun createModule(config: Configuration) =
         module(createdAtStart = true) {
             single { ChannelSelectorService() }
             single { TcpConnectService(config.trafficRoute) }.bind(TcpConnectProvider::class)
+
             config.incomes.forEach { income ->
                 when (income) {
                     is Configuration.Income.Com -> single(createdAtStart = true) {
@@ -54,7 +63,7 @@ object ConfigModule {
 
             config.outcomes?.forEach { (outcomeName, outcome) ->
                 when (outcome) {
-                    is Configuration.Outcome.Com -> single {
+                    is Configuration.Outcome.Com -> single(qualifier = named(outcomeName)) {
                         SerialIncomeService(
                             serialName = outcome.port,
                             baudRate = outcome.speed,
@@ -66,7 +75,7 @@ object ConfigModule {
                         .onClose { it?.close() }
                         .binds(arrayOf(Multiplexer::class, OutcomeService::class))
 
-                    is Configuration.Outcome.Tcp -> single {
+                    is Configuration.Outcome.Tcp -> single(qualifier = named(outcomeName)) {
                         TcpOutcomeService(
                             port = outcome.port,
                             host = outcome.host,
@@ -78,7 +87,7 @@ object ConfigModule {
                         .onClose { it?.close() }
                         .binds(arrayOf(Multiplexer::class, OutcomeService::class))
 
-                    is Configuration.Outcome.Wrapper -> single {
+                    is Configuration.Outcome.Wrapper -> single(qualifier = named(outcomeName)) {
                         OutcomeWrapperService(
                             name = outcomeName,
                             outcome = outcome.outcome,
@@ -86,6 +95,45 @@ object ConfigModule {
                     }
                 }
             }
+
+            // === Файловые системы ===
+
+            val fsNames = mutableListOf<String>()
+            config.fileSystems.forEach { (fsName, fsConfig) ->
+                fsNames.add(fsName)
+                when (fsConfig) {
+                    is Configuration.FileSystemConfig.Local -> single(qualifier = named(fsName)) {
+                        LocalFileSystem(Path(fsConfig.root))
+                    }.bind(WebDavFileSystem::class)
+
+                    is Configuration.FileSystemConfig.Remote -> single(qualifier = named(fsName)) {
+                        RemoteWebDavFileSystem(
+                            outcome = get(named(fsConfig.outcome)),
+                            fileChannel = get(),
+                            name = fsConfig.fs,
+                        )
+                    }.bind(WebDavFileSystem::class)
+
+                    is Configuration.FileSystemConfig.Merged -> single(qualifier = named(fsName)) {
+                        val mounted = MountedFileSystem()
+                        for (layer in fsConfig.layers) {
+                            val layerFs = get<WebDavFileSystem>(named(layer.fs))
+                            mounted.mount(layer.path, layerFs)
+                        }
+                        mounted
+                    }.bind(WebDavFileSystem::class)
+                }
+            }
+
+            // FileChannel с fsResolver
+            single {
+                val resolver: (String) -> WebDavFileSystem? = { name ->
+                    if (name in fsNames) get(named(name)) else null
+                }
+                FileChannel(resolver)
+            } bind ChannelHandler::class
+
+            // === Services ===
 
             config.services.forEach { service ->
                 when (service) {
@@ -118,6 +166,15 @@ object ConfigModule {
                             remotePort = service.remotePort,
                             tcpConnectProvider = get(),
                             selectorManager = get(),
+                        )
+                    }.onClose { it?.close() }
+
+                    is Configuration.Service.WebDav -> single(createdAtStart = true) {
+                        WebDavServer(
+                            port = service.port,
+                            bind = service.bind,
+                            basePath = service.basePath,
+                            fileSystem = get(named(service.fs)),
                         )
                     }.onClose { it?.close() }
                 }

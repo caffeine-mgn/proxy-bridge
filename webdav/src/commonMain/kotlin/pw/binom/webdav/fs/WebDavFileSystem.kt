@@ -1,5 +1,7 @@
 package pw.binom.webdav.fs
 
+import kotlinx.io.RawSink
+import kotlinx.io.RawSource
 import kotlinx.io.files.Path
 
 data class FileMetadata(
@@ -23,19 +25,18 @@ interface WebDavFileSystem {
     suspend fun list(path: Path): Result<List<FileMetadata>>
     suspend fun getMetadata(path: Path): Result<FileMetadata>
     /**
-     * Читает файл чанками. Каждый чанк доставляется через [onChunk].
-     * Размер чанка определяется реализацией (обычно 64 КБ).
-     * @param range если не null — читать только указанный диапазон байт
-     * @param onChunk вызывается для каждого чанка данных
-     * @return Result.success(Unit) при успешном чтении всего файла
+     * Открывает файл на чтение. Возвращает [RawSource].
+     * Если файл не существует — бросает исключение.
+     * Если [range] указан — читает только указанный диапазон байт.
+     * После чтения источника необходимо закрыть его через [RawSource.close].
      */
-    suspend fun readFile(path: Path, range: LongRange? = null, onChunk: suspend (ByteArray) -> Unit): Result<Unit>
+    suspend fun readFile(path: Path, range: LongRange? = null): RawSource
     /**
-     * Пишет файл чанками. Каждый вызов [nextChunk] возвращает чанк или null при EOF.
-     * @param overwrite если false — ошибка при существующем файле
-     * @param nextChunk вызывается для получения следующего чанка; null = конец
+     * Открывает файл на запись. Возвращает [RawSink].
+     * После завершения записи необходимо закрыть [RawSink.close].
+     * @param overwrite если false — бросает исключение если файл уже существует.
      */
-    suspend fun writeFile(path: Path, overwrite: Boolean = true, nextChunk: suspend () -> ByteArray?): Result<Unit>
+    suspend fun writeFile(path: Path, overwrite: Boolean = true): RawSink
     suspend fun createDirectory(path: Path): Result<Unit>
     suspend fun delete(path: Path): Result<Unit>
     suspend fun move(source: Path, destination: Path): Result<CopyOrMoveResult>

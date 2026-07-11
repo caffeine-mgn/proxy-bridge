@@ -26,6 +26,11 @@ data class Configuration(
     val hostConfig: List<HostConfig> = emptyList(),
     val tcpForwarding: List<SocketForwarding> = emptyList(),
     val trafficRoute: List<TrafficRoute> = emptyList(),
+
+    /**
+     * Файловые системы
+     */
+    val fileSystems: Map<String, FileSystemConfig> = emptyMap(),
 ) {
 
     @Serializable
@@ -106,6 +111,24 @@ data class Configuration(
     )
 
     @Serializable
+    sealed interface FileSystemConfig {
+        @Serializable
+        @SerialName("local")
+        data class Local(val root: String) : FileSystemConfig
+
+        @Serializable
+        @SerialName("remote")
+        data class Remote(val outcome: String, val fs: String) : FileSystemConfig
+
+        @Serializable
+        @SerialName("merged")
+        data class Merged(val layers: List<Layer>) : FileSystemConfig
+
+        @Serializable
+        data class Layer(val path: String, val fs: String)
+    }
+
+    @Serializable
     sealed interface Service {
         @Serializable
         @SerialName("http-proxy")
@@ -122,6 +145,15 @@ data class Configuration(
             val localPort: Int = 1080,
             val remotePort: Int,
             val remoteHost: String,
+        ) : Service
+
+        @Serializable
+        @SerialName("webdav")
+        data class WebDav(
+            val bind: String = "0.0.0.0",
+            val port: Int = 8075,
+            val basePath: String = "/dav",
+            val fs: String,
         ) : Service
     }
 }

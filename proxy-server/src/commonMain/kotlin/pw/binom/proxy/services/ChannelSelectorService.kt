@@ -23,13 +23,14 @@ class ChannelSelectorService : KoinComponent {
 
             val handler = handlers[cmd]
             if (handler == null) {
-                logger.warn { "Unknown command $cmd" }
+                logger.warn { "ChannelSelectorService: unknown cmd=$cmd (available: ${handlers.keys})" }
                 connection.close()
                 return
             }
+            logger.info { "ChannelSelectorService: dispatching cmd=$cmd to ${handler::class.simpleName}" }
             handler.income(channel = connection, buffer = buff)
         } catch (e: Exception) {
-            e.printStackTrace()
+            logger.error(e) { "ChannelSelectorService: error processing channel" }
             throw e
         }
     }
