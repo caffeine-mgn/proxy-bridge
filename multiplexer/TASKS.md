@@ -112,7 +112,7 @@
   `MultiplexerRegressionTest`, `MultiplexerAcceptTest`, `MultiplexerCyclesTest` — везде копипаста вспомогательной функции.  
   **Решение:** вынести общий хелпер в `Utils.kt`.
 
-- [ ] **#23** **Интеграционные тесты без `withTimeout`**  
+- [x] **#23** **Интеграционные тесты без `withTimeout`**
   `MultiplexerIntegrationTest` запускает все тесты в `runBlocking` без `withTimeout`.  
   При deadlock'е (см. #1) тест зависает навсегда и не падает с таймаутом.  
   **Решение:** добавить `withTimeout`.

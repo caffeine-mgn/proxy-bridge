@@ -6,6 +6,7 @@ import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 import kotlin.random.Random
 import kotlin.test.*
+import kotlin.time.Duration.Companion.seconds
 
 class Link {
     val inputA = Channel<Buffer>(Channel.UNLIMITED)
@@ -67,6 +68,7 @@ class MultiplexerIntegrationTest {
     @Test
     fun testCreateAndAcceptBidirectional() {
         runBlocking {
+            withTimeout(10.seconds) {
             val dataAtoB = Random.nextBytes(500)
             val dataBtoA = Random.nextBytes(300)
 
@@ -88,12 +90,14 @@ class MultiplexerIntegrationTest {
 
             channelB.outcome.send(bufferOf(dataBtoA))
             assertContentEquals(dataBtoA, channelA.income.receive().readByteArray(), "B→A data mismatch")
+            }
         }
     }
 
     @Test
     fun testMultipleChannelsBidirectional() {
         runBlocking {
+            withTimeout(10.seconds) {
             val n = 5
             val dataSets = (1..n).map {
                 Pair(Random.nextBytes(100), Random.nextBytes(100))
@@ -132,12 +136,14 @@ class MultiplexerIntegrationTest {
             }
 
             channelsA.forEach { it.close() }
+            }
         }
     }
 
     @Test
     fun testClosePropagationToRemote() {
         runBlocking {
+            withTimeout(10.seconds) {
             val chADef = CompletableDeferred<DuplexChannel>()
             val chBDef = CompletableDeferred<DuplexChannel>()
 
@@ -165,12 +171,14 @@ class MultiplexerIntegrationTest {
             }
             val testChannel = muxA.createChannel()
             assertNotNull(testChannel)
+            }
         }
     }
 
     @Test
     fun testLargePayloadBidirectional() {
         runBlocking {
+            withTimeout(10.seconds) {
             val dataAtoB = Random.nextBytes(131072)
             val dataBtoA = Random.nextBytes(131072)
 
@@ -192,6 +200,7 @@ class MultiplexerIntegrationTest {
 
             channelB.outcome.send(bufferOf(dataBtoA))
             assertContentEquals(dataBtoA, channelA.income.receive().readByteArray(), "Large B→A")
+            }
         }
     }
 }
