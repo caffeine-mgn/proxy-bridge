@@ -20,38 +20,45 @@ import pw.binom.webdav.fs.CopyOrMoveResult
 import pw.binom.webdav.fs.FileMetadata
 import pw.binom.webdav.fs.WebDavFileSystem
 
-private suspend fun DuplexChannel.receiveBytes(): ByteArray {
-    val buf = income.receive()
-    val size = buf.lebInt()
-    if (size == 0) return ByteArray(0)
-    val data = ByteArray(size)
-    buf.readAtMostTo(data, 0, size)
-    return data
-}
-
 /**
  * Читает данные из [DuplexChannel] (блокирующая обёртка с [runBlocking]).
  */
 private class ChannelReadSource(
     private val channel: DuplexChannel,
 ) : RawSource {
+    private val logger = io.github.oshai.kotlinlogging.KotlinLogging.logger {}
     private var done = false
+    private var chunkNum = 0
 
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = runBlocking {
         if (done) return@runBlocking -1L
         val buf = channel.income.receive()
         val size = buf.lebInt()
         if (size == 0) {
+            logger.info { "ChannelReadSource: EOF after ${chunkNum} chunks" }
             done = true
             return@runBlocking -1L
         }
         val data = ByteArray(size)
-        buf.readAtMostTo(data, 0, size)
+        var readOffset = 0
+        while (readOffset < size) {
+            val n = buf.readAtMostTo(data, readOffset, size)
+            if (n <= 0) break
+            readOffset += n
+        }
+        if (readOffset != size) {
+            logger.error { "ChannelReadSource: chunk $chunkNum expected $size bytes, got $readOffset! TRUNCATED!" }
+        }
+        val zeros = data.count { it == 0.toByte() }
+        if (zeros > size / 2) {
+            logger.error { "ChannelReadSource: chunk $chunkNum is ${zeros}/$size zeros! CORRUPTION!" }
+        }
+        chunkNum++
         sink.write(data, 0, data.size)
         data.size.toLong()
     }
 
-    override fun close() { done = true }
+    override fun close() { }
 }
 
 /**

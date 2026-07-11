@@ -274,13 +274,26 @@ class FileChannel(
                     boolean(true)
                 }
                 var tmp = Buffer()
+                var chunkNum = 0
                 while (true) {
                     val read = src.readAtMostTo(tmp, CHUNK_SIZE)
                     if (read <= 0) break
                     val size = tmp.size.toInt()
+                    if (size != read.toInt()) {
+                        logger.warn { "handleReadFile: chunk $chunkNum size mismatch! read=$read, tmp.size=$size" }
+                    }
                     val data = ByteArray(size)
-                    tmp.readAtMostTo(data, 0, size)
+                    var readOffset = 0
+                    while (readOffset < size) {
+                        val n = tmp.readAtMostTo(data, readOffset, size)
+                        if (n <= 0) break
+                        readOffset += n
+                    }
+                    if (data.all { it == 0.toByte() }) {
+                        logger.warn { "handleReadFile: chunk $chunkNum is ALL ZEROS! size=$size" }
+                    }
                     tmp = Buffer()
+                    chunkNum++
                     channel.send {
                         lebInt(size)
                         write(data)

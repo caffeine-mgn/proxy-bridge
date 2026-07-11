@@ -127,7 +127,6 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
                     call.response.header("Content-Range", "bytes ${byteRange.first}-${byteRange.last}/$fileSize")
                 }
                 call.response.header("Accept-Ranges", "bytes")
-                call.response.header("Content-Length", "$fileSize")
 
                 call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
                     val source = fileSystem.readFile(targetPath, range)
