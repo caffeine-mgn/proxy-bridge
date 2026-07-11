@@ -368,4 +368,37 @@ class MultiplexerRegressionTest {
             events.cancel()
         }
     }
+
+    @Test
+    fun testHandlerExceptionDoesNotKillReadJob() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            // Create a channel first
+            MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = input)
+            val channel = multiplexer.accept()
+
+            // Send CHANNEL_CLOSE (2) without body bytes → buffer.lebInt() throws
+            // Before #11: this would kill readJob. After #11: caught, logged, readJob survives
+            val badBuffer = Buffer()
+            badBuffer.writeByte(2.toByte()) // CHANNEL_CLOSE, no channelId bytes
+            input.send(badBuffer)
+
+            delay(200)
+
+            // Multiplexer should still work
+            MultiplexerProtocol.sendRequestNewChannel(channelId = 222, physical = input)
+            val channel2 = multiplexer.accept()
+            assertNotNull(channel2)
+            channel2.outcome.send(bufferOf(byteArrayOf(42)))
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
 }

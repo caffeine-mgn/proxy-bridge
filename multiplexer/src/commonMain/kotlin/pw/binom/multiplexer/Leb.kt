@@ -12,9 +12,13 @@ object Leb {
             if ((byte and 0x80u) == 0.toUByte()) {
                 break
             }
-            shift += 7
+        shift += 7
             maxBytes--
             if (maxBytes <= 0) {
+                // Consume remaining continuation bytes to keep buffer aligned
+                while ((byte and 0x80u) != 0.toUByte()) {
+                    byte = readByte().toUByte()
+                }
                 break
             }
         }
@@ -35,6 +39,10 @@ object Leb {
                 break
             maxBytes--
             if (maxBytes <= 0) {
+                // Consume remaining continuation bytes to keep buffer aligned
+                while ((byte and 0x80u) != 0.toUByte()) {
+                    byte = readByte().toUByte()
+                }
                 break
             }
         }

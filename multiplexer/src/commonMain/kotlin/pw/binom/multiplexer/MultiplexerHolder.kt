@@ -27,7 +27,13 @@ class MultiplexerHolder : Multiplexer, Lazy<Multiplexer> {
     override suspend fun createChannel(): DuplexChannel = value.createChannel()
 
     override fun close() {
-        instance.load()?.close()
+        while (true) {
+            val m = instance.load()
+            if (m == null || instance.compareAndSet(m, null)) {
+                m?.close()
+                break
+            }
+        }
     }
 
     override val value: Multiplexer

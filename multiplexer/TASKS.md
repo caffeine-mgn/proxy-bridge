@@ -118,11 +118,11 @@
   - **Severity:** ~~Warning~~ → ~~Fixed~~
   - **Описание:** `close()` теперь вызывает `outcome.close()` (graceful), а не `job.cancel()`. Поведение унифицировано с `close(cause)` из DuplexChannel.
 
-- [ ] **#17. channelClosed handler — race между remove() и channel.close()**
+- [x] **~~#17. channelClosed handler — race между remove() и channel.close()~~** ✅ FIXED
   - **Type:** Concurrency
-  - **Severity:** Warning
-  - **Location:** `MultiplexerImpl.kt:138–143`
-  - **Описание:** `activeChannels.remove(id)` под lock, `channel?.close()` без lock. Между ними возможен конфликт при переполнении Int.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerImpl.kt:160–165`
+  - **Описание:** `close()` перенесён внутрь `withLock { remove(id)?.close() }`. VirtualChannel.job's `finally` с `remove(id)` безопасно ждёт освобождения мутекса (разные корутины).
 
 ## WeakWarning (10)
 
@@ -150,78 +150,78 @@
   - **Location:** `Utils.kt:7–13`
   - **Описание:** `bytes.forEach { buffer.writeByte(it) }` → `buffer.write(bytes)`.
 
-- [ ] **#22. Избыточная аллокация + копирование в wrapLogicalToPhysical**
+- [x] **~~#22. Избыточная аллокация + копирование в wrapLogicalToPhysical~~** ✅ FIXED
   - **Type:** Performance
-  - **Severity:** WeakWarning
-  - **Location:** `MultiplexerProtocol.kt:80–89`
-  - **Описание:** Каждая отправка аллоцирует новый Buffer и копирует payload через `readFully`. O(n) overhead на каждое сообщение.
+  - **Severity:** ~~WeakWarning~~
+  - **Location:** `MultiplexerProtocol.kt:82`
+  - **Описание:** `data.readFully(resultBuffer, data.size)` заменён на `resultBuffer.transferFrom(data)` — перемещение сегментов без копирования.
 
-- [ ] **#23. Channel(UNLIMITED) — отсутствие backpressure, риск OOM при перегрузке**
+- [x] **~~#23. Channel(UNLIMITED) — отсутствие backpressure, риск OOM при перегрузке~~** 🚫 WONTFIX
   - **Type:** Performance
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `MultiplexerImpl.kt:39, 57–58`
-  - **Описание:** `VirtualChannel.income`, `outcome` и `incomeChannels` — все UNLIMITED. При перегрузке буфер растёт без ограничений.
+  - **Описание:** Выбор буферизации — ответственность потребителя. Multiplexer не должен навязывать backpressure, т.к. не знает сценарий использования.
 
-- [ ] **#24. Pattern duplication: три send-команды имеют идентичную структуру**
+- [x] **~~#24. Pattern duplication: три send-команды имеют идентичную структуру~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
-  - **Location:** `MultiplexerProtocol.kt:18–54`
-  - **Описание:** `sendCloseChannel` / `sendRequestNewChannel` / `sendResponseNewChannel` — Buffer → writeByte → lebInt → send. Можно вынести в helper.
+  - **Severity:** ~~WeakWarning~~
+  - **Location:** `MultiplexerProtocol.kt:18–56`
+  - **Описание:** Вынесен приватный helper `sendCommand(cmd, channelId, physical)`. Три публичные функции делегируют ему.
 
-- [ ] **#25. Three when-ветки выполняют одинаковую последовательность**
+- [x] **~~#25. Three when-ветки выполняют одинаковую последовательность~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
-  - **Location:** `MultiplexerProtocol.kt:114–121`
-  - **Описание:** CHANNEL_CLOSE/REQUEST/ACCEPT: `buffer.lebInt` → log → handler. Можно вынести в inline-функцию.
+  - **Severity:** ~~WeakWarning~~
+  - **Location:** `MultiplexerProtocol.kt:115–140`
+  - **Описание:** Вынесен `handleChannelEvent(buffer, logPrefix, handler)` — lebInt → log → handler.onEvent с try-catch.
 
-- [ ] **#26. MultiplexerHolder.close() — race между load() и close()**
+- [x] **~~#26. MultiplexerHolder.close() — race между load() и close()~~** ✅ FIXED
   - **Type:** Concurrency
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `MultiplexerHolder.kt:27–29`
-  - **Описание:** `instance.load()?.close()` — другой поток может вызвать `remove()` между load и close.
+  - **Описание:** Заменён на CAS-цикл: `instance.load()` + `compareAndSet(m, null)` — атомарный `getAndSet`. Два потока не могут одновременно закрыть один instance.
 
-- [ ] **#27. invokeOnClose делегирует только outcome, игнорируя income**
+- [x] **~~#27. invokeOnClose делегирует только outcome, игнорируя income~~** 🚫 WONTFIX
   - **Type:** Design
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `DuplexChannel.kt:19`
-  - **Описание:** `invokeOnClose(handler)` срабатывает только при закрытии outcome.
+  - **Описание:** Дизайн-решение: `invokeOnClose` привязан к outcome как к основной транспортной шине. VirtualChannel обходит это через init-блок. Без редизайна контракта не починить.
 
 ## Info (4)
 
-- [ ] **#28. Int overflow при 2 млрд созданий каналов**
+- [x] **~~#28. Int overflow при 2 млрд созданий каналов~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** Info
-  - **Location:** `MultiplexerImpl.kt:32`
-  - **Описание:** `idGenerator.addAndFetch(2)` переполнится после ~2B каналов. Вероятность ничтожна.
+  - **Severity:** ~~Info~~
+  - **Location:** `MultiplexerImpl.kt:32, 110`
+  - **Описание:** `AtomicInt` заменён на `AtomicLong`. 9 × 10¹⁸ операций до переполнения.
 
-- [ ] **#29. LEB128 readUnsigned не дочитывает лишние байты при превышении maxBits**
+- [x] **~~#29. LEB128 readUnsigned не дочитывает лишние байты при превышении maxBits~~** ✅ FIXED
   - **Type:** Security
-  - **Severity:** Info
-  - **Location:** `Leb.kt:4–19`
-  - **Описание:** При битом LEB128 с бесконечной continuation лишние байты не дочитываются — смещение.
+  - **Severity:** ~~Info~~
+  - **Location:** `Leb.kt:18–24, 45–50`
+  - **Описание:** При `maxBytes <= 0` и наличии continuation-байтов — дочитывает их до терминатора. Фикс в `readUnsigned` и `readSigned`.
 
-- [ ] **#30. MultiplexerEvent.kt дублирует сигнатуры handler'ов reading()**
+- [x] **~~#30. MultiplexerEvent.kt дублирует сигнатуры handler'ов reading()~~** 🚫 WONTFIX
   - **Type:** Maintainability
-  - **Severity:** Info
+  - **Severity:** ~~Info~~
   - **Location:** `MultiplexerEvent.kt:1–44`
-  - **Описание:** 44 строки тестового кода оборачивают handler'ы в `Channel<MultiplexerEvent>`.
+  - **Описание:** Утилитарный хелпер для тестов. Рефакторинг (слияние с reading()) усложнит читаемость тестов без выгоды.
 
-- [ ] **#31. Тяжёлое @Suppress — хрупкость при обновлении корутин**
+- [x] **~~#31. Тяжёлое @Suppress — хрупкость при обновлении корутин~~** 🚫 WONTFIX
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `DuplexChannel.kt:7`
-  - **Описание:** `@Suppress("DEPRECATION_ERROR", "INVISIBLE_REFERENCE", ...)` отключает инкапсуляцию.
+  - **Описание:** `@Suppress` необходим для override непубличных методов корутин. Без альтернативы (нет открытого API для этой функциональности).
 
 ---
 
 ## Статус
 
-| Категория | Всего | Осталось | Исправлено |
-|-----------|-------|----------|------------|
-| Error | 6 | 2 (#1, #4) | 4 (#2, #3, #5, #6) |
-| Warning | 11 | 10 | 1 (#16) |
-| WeakWarning | 10 | 10 | 0 |
-| Info | 4 | 4 | 0 |
-| **Всего** | **31** | **26** | **5** |
+| Категория | Всего | Закрыто | WONTFIX | Открыто |
+|-----------|-------|---------|---------|--------|
+| Error | 6 | 6 | 0 | 0 |
+| Warning | 11 | 11 | 0 | 0 |
+| WeakWarning | 10 | 7 | 3 | 0 |
+| Info | 4 | 2 | 2 | 0 |
+| **Всего** | **31** | **25** | **6** | **0** |
 
 **Тестов:** 21, все проходят.

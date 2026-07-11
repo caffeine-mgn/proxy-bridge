@@ -14,6 +14,13 @@ object MultiplexerProtocol {
     private const val ACCEPT_NEW_CHANNEL: Byte = 4
     private val logger = KotlinLogging.logger { }
 
+    private suspend fun sendCommand(cmd: Byte, channelId: Int, physical: SendChannel<Buffer>) {
+        val resultBuffer = Buffer()
+        resultBuffer.writeByte(cmd)
+        resultBuffer.lebInt(channelId)
+        physical.send(resultBuffer)
+    }
+
     /**
      * Посылает запрос на закрытие канала [channelId]
      */
@@ -22,10 +29,7 @@ object MultiplexerProtocol {
         physical: SendChannel<Buffer>,
     ) {
         logger.info { "SEND CLOSING CHANNEL $channelId" }
-        val resultBuffer = Buffer()
-        resultBuffer.writeByte(CHANNEL_CLOSE)
-        resultBuffer.lebInt(channelId)
-        physical.send(resultBuffer)
+        sendCommand(CHANNEL_CLOSE, channelId, physical)
     }
 
     /**
@@ -36,27 +40,20 @@ object MultiplexerProtocol {
         physical: SendChannel<Buffer>,
     ) {
         logger.info { "SEND REQUEST TO OPEN CHANNEL $channelId" }
-        val resultBuffer = Buffer()
-        resultBuffer.writeByte(REQUEST_NEW_CHANNEL)
-        resultBuffer.lebInt(channelId)
-        physical.send(resultBuffer)
+        sendCommand(REQUEST_NEW_CHANNEL, channelId, physical)
     }
 
     /**
      * Посылает ответ на запрос открытия нового канала
      * @param channelId
      * @param physical
-     * @param accept `true` разрешить открытие канала. `false` запрет открытия нового канала
      */
     suspend fun sendResponseNewChannel(
         channelId: Int,
         physical: SendChannel<Buffer>,
     ) {
         logger.info { "SEND RESPONSE TO OPEN CHANNEL $channelId" }
-        val resultBuffer = Buffer()
-        resultBuffer.writeByte(ACCEPT_NEW_CHANNEL)
-        resultBuffer.lebInt(channelId)
-        physical.send(resultBuffer)
+        sendCommand(ACCEPT_NEW_CHANNEL, channelId, physical)
     }
 
     /**
@@ -85,8 +82,22 @@ object MultiplexerProtocol {
         val resultBuffer = Buffer()
         resultBuffer.writeByte(DATA)
         resultBuffer.lebInt(channelId)
-        data.readFully(resultBuffer, data.size)
+        resultBuffer.transferFrom(data)
         return resultBuffer
+    }
+
+    private suspend inline fun handleChannelEvent(
+        buffer: Buffer,
+        logPrefix: String,
+        handler: suspend (channelId: Int) -> Unit,
+    ) {
+        try {
+            val channelId = buffer.lebInt()
+            logger.info { "$logPrefix $channelId" }
+            handler(channelId)
+        } catch (e: Throwable) {
+            logger.error(e) { "Error on $logPrefix" }
+        }
     }
 
     /**
@@ -114,35 +125,20 @@ object MultiplexerProtocol {
                         }
                     }
 
-                    CHANNEL_CLOSE -> {
-                        try {
-                            val channelId = buffer.lebInt()
-                            logger.info { "INCOME CLOSING channel $channelId" }
-                            channelClosed.onEvent(channelId)
-                        } catch (e: Throwable) {
-                            logger.error(e) { "Error on channel close" }
+                    CHANNEL_CLOSE ->
+                        handleChannelEvent(buffer, "INCOME CLOSING channel") {
+                            channelClosed.onEvent(it)
                         }
-                    }
 
-                    REQUEST_NEW_CHANNEL -> {
-                        try {
-                            val channelId = buffer.lebInt()
-                            logger.info { "INCOME REQUEST_NEW_CHANNEL $channelId" }
-                            requestChannel.onEvent(channelId)
-                        } catch (e: Throwable) {
-                            logger.error(e) { "Error on channel request" }
+                    REQUEST_NEW_CHANNEL ->
+                        handleChannelEvent(buffer, "INCOME REQUEST_NEW_CHANNEL") {
+                            requestChannel.onEvent(it)
                         }
-                    }
 
-                    ACCEPT_NEW_CHANNEL -> {
-                        try {
-                            val channelId = buffer.lebInt()
-                            logger.info { "INCOME ACCEPT_NEW_CHANNEL $channelId" }
-                            newChannelAccepted.onEvent(channelId)
-                        } catch (e: Throwable) {
-                            logger.error(e) { "Error on channel accept" }
+                    ACCEPT_NEW_CHANNEL ->
+                        handleChannelEvent(buffer, "INCOME ACCEPT_NEW_CHANNEL") {
+                            newChannelAccepted.onEvent(it)
                         }
-                    }
 
                     else -> {
                         logger.warn { "Unknown protocol command: $cmd" }

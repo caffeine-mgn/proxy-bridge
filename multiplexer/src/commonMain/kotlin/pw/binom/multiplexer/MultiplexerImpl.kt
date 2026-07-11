@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
 import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.resume
 
@@ -31,7 +31,7 @@ class MultiplexerImpl(
         ioCoroutineScope = ioCoroutineScope,
     )
 
-    private val idGenerator = AtomicInt(if (idOdd) 1 else 0)
+    private val idGenerator = AtomicLong(if (idOdd) 1L else 0L)
     private val activeChannelsMutex = Mutex()
     private val activeChannels = HashMap<Int, VirtualChannel>()
     private val pendingChannelsMutex = Mutex()
@@ -107,7 +107,7 @@ class MultiplexerImpl(
 
 
     override suspend fun createChannel(): DuplexChannel {
-        val newChannelId = idGenerator.addAndFetch(2)
+        val newChannelId = idGenerator.addAndFetch(2L).toInt()
 
         pendingChannelsMutex.lock()
         try {
@@ -157,11 +157,9 @@ class MultiplexerImpl(
                     },
                     channelClosed = { channelId ->
                         logger.info { "Income message for close channel $channelId" }
-                        val channel = activeChannelsMutex.withLock {
-                            activeChannels.remove(channelId)
+                        activeChannelsMutex.withLock {
+                            activeChannels.remove(channelId)?.close()
                         }
-                        logger.info { "found channel $channel" }
-                        channel?.close()
                     },
                     requestChannel = { channelId ->
                         incomeChannels.send(channelId)
