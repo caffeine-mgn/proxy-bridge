@@ -76,6 +76,8 @@ class MultiplexerImpl(
                     logical = outcome,
                     physical = output,
                 )
+            } catch (e: CancellationException) {
+                logger.debug { "Channel $id closed normally" }
             } catch (e: Throwable){
                 logger.error(e) { "Error on channel $id copy finished!" }
             } finally {
