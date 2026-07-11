@@ -85,8 +85,8 @@ class MultiplexerImpl(
                 income.cancel(e)
                 try {
                     MultiplexerProtocol.sendCloseChannel(channelId = id, physical = output)
-                } catch (_: CancellationException) {
-                    // ignore — already cancelled, close notification best-effort
+                } catch (_: Throwable) {
+                    // best-effort — close notification may fail if output is already closed
                 }
                 activeChannelsLock.locking {
                     activeChannels.remove(id)

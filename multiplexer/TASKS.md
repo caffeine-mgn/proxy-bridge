@@ -78,11 +78,16 @@
   - **Location:** `MultiplexerProtocol.kt:109–127`
   - **Описание:** DATA-ветка обёрнута в `try-catch(Throwable)`, CHANNEL_CLOSE/REQUEST/ACCEPT — нет. Битый пакет в них убьёт весь read-цикл.
 
-- [ ] **#12. DuplexChannel.cancel()/close() затрагивают только одну сторону**
+- [x] **~~#12. DuplexChannel.cancel()/close() затрагивают только одну сторону~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Warning
+  - **Severity:** ~~Warning~~
   - **Location:** `DuplexChannel.kt:64–81`
-  - **Описание:** `cancel()` → `income.cancel()`, `close()` → `outcome.close()`. Пользователь, вызывающий `cancel()`, ожидает полную остановку, но outcome остаётся открыт.
+  - **Описание:** `cancel()` → `income.cancel()`, `close()` → `outcome.close()`. Пользователь не получал полной остановки.
+  - **Фикс:**
+    - **DuplexChannel (интерфейс):** `cancel()` закрывает income + outcome (`income.cancel(ce)` + `outcome.close(ce)`).
+    - **DuplexChannel:** `close()` закрывает outcome + income (`outcome.close(ce)` + `income.cancel(ce)`).
+    - **VirtualChannel:** `close()` закрывает только outcome (graceful). Income закрывается асинхронно в `finally` job'ы. `cancel()` наследует из DuplexChannel — закрывает обе стороны сразу.
+  - **Тесты:** `MultiplexerRegressionTest.testCancelClosesBothSides` (isClosedForReceive + isClosedForSend), `MultiplexerRegressionTest.testCloseClosesBothSides` (isClosedForSend)
 
 - [ ] **#13. CancellationException логируется как READ FINISHED WITH ERROR**
   - **Type:** Maintainability

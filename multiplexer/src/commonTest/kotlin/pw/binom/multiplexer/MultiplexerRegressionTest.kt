@@ -192,7 +192,8 @@ class MultiplexerRegressionTest {
             MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = input)
             val channel = multiplexer.accept()
             channel.cancel()
-            assertTrue(channel.isClosedForReceive)
+            assertTrue(channel.isClosedForReceive, "cancel should close income")
+            assertTrue(channel.isClosedForSend, "cancel should close outcome")
 
             multiplexer.close()
             input.close()
@@ -317,6 +318,29 @@ class MultiplexerRegressionTest {
             channel.cancel(cause)
 
             assertTrue(channel.isClosedForReceive, "income should be closed after cancel")
+
+            multiplexer.close()
+            input.close()
+            output.close()
+            events.cancel()
+        }
+    }
+
+    @Test
+    fun testCloseClosesBothSides() {
+        testWithTimeout(5.seconds) {
+            val input = Channel<Buffer>(Channel.UNLIMITED)
+            val output = Channel<Buffer>(Channel.UNLIMITED)
+            val events = MultiplexerProtocol.readEvent(output)
+            val multiplexer = createMultiplexer(input, output)
+
+            MultiplexerProtocol.sendRequestNewChannel(channelId = 111, physical = input)
+            val channel = multiplexer.accept()
+            channel.close()
+
+            // close() закрывает outcome сразу.
+            // Income закрывается в finally job'ы (асинхронно) — not covered by this test.
+            assertTrue(channel.isClosedForSend, "close should close outcome")
 
             multiplexer.close()
             input.close()

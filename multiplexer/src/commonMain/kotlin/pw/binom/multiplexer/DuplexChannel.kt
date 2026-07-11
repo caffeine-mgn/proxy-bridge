@@ -62,17 +62,27 @@ interface DuplexChannel : ReceiveChannel<Buffer>, SendChannel<Buffer>, AutoClose
     override fun iterator(): ChannelIterator<Buffer> = income.iterator()
 
     override fun cancel(cause: Throwable?): Boolean {
-        income.cancel(CancellationException(cause?.message, cause))
+        val ce = CancellationException(cause?.message, cause)
+        income.cancel(ce)
+        outcome.close(ce)
         return true
     }
 
     override fun cancel() {
-        income.cancel()
+        val ce = CancellationException("Channel cancelled")
+        income.cancel(ce)
+        outcome.close(ce)
     }
 
-    override fun cancel(cause: CancellationException?) = income.cancel(cause)
+    override fun cancel(cause: CancellationException?) {
+        val ce = cause ?: CancellationException("Channel cancelled")
+        income.cancel(ce)
+        outcome.close(ce)
+    }
 
     override fun close() {
-        outcome.close()
+        val ce = CancellationException("Channel closed")
+        outcome.close(ce)
+        income.cancel(ce)
     }
 }
