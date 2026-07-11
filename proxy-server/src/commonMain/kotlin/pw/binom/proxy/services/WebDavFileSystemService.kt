@@ -18,14 +18,15 @@ class WebDavFileSystemService : WebDavFileSystem {
 
     override suspend fun readFile(
         path: Path,
-        range: LongRange?
-    ): Result<ByteArray> = mountedFileSystem.readFile(path, range)
+        range: LongRange?,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Result<Unit> = mountedFileSystem.readFile(path, range, onChunk)
 
     override suspend fun writeFile(
         path: Path,
-        content: ByteArray,
-        overwrite: Boolean
-    ): Result<Unit> = mountedFileSystem.writeFile(path = path, content = content, overwrite = overwrite)
+        overwrite: Boolean,
+        nextChunk: suspend () -> ByteArray?,
+    ): Result<Unit> = mountedFileSystem.writeFile(path = path, overwrite = overwrite, nextChunk = nextChunk)
 
     override suspend fun createDirectory(path: Path): Result<Unit> =
         mountedFileSystem.createDirectory(path)

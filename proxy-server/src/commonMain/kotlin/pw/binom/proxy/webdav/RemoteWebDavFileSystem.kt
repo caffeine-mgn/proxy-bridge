@@ -27,19 +27,20 @@ class RemoteWebDavFileSystem(
 
     override suspend fun readFile(
         path: Path,
-        range: LongRange?
-    ): Result<ByteArray> =
+        range: LongRange?,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Result<Unit> =
         createChannel {
-            fileChannel.readFile(it, path.toString(), range)
+            fileChannel.readFile(it, path.toString(), range, onChunk)
         }
 
     override suspend fun writeFile(
         path: Path,
-        content: ByteArray,
-        overwrite: Boolean
+        overwrite: Boolean,
+        nextChunk: suspend () -> ByteArray?,
     ): Result<Unit> =
         createChannel {
-            fileChannel.writeFile(it, path.toString(), content, overwrite)
+            fileChannel.writeFile(it, path.toString(), overwrite, nextChunk)
         }
 
     override suspend fun createDirectory(path: Path): Result<Unit> =

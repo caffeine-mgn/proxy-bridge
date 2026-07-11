@@ -1,6 +1,7 @@
 package pw.binom.webdav.fs.mounted
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.io.files.Path
 import org.junit.Test
 import pw.binom.webdav.fs.CopyOrMoveResult
@@ -10,6 +11,11 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+
+private fun testRun(block: suspend () -> Unit) {
+    runBlocking { withTimeout(30.seconds) { block() } }
+}
 
 private class MapFileSystem : WebDavFileSystem {
     private val files = mutableMapOf<String, ByteArray>()
@@ -40,20 +46,33 @@ private class MapFileSystem : WebDavFileSystem {
         FileMetadata(path, isDir, !isDir, content.size.toLong(), 0)
     }
 
-    override suspend fun readFile(path: Path, range: LongRange?): Result<ByteArray> = runCatching {
+    override suspend fun readFile(path: Path, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> = runCatching {
         val key = normalizeKey(path.toString())
         val content = files[key] ?: error("Not found: ${path}")
-        if (range != null) {
+        val data = if (range != null) {
             val start = range.first.coerceAtLeast(0)
             val end = range.last.coerceAtMost(content.size.toLong() - 1).coerceAtLeast(start)
             content.copyOfRange(start.toInt(), (end + 1).toInt())
         } else content
+        onChunk(data)
     }
 
-    override suspend fun writeFile(path: Path, content: ByteArray, overwrite: Boolean): Result<Unit> = runCatching {
+    override suspend fun writeFile(path: Path, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> = runCatching {
         val key = normalizeKey(path.toString())
         if (!overwrite && files.containsKey(key)) error("File exists: $path")
-        files[key] = content
+        val chunks = mutableListOf<ByteArray>()
+        while (true) {
+            val chunk = nextChunk() ?: break
+            chunks.add(chunk)
+        }
+        val size = chunks.sumOf { it.size }
+        val data = ByteArray(size)
+        var offset = 0
+        for (chunk in chunks) {
+            chunk.copyInto(data, offset)
+            offset += chunk.size
+        }
+        files[key] = data
     }
 
     override suspend fun createDirectory(path: Path): Result<Unit> = runCatching {
@@ -85,8 +104,14 @@ private class MapFileSystem : WebDavFileSystem {
 
 class MountedFileSystemTest {
 
+    private suspend fun readAll(fs: WebDavFileSystem, path: Path, range: LongRange? = null): ByteArray {
+        val chunks = mutableListOf<ByteArray>()
+        fs.readFile(path, range) { chunks.add(it) }.getOrThrow()
+        return if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
+    }
+
     @Test
-    fun `single mount routes paths correctly`() = runBlocking {
+    fun `single mount routes paths correctly`() = testRun {
         val inner = MapFileSystem()
         inner.add("test/file/1.txt", "data".encodeToByteArray())
 
@@ -102,7 +127,7 @@ class MountedFileSystemTest {
     }
 
     @Test
-    fun `two mounts isolate files`() = runBlocking {
+    fun `two mounts isolate files`() = testRun {
         val fsA = MapFileSystem()
         val fsB = MapFileSystem()
         fsA.add("file.txt", "AAA".encodeToByteArray())
@@ -112,14 +137,14 @@ class MountedFileSystemTest {
         mounted.mount("/a", fsA)
         mounted.mount("/b", fsB)
 
-        val fromA = mounted.readFile(Path("a/file.txt")).getOrThrow()
-        val fromB = mounted.readFile(Path("b/file.txt")).getOrThrow()
+        val fromA = readAll(mounted, Path("a/file.txt"))
+        val fromB = readAll(mounted, Path("b/file.txt"))
         assertEquals("AAA", fromA.decodeToString())
         assertEquals("BBB", fromB.decodeToString())
     }
 
     @Test
-    fun `root mount as fallback`() = runBlocking {
+    fun `root mount as fallback`() = testRun {
         val specific = MapFileSystem()
         specific.add("data.txt", "specific".encodeToByteArray())
         val fallback = MapFileSystem()
@@ -129,14 +154,14 @@ class MountedFileSystemTest {
         mounted.mount("/mnt", specific)
         mounted.mount("/", fallback)
 
-        val fromSpecific = mounted.readFile(Path("mnt/data.txt")).getOrThrow()
-        val fromFallback = mounted.readFile(Path("other.txt")).getOrThrow()
+        val fromSpecific = readAll(mounted, Path("mnt/data.txt"))
+        val fromFallback = readAll(mounted, Path("other.txt"))
         assertEquals("specific", fromSpecific.decodeToString())
         assertEquals("fallback", fromFallback.decodeToString())
     }
 
-@Test
-    fun `priority by specificity`() = runBlocking {
+    @Test
+    fun `priority by specificity`() = testRun {
         val general = MapFileSystem()
         general.add("file.txt", "general".encodeToByteArray())
         val specific = MapFileSystem()
@@ -146,14 +171,14 @@ class MountedFileSystemTest {
         mounted.mount("/base", general)
         mounted.mount("/base/nested", specific)
 
-        val fromGeneral = mounted.readFile(Path("base/file.txt")).getOrThrow()
-        val fromSpecific = mounted.readFile(Path("base/nested/file.txt")).getOrThrow()
+        val fromGeneral = readAll(mounted, Path("base/file.txt"))
+        val fromSpecific = readAll(mounted, Path("base/nested/file.txt"))
         assertEquals("general", fromGeneral.decodeToString())
         assertEquals("specific", fromSpecific.decodeToString())
     }
 
     @Test
-    fun `unmount removes route`() = runBlocking {
+    fun `unmount removes route`() = testRun {
         val inner = MapFileSystem()
         inner.add("test.txt", "data".encodeToByteArray())
 
@@ -166,7 +191,7 @@ class MountedFileSystemTest {
     }
 
     @Test
-    fun `cross mount copy`() = runBlocking {
+    fun `cross mount copy`() = testRun {
         val fsA = MapFileSystem()
         val fsB = MapFileSystem()
         fsA.add("src.txt", "hello".encodeToByteArray())
@@ -178,12 +203,12 @@ class MountedFileSystemTest {
         val result = mounted.copy(Path("a/src.txt"), Path("b/dst.txt")).getOrThrow()
         assertTrue(result.success)
 
-        assertEquals("hello", fsB.readFile(Path("dst.txt")).getOrThrow().decodeToString())
-        assertEquals("hello", fsA.readFile(Path("src.txt")).getOrThrow().decodeToString()) // source intact
+        assertEquals("hello", readAll(fsB, Path("dst.txt")).decodeToString())
+        assertEquals("hello", readAll(fsA, Path("src.txt")).decodeToString())
     }
 
     @Test
-    fun `cross mount move`() = runBlocking {
+    fun `cross mount move`() = testRun {
         val fsA = MapFileSystem()
         val fsB = MapFileSystem()
         fsA.add("src.txt", "hello".encodeToByteArray())
@@ -195,12 +220,12 @@ class MountedFileSystemTest {
         val result = mounted.move(Path("a/src.txt"), Path("b/dst.txt")).getOrThrow()
         assertTrue(result.success)
 
-        assertEquals("hello", fsB.readFile(Path("dst.txt")).getOrThrow().decodeToString())
-        assertTrue(fsA.getMetadata(Path("src.txt")).isFailure) // source deleted
+        assertEquals("hello", readAll(fsB, Path("dst.txt")).decodeToString())
+        assertTrue(fsA.getMetadata(Path("src.txt")).isFailure)
     }
 
     @Test
-    fun `same mount move uses direct delegation`() = runBlocking {
+    fun `same mount move uses direct delegation`() = testRun {
         val inner = MapFileSystem()
         inner.add("src.txt", "data".encodeToByteArray())
 
@@ -213,7 +238,7 @@ class MountedFileSystemTest {
     }
 
     @Test
-    fun `createDirectory delegates properly`() = runBlocking {
+    fun `createDirectory delegates properly`() = testRun {
         val inner = MapFileSystem()
         val mounted = MountedFileSystem()
         mounted.mount("/data", inner)
@@ -223,7 +248,7 @@ class MountedFileSystemTest {
     }
 
     @Test
-    fun `delete through mount`() = runBlocking {
+    fun `delete through mount`() = testRun {
         val inner = MapFileSystem()
         inner.add("file.txt")
 

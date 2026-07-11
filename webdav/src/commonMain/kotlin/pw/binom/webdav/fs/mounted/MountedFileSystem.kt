@@ -55,14 +55,14 @@ class MountedFileSystem : WebDavFileSystem {
         return r.fs.getMetadata(Path(r.relativePath))
     }
 
-    override suspend fun readFile(path: Path, range: LongRange?): Result<ByteArray> {
+    override suspend fun readFile(path: Path, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.readFile(Path(r.relativePath), range)
+        return r.fs.readFile(Path(r.relativePath), range, onChunk)
     }
 
-    override suspend fun writeFile(path: Path, content: ByteArray, overwrite: Boolean): Result<Unit> {
+    override suspend fun writeFile(path: Path, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> {
         val r = resolve(path) ?: return Result.failure(IllegalArgumentException("No mount for path: $path"))
-        return r.fs.writeFile(Path(r.relativePath), content, overwrite)
+        return r.fs.writeFile(Path(r.relativePath), overwrite, nextChunk)
     }
 
     override suspend fun createDirectory(path: Path): Result<Unit> {
@@ -98,15 +98,23 @@ class MountedFileSystem : WebDavFileSystem {
     }
 
     private suspend fun crossMountMove(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val data = src.fs.readFile(Path(src.relativePath)).getOrThrow()
-        dst.fs.writeFile(Path(dst.relativePath), data, overwrite = true).getOrThrow()
+        val chunks = mutableListOf<ByteArray>()
+        src.fs.readFile(Path(src.relativePath)) { chunk -> chunks.add(chunk) }.getOrThrow()
+        var idx = 0
+        dst.fs.writeFile(Path(dst.relativePath), overwrite = true) {
+            if (idx < chunks.size) chunks[idx++] else null
+        }.getOrThrow()
         src.fs.delete(Path(src.relativePath)).getOrThrow()
         CopyOrMoveResult(success = true)
     }
 
     private suspend fun crossMountCopy(src: ResolvedMount, dst: ResolvedMount): Result<CopyOrMoveResult> = runCatching {
-        val data = src.fs.readFile(Path(src.relativePath)).getOrThrow()
-        dst.fs.writeFile(Path(dst.relativePath), data, overwrite = true).getOrThrow()
+        val chunks = mutableListOf<ByteArray>()
+        src.fs.readFile(Path(src.relativePath)) { chunk -> chunks.add(chunk) }.getOrThrow()
+        var idx = 0
+        dst.fs.writeFile(Path(dst.relativePath), overwrite = true) {
+            if (idx < chunks.size) chunks[idx++] else null
+        }.getOrThrow()
         CopyOrMoveResult(success = true)
     }
 }

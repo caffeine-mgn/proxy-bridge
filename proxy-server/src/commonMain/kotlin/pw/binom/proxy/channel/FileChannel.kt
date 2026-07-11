@@ -73,31 +73,43 @@ class FileChannel(
         }
     }
 
-    suspend fun readFile(channel: DuplexChannel, path: String, range: LongRange?): Result<ByteArray> {
+    suspend fun readFile(channel: DuplexChannel, path: String, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> {
         channel.send {
             writeByte(ID)
             writeByte(READ_FILE)
             lebString(path)
             nullable(range) { it.write(this) }
         }
-        return channel.receive().use { buffer ->
-            if (buffer.boolean()) {
-                val size = buffer.lebInt()
-                Result.success(buffer.readByteArray(size))
-            } else {
-                Result.failure(IllegalStateException())
-            }
+        val response = channel.receive()
+        if (!response.boolean()) {
+            return Result.failure(IllegalStateException())
         }
+        while (true) {
+            val buf = channel.receive()
+            val chunkSize = buf.lebInt()
+            if (chunkSize == 0) break
+            val data = buf.readByteArray(chunkSize)
+            onChunk(data)
+        }
+        return Result.success(Unit)
     }
 
-    suspend fun writeFile(channel: DuplexChannel, path: String, content: ByteArray, overwrite: Boolean): Result<Unit> {
+    suspend fun writeFile(channel: DuplexChannel, path: String, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> {
         channel.send {
             writeByte(ID)
             writeByte(WRITE_FILE)
             lebString(path)
-            lebInt(content.size)
-            write(content)
             boolean(overwrite)
+        }
+        while (true) {
+            val chunk = nextChunk() ?: break
+            channel.send {
+                lebInt(chunk.size)
+                write(chunk)
+            }
+        }
+        channel.send {
+            lebInt(0)
         }
         return channel.receive().use { buffer ->
             if (buffer.boolean()) {
@@ -219,13 +231,17 @@ class FileChannel(
     private suspend fun handleReadFile(buffer: Buffer, channel: DuplexChannel) {
         val path = kotlinx.io.files.Path(buffer.lebString())
         val range = buffer.nullable { LongRange.read(it) }
-        val result = fileSystem.readFile(path, range)
+        val result = fileSystem.readFile(path, range) { chunk ->
+            channel.send {
+                lebInt(chunk.size)
+                write(chunk)
+            }
+        }
         channel.send {
             result.fold(
-                onSuccess = { data ->
+                onSuccess = {
                     boolean(true)
-                    lebInt(data.size)
-                    write(data)
+                    lebInt(0)
                 },
                 onFailure = {
                     boolean(false)
@@ -236,10 +252,13 @@ class FileChannel(
 
     private suspend fun handleWriteFile(buffer: Buffer, channel: DuplexChannel) {
         val path = kotlinx.io.files.Path(buffer.lebString())
-        val size = buffer.lebInt()
-        val content = buffer.readByteArray(size)
         val overwrite = buffer.boolean()
-        val result = fileSystem.writeFile(path, content, overwrite)
+        val result = fileSystem.writeFile(path, overwrite) {
+            val buf = channel.receive()
+            val size = buf.lebInt()
+            if (size == 0) return@writeFile null
+            buf.readByteArray(size)
+        }
         channel.send {
             result.fold(
                 onSuccess = { boolean(true) },

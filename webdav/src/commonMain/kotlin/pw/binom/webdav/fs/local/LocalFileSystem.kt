@@ -37,19 +37,20 @@ class LocalFileSystem(
         toMetadata(resolved, meta)
     }
 
-    override suspend fun readFile(path: Path, range: LongRange?): Result<ByteArray> = runCatching {
+    override suspend fun readFile(path: Path, range: LongRange?, onChunk: suspend (ByteArray) -> Unit): Result<Unit> = runCatching {
         val resolved = resolve(path)
-        val all = readAllBytes(resolved)
-        if (range != null) {
+        val readAll = readAllBytes(resolved)
+        val data = if (range != null) {
             val start = range.first.coerceAtLeast(0)
-            val end = range.last.coerceAtMost(all.size.toLong() - 1).coerceAtLeast(start)
-            all.copyOfRange(start.toInt(), (end + 1).toInt())
+            val end = range.last.coerceAtMost(readAll.size.toLong() - 1).coerceAtLeast(start)
+            readAll.copyOfRange(start.toInt(), (end + 1).toInt())
         } else {
-            all
+            readAll
         }
+        onChunk(data)
     }
 
-    override suspend fun writeFile(path: Path, content: ByteArray, overwrite: Boolean): Result<Unit> = runCatching {
+    override suspend fun writeFile(path: Path, overwrite: Boolean, nextChunk: suspend () -> ByteArray?): Result<Unit> = runCatching {
         val resolved = resolve(path)
         if (!overwrite && SystemFileSystem.exists(resolved)) {
             error("File already exists: $resolved")
@@ -58,12 +59,11 @@ class LocalFileSystem(
         if (parent != null) {
             SystemFileSystem.createDirectories(parent)
         }
-        val buf = Buffer()
-        if (content.isNotEmpty()) {
-            buf.write(content, 0, content.size)
-        }
         SystemFileSystem.sink(resolved).use { sink ->
-            if (buf.size > 0) {
+            while (true) {
+                val chunk = nextChunk() ?: break
+                val buf = Buffer()
+                buf.write(chunk, 0, chunk.size)
                 sink.write(buf, buf.size)
             }
             sink.flush()
@@ -114,7 +114,7 @@ class LocalFileSystem(
         SystemFileSystem.delete(path, mustExist = false)
     }
 
-    private fun copyRecursively(source: Path, destination: Path) {
+    private suspend fun copyRecursively(source: Path, destination: Path) {
         val meta = SystemFileSystem.metadataOrNull(source)
             ?: error("Source does not exist: $source")
         if (meta.isDirectory) {
@@ -124,12 +124,12 @@ class LocalFileSystem(
                 copyRecursively(child, Path(destination, childName))
             }
         } else {
-            val data = readAllBytes(source)
-            val buf = Buffer()
-            buf.write(data, 0, data.size)
-            SystemFileSystem.sink(destination).use { sink ->
-                sink.write(buf, buf.size)
-            }
+            val data = mutableListOf<ByteArray>()
+            readFile(source) { chunk -> data.add(chunk) }.getOrThrow()
+            var idx = 0
+            writeFile(destination, overwrite = true) {
+                if (idx < data.size) data[idx++] else null
+            }.getOrThrow()
         }
     }
 

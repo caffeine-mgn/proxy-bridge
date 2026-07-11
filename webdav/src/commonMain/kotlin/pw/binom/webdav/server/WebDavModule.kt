@@ -6,6 +6,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
+import io.ktor.utils.io.core.remaining
 import kotlinx.io.Buffer
 import kotlinx.io.files.Path
 import pw.binom.webdav.fs.WebDavFileSystem
@@ -101,19 +102,23 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
                 val range = parseRange(rangeHeader, fileSize)
 
                 if (range != null) {
-                    val data = fileSystem.readFile(targetPath, range.first..range.last).getOrElse {
-                        return@get call.respond(HttpStatusCode.InternalServerError)
-                    }
                     call.response.status(HttpStatusCode.PartialContent)
                     call.response.header("Content-Range", "bytes ${range.first}-${range.last}/$fileSize")
+                    val chunks = mutableListOf<ByteArray>()
+                    fileSystem.readFile(targetPath, range.first..range.last) { chunks.add(it) }.getOrElse {
+                        return@get call.respond(HttpStatusCode.InternalServerError)
+                    }
+                    val data = if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
                     call.response.header("Content-Length", "${data.size}")
                     call.respondBytes(data)
                 } else {
                     call.response.header("Accept-Ranges", "bytes")
                     call.response.header("Content-Length", "$fileSize")
-                    val data = fileSystem.readFile(targetPath).getOrElse {
+                    val chunks = mutableListOf<ByteArray>()
+                    fileSystem.readFile(targetPath) { chunks.add(it) }.getOrElse {
                         return@get call.respond(HttpStatusCode.InternalServerError)
                     }
+                    val data = if (chunks.size == 1) chunks[0] else chunks.fold(ByteArray(0)) { acc, c -> acc + c }
                     call.respondBytes(data)
                 }
             }
@@ -131,12 +136,27 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
                     return@put call.respond(HttpStatusCode.PreconditionFailed, "File must exist for If-Match: *")
                 }
 
-                val content = readRequestBody(call)
                 val parentPath = targetPath.parent
                 if (parentPath != null) {
                     fileSystem.createDirectory(parentPath)
                 }
-                fileSystem.writeFile(targetPath, content).getOrElse {
+
+                val readChannel = call.request.receiveChannel()
+                val allData = Buffer()
+                while (!readChannel.isClosedForRead) {
+                    val pkt = readChannel.readRemaining() ?: break
+                    if (pkt.exhausted()) break
+                    pkt.transferTo(allData)
+                }
+                var sent = false
+                fileSystem.writeFile(targetPath, overwrite = true) {
+                    if (sent) return@writeFile null
+                    sent = true
+                    if (allData.size <= 0L) return@writeFile null
+                    val bytes = ByteArray(allData.size.toInt())
+                    allData.readAtMostTo(bytes, 0, bytes.size)
+                    bytes
+                }.getOrElse {
                     return@put call.respond(HttpStatusCode.InternalServerError, it.message ?: "Failed to write file")
                 }
                 call.respond(HttpStatusCode.Created)
@@ -203,24 +223,6 @@ private fun parseRange(header: String?, fileSize: Long): ByteRange? {
     return if (start in 0 until fileSize && end >= start) {
         ByteRange(start, minOf(end, fileSize - 1))
     } else null
-}
-
-private suspend fun readRequestBody(call: RoutingCall): ByteArray {
-    val channel = call.request.receiveChannel()
-    val result = Buffer()
-    while (!channel.isClosedForRead) {
-        val source = channel.readRemaining() ?: break
-        val buf = Buffer()
-        while (true) {
-            val read = source.readAtMostTo(buf, 8192L)
-            if (read <= 0) break
-            result.write(buf, read)
-        }
-    }
-    val size = result.size.toInt()
-    val bytes = ByteArray(size)
-    result.readAtMostTo(bytes, 0, size)
-    return bytes
 }
 
 private suspend fun buildPropfindXml(
