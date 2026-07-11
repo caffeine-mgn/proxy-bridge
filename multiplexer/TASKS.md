@@ -52,11 +52,12 @@
   - **Описание:** `cancel(cause: Throwable?)` вызывал `income.cancel()` без передачи `cause`. **Фикс:** передан `CancellationException(cause?.message, cause)`.
   - **Тест:** `MultiplexerRegressionTest.testCancelWithCausePropagatesToIncome`
 
-- [ ] **#8. Неизвестная команда протокола молча игнорируется в when(cmd)**
+- [x] **~~#8. Неизвестная команда протокола молча игнорируется в when(cmd)~~** ✅ FIXED
   - **Type:** Security
-  - **Severity:** Warning
-  - **Location:** `MultiplexerProtocol.kt:101–123`
-  - **Описание:** `when(cmd)` покрывает только 4 значения. Любая другая команда съедается, следующие байты читаются со смещением — возможна десинхронизация протокола.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerProtocol.kt:128–130`
+  - **Описание:** Добавлена `else`-ветка с `logger.warn`. Неизвестные команды логируются, байты не съедаются (следующий буфер читается нормально).
+  - **Тест:** `MultiplexerRegressionTest.testUnknownCommandDoesNotCrash` (уже был)
 
 - [x] **~~#9. Нет cleanup при падении readJob — мультиплексор зависает~~** ✅ FIXED
   - **Type:** Bug
@@ -66,11 +67,11 @@
   - **Фикс:** readJob обёрнут в `try { supervisorScope { ... } } catch (e: CancellationException) { throw e } catch (e: Throwable) { ... cleanup ... }`. В crash-хендлере: все активные каналы закрываются (`cancel()` + `close()`), pending-каналы отменяются, pendingData и incomeChannels очищаются.
   - **Тест:** `MultiplexerRegressionTest.testReadJobCrashCleanup` — проверяет что `close()` работает после завершения readJob (все стейты согласованы). Детерминированный тест на non-Cancellation crash невозможен — все текущие хендлеры не выбрасывают не-Cancellation исключения в нормальной работе.
 
-- [ ] **#10. consumeEach в reading() закрывает внешний input-канал как side effect**
+- [x] **~~#10. consumeEach в reading() закрывает внешний input-канал как side effect~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** Warning
+  - **Severity:** ~~Warning~~
   - **Location:** `MultiplexerProtocol.kt:96–99`
-  - **Описание:** `consumeEach` при завершении вызывает `cancel()` на physical-канале. Для внешнего владельца это неожиданно.
+  - **Описание:** `consumeEach` заменён на `while (true) { receiveCatching().getOrNull() ?: break }`. Ручной цикл не вызывает `cancel()` на канале при завершении.
 
 - [ ] **#11. Неравномерная обработка ошибок между командами протокола**
   - **Type:** Bug
@@ -95,11 +96,11 @@
   - **Location:** `MultiplexerProtocol.kt:131–134`
   - **Описание:** `catch(Throwable)` перехватывает `CancellationException` при нормальной отмене и логгирует как ошибку.
 
-- [ ] **#14. Busy-wait spinlock без backoff в корутинном контексте**
+- [x] **~~#14. Busy-wait spinlock без backoff в корутинном контексте~~** ✅ FIXED
   - **Type:** Performance
-  - **Severity:** Warning
-  - **Location:** `AtomicBooleanExtensions.kt:7–13`
-  - **Описание:** `while(true) { CAS }` блокирует поток диспатчера. При contention все потоки сжигают CPU. Рекомендуется `Mutex`.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerImpl.kt:35` (activeChannelsLock → Mutex), `MultiplexerImpl.kt:60,91,131,144,160,185,208`
+  - **Описание:** `activeChannelsLock` был `AtomicBoolean` (spinlock, блокирует поток). Заменён на `Mutex`. Аналог #1 для `activeChannelsLock`. В suspend-контекстах используется `withLock { }`, в `close()` — `runBlocking { withLock { } }`.
 
 - [x] **~~#15. Race: close() очищает activeChannels до завершения readJob~~** ✅ CLOSED (WONTFIX)
   - **Type:** Concurrency

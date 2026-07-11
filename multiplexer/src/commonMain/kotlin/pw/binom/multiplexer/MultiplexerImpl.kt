@@ -32,7 +32,7 @@ class MultiplexerImpl(
     )
 
     private val idGenerator = AtomicInt(if (idOdd) 1 else 0)
-    private val activeChannelsLock = AtomicBoolean(false)
+    private val activeChannelsMutex = Mutex()
     private val activeChannels = HashMap<Int, VirtualChannel>()
     private val pendingChannelsMutex = Mutex()
     private val pendingChannels = HashMap<Int, CancellableContinuation<Unit>>()
@@ -57,7 +57,7 @@ class MultiplexerImpl(
         val chanelJob = VirtualChannel(
             id = incomeChannelId,
         )
-        activeChannelsLock.locking {
+        activeChannelsMutex.withLock {
             activeChannels[incomeChannelId] = chanelJob
         }
         drainPendingData(incomeChannelId, chanelJob)
@@ -88,7 +88,7 @@ class MultiplexerImpl(
                 } catch (_: Throwable) {
                     // best-effort — close notification may fail if output is already closed
                 }
-                activeChannelsLock.locking {
+                activeChannelsMutex.withLock {
                     activeChannels.remove(id)
                 }
             }
@@ -128,7 +128,7 @@ class MultiplexerImpl(
         }
 
         val chanelJob = VirtualChannel(id = newChannelId)
-        activeChannelsLock.locking {
+        activeChannelsMutex.withLock {
             activeChannels[newChannelId] = chanelJob
         }
         drainPendingData(newChannelId, chanelJob)
@@ -141,7 +141,7 @@ class MultiplexerImpl(
                 MultiplexerProtocol.reading(
                     physical = input,
                     handlerOnData = { channelId, data ->
-                        val channel = activeChannelsLock.locking { activeChannels[channelId] }
+                        val channel = activeChannelsMutex.withLock { activeChannels[channelId] }
                         if (channel == null) {
                             // Канал ещё не зарегистрирован — буферизуем
                             pendingDataLock.locking {
@@ -157,7 +157,7 @@ class MultiplexerImpl(
                     },
                     channelClosed = { channelId ->
                         logger.info { "Income message for close channel $channelId" }
-                        val channel = activeChannelsLock.locking {
+                        val channel = activeChannelsMutex.withLock {
                             activeChannels.remove(channelId)
                         }
                         logger.info { "found channel $channel" }
@@ -182,7 +182,7 @@ class MultiplexerImpl(
         } catch (e: Throwable) {
             logger.error(e) { "readJob crashed — cleaning up multiplexer" }
             // Close all active channels to signal failure to users
-            activeChannelsLock.locking {
+            activeChannelsMutex.withLock {
                 activeChannels.values.forEach {
                     it.cancel()          // closes income immediately
                     it.close()           // starts graceful shutdown of outcome
@@ -205,11 +205,11 @@ class MultiplexerImpl(
 
     override fun close() {
         readJob.cancel()
-        activeChannelsLock.locking {
-            activeChannels.values.forEach { it.close() }
-            activeChannels.clear()
-        }
         kotlinx.coroutines.runBlocking {
+            activeChannelsMutex.withLock {
+                activeChannels.values.forEach { it.close() }
+                activeChannels.clear()
+            }
             pendingChannelsMutex.withLock {
                 pendingChannels.values.forEach { it.cancel() }
                 pendingChannels.clear()

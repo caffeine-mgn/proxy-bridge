@@ -100,7 +100,8 @@ object MultiplexerProtocol {
         newChannelAccepted: HandlerOnChannel,
     ) {
         try {
-            physical.consumeEach { buffer ->
+            while (true) {
+                val buffer = physical.receiveCatching().getOrNull() ?: break
                 val cmd = buffer.readByte()
                 when (cmd) {
                     DATA -> {
@@ -128,6 +129,10 @@ object MultiplexerProtocol {
                         val channelId = buffer.lebInt()
                         logger.info { "INCOME ACCEPT_NEW_CHANNEL $channelId" }
                         newChannelAccepted.onEvent(channelId)
+                    }
+
+                    else -> {
+                        logger.warn { "Unknown protocol command: $cmd" }
                     }
                 }
             }
