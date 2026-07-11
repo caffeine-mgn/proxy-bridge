@@ -73,11 +73,11 @@
   - **Location:** `MultiplexerProtocol.kt:96–99`
   - **Описание:** `consumeEach` заменён на `while (true) { receiveCatching().getOrNull() ?: break }`. Ручной цикл не вызывает `cancel()` на канале при завершении.
 
-- [ ] **#11. Неравномерная обработка ошибок между командами протокола**
+- [x] **~~#11. Неравномерная обработка ошибок между командами протокола~~** ✅ FIXED
   - **Type:** Bug
-  - **Severity:** Warning
-  - **Location:** `MultiplexerProtocol.kt:109–127`
-  - **Описание:** DATA-ветка обёрнута в `try-catch(Throwable)`, CHANNEL_CLOSE/REQUEST/ACCEPT — нет. Битый пакет в них убьёт весь read-цикл.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerProtocol.kt:113–138`
+  - **Описание:** DATA-ветка была обёрнута в `try-catch(Throwable)`, CHANNEL_CLOSE/REQUEST/ACCEPT — нет. **Фикс:** во все 3 ветки добавлен `try-catch(e: Throwable)` с `logger.error.`
 
 - [x] **~~#12. DuplexChannel.cancel()/close() затрагивают только одну сторону~~** ✅ FIXED
   - **Type:** Bug
@@ -90,11 +90,11 @@
     - **VirtualChannel:** `close()` закрывает только outcome (graceful). Income закрывается асинхронно в `finally` job'ы. `cancel()` наследует из DuplexChannel — закрывает обе стороны сразу.
   - **Тесты:** `MultiplexerRegressionTest.testCancelClosesBothSides` (isClosedForReceive + isClosedForSend), `MultiplexerRegressionTest.testCloseClosesBothSides` (isClosedForSend)
 
-- [ ] **#13. CancellationException логируется как READ FINISHED WITH ERROR**
+- [x] **~~#13. CancellationException логируется как READ FINISHED WITH ERROR~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** Warning
-  - **Location:** `MultiplexerProtocol.kt:131–134`
-  - **Описание:** `catch(Throwable)` перехватывает `CancellationException` при нормальной отмене и логгирует как ошибку.
+  - **Severity:** ~~Warning~~
+  - **Location:** `MultiplexerProtocol.kt:151–152`
+  - **Описание:** Добавлен `catch (e: CancellationException) { }` ПЕРЕД `catch (e: Throwable)`. CancellationException при нормальной отмене не логируется.
 
 - [x] **~~#14. Busy-wait spinlock без backoff в корутинном контексте~~** ✅ FIXED
   - **Type:** Performance
@@ -126,29 +126,29 @@
 
 ## WeakWarning (10)
 
-- [ ] **#18. Две мёртвые функции LEB128 в Leb.kt**
+- [x] **~~#18. Две мёртвые функции LEB128 в Leb.kt~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
-  - **Location:** `Leb.kt:60–114`
-  - **Описание:** `EncodeLeb128` (42 строки) и `writeUnsignedLeb128` нигде не используются. `EncodeLeb128` имеет неиспользуемый параметр `len`.
+  - **Severity:** ~~WeakWarning~~
+  - **Location:** `Leb.kt`
+  - **Описание:** Удалены `writeUnsignedLeb128` (дубль `writeUnsignedLeb1282`) и `EncodeLeb128` (42 строки, не используется, игнорирует параметр `len`).
 
-- [ ] **#19. Typo: chanelJob вместо channelJob**
+- [x] **~~#19. Typo: chanelJob вместо channelJob~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
-  - **Location:** `MultiplexerImpl.kt:35, 115`
-  - **Описание:** Пропущена буква 'l' в имени переменной (дважды: `accept` и `createChannel`).
+  - **Severity:** ~~WeakWarning~~
+  - **Location:** `MultiplexerImpl.kt`
+  - **Описание:** Переименовано через IDE: `chanelJob` → `channelJob` (6 вхождений).
 
-- [ ] **#20. Typo: coppingLogicalToPhysical вместо copyingLogicalToPhysical**
+- [x] **~~#20. Typo: coppingLogicalToPhysical вместо copyingLogicalToPhysical~~** ✅ FIXED
   - **Type:** Maintainability
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `MultiplexerProtocol.kt:65`
-  - **Описание:** Две 'p' в copping вместо одной — опечатка в публичном методе.
+  - **Описание:** Переименовано через IDE: `coppingLogicalToPhysical` → `copyingLogicalToPhysical`.
 
-- [ ] **#21. bufferOf пишет ByteArray побайтово вместо bulk write**
+- [x] **~~#21. bufferOf пишет ByteArray побайтово вместо bulk write~~** ✅ FIXED
   - **Type:** Performance
-  - **Severity:** WeakWarning
+  - **Severity:** ~~WeakWarning~~
   - **Location:** `Utils.kt:7–13`
-  - **Описание:** `bytes.forEach { buffer.writeByte(it) }` — N вызовов вместо `buffer.write(bytes)`.
+  - **Описание:** `bytes.forEach { buffer.writeByte(it) }` → `buffer.write(bytes)`.
 
 - [ ] **#22. Избыточная аллокация + копирование в wrapLogicalToPhysical**
   - **Type:** Performance

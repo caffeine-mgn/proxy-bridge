@@ -1,6 +1,7 @@
 package pw.binom.multiplexer
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.consumeEach
@@ -62,7 +63,7 @@ object MultiplexerProtocol {
      * Копирует данные из [logical] в [physical] снабжая командой и номером канала.
      * Нужен чтобы логические данные правильно затолкать в физический канал
      */
-    suspend fun coppingLogicalToPhysical(
+    suspend fun copyingLogicalToPhysical(
         channelId: Int,
         logical: ReceiveChannel<Buffer>,
         physical: SendChannel<Buffer>,
@@ -114,21 +115,33 @@ object MultiplexerProtocol {
                     }
 
                     CHANNEL_CLOSE -> {
-                        val channelId = buffer.lebInt()
-                        logger.info { "INCOME CLOSING channel $channelId" }
-                        channelClosed.onEvent(channelId)
+                        try {
+                            val channelId = buffer.lebInt()
+                            logger.info { "INCOME CLOSING channel $channelId" }
+                            channelClosed.onEvent(channelId)
+                        } catch (e: Throwable) {
+                            logger.error(e) { "Error on channel close" }
+                        }
                     }
 
                     REQUEST_NEW_CHANNEL -> {
-                        val channelId = buffer.lebInt()
-                        logger.info { "INCOME REQUEST_NEW_CHANNEL $channelId" }
-                        requestChannel.onEvent(channelId)
+                        try {
+                            val channelId = buffer.lebInt()
+                            logger.info { "INCOME REQUEST_NEW_CHANNEL $channelId" }
+                            requestChannel.onEvent(channelId)
+                        } catch (e: Throwable) {
+                            logger.error(e) { "Error on channel request" }
+                        }
                     }
 
                     ACCEPT_NEW_CHANNEL -> {
-                        val channelId = buffer.lebInt()
-                        logger.info { "INCOME ACCEPT_NEW_CHANNEL $channelId" }
-                        newChannelAccepted.onEvent(channelId)
+                        try {
+                            val channelId = buffer.lebInt()
+                            logger.info { "INCOME ACCEPT_NEW_CHANNEL $channelId" }
+                            newChannelAccepted.onEvent(channelId)
+                        } catch (e: Throwable) {
+                            logger.error(e) { "Error on channel accept" }
+                        }
                     }
 
                     else -> {
@@ -136,6 +149,8 @@ object MultiplexerProtocol {
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            // Normal shutdown, not an error
         } catch (e: Throwable) {
             logger.error(e) { "READ FINISHED WITH ERROR!!!" }
         } finally {

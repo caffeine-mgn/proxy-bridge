@@ -6,15 +6,11 @@ import kotlin.jvm.JvmName
 @JvmName("bufferOf2")
 fun bufferOf(bytes: ByteArray): Buffer {
     val buffer = Buffer()
-    bytes.forEach {
-        buffer.writeByte(it)
-    }
+    buffer.write(bytes)
     return buffer
 }
 fun bufferOf(vararg bytes: Byte): Buffer {
     val buffer = Buffer()
-    bytes.forEach {
-        buffer.writeByte(it)
-    }
+    buffer.write(bytes)
     return buffer
 }

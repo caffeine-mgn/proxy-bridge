@@ -54,15 +54,15 @@ class MultiplexerImpl(
 
     override suspend fun accept(): DuplexChannel {
         val incomeChannelId = incomeChannels.receive()
-        val chanelJob = VirtualChannel(
+        val channelJob = VirtualChannel(
             id = incomeChannelId,
         )
         activeChannelsMutex.withLock {
-            activeChannels[incomeChannelId] = chanelJob
+            activeChannels[incomeChannelId] = channelJob
         }
-        drainPendingData(incomeChannelId, chanelJob)
+        drainPendingData(incomeChannelId, channelJob)
         MultiplexerProtocol.sendResponseNewChannel(channelId = incomeChannelId, physical = output)
-        return chanelJob
+        return channelJob
     }
 
     private inner class VirtualChannel(
@@ -72,7 +72,7 @@ class MultiplexerImpl(
         override val outcome = Channel<Buffer>(Channel.UNLIMITED)
         private val job = ioCoroutineScope.launch(CoroutineName("Output channel $id")) {
             try {
-                MultiplexerProtocol.coppingLogicalToPhysical(
+                MultiplexerProtocol.copyingLogicalToPhysical(
                     channelId = id,
                     logical = outcome,
                     physical = output,
