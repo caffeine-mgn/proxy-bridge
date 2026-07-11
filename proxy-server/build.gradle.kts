@@ -88,6 +88,7 @@ tasks {
     val jvmJar by getting(Jar::class)
 
     val copyToRaspberry by registering {
+        group = "deploy"
         dependsOn(jvmJar)
         inputs.file(jvmJar.archiveFile)
         doLast {
@@ -115,6 +116,7 @@ tasks {
     }
 
     val copyToWorkPc by registering {
+        group = "deploy"
         dependsOn(copyToRaspberry)
 //        inputs.files(copyToRaspberry.get().outputs.files)
         doLast {
@@ -130,7 +132,17 @@ tasks {
             val ssh = Ssh.newService()
             ssh.run(delegateClosureOf<org.hidetake.groovy.ssh.core.RunHandler> {
                 session(remote, delegateClosureOf<org.hidetake.groovy.ssh.session.SessionHandler> {
-                    execute(listOf("/usr/bin/java","-jar","/opt/uploader/file-upload-service-jvm.jar","-p","/dev/ttyGS0", "-f", "/opt/proxy/proxy-server-jvm.jar"))
+                    execute(
+                        listOf(
+                            "/usr/bin/java",
+                            "-jar",
+                            "/opt/uploader/file-upload-service-jvm.jar",
+                            "-p",
+                            "/dev/ttyGS0",
+                            "-f",
+                            "/opt/proxy/proxy-server-jvm.jar"
+                        )
+                    )
                 })
             })
         }
