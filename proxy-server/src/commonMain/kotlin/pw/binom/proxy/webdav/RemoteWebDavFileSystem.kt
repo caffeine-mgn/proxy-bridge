@@ -50,6 +50,8 @@ private class ChannelReadSource(
             logger.error { "ChannelReadSource: chunk $chunkNum expected $size bytes, got $readOffset! TRUNCATED!" }
         }
         val zeros = data.count { it == 0.toByte() }
+        val prefix = data.take(8).joinToString(" ") { "%02x".format(it) }
+        logger.warn { "[ChannelReadSource] chunk=$chunkNum size=$size zeros=$zeros prefix=[$prefix]" }
         if (zeros > size / 2) {
             logger.error { "ChannelReadSource: chunk $chunkNum is ${zeros}/$size zeros! CORRUPTION!" }
         }
@@ -81,6 +83,8 @@ private class ChannelWriteSink(
                 write(bytes)
             }
             channel.income.receive()
+            val prefix = bytes.take(8).joinToString(" ") { "%02x".format(it) }
+            System.err.println("[ChannelWriteSink] wrote ${bytes.size} bytes prefix=[$prefix]")
         }
     }
 

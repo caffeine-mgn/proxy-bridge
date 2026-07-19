@@ -166,7 +166,14 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
                             if (packet.exhausted()) break
                             val sinkBuf = Buffer()
                             packet.transferTo(sinkBuf)
-                            s.write(sinkBuf, sinkBuf.size)
+                            while (sinkBuf.size > 0) {
+                                val chunkSize = minOf(sinkBuf.size, 65536L).toInt()
+                                val chunk = ByteArray(chunkSize)
+                                val read = sinkBuf.readAtMostTo(chunk, 0, chunkSize)
+                                val tmp = Buffer()
+                                tmp.write(chunk, 0, read)
+                                s.write(tmp, tmp.size)
+                            }
                         }
                         s.flush()
                     }
