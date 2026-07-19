@@ -26,7 +26,7 @@ import pw.binom.webdav.fs.WebDavFileSystem
 private class ChannelReadSource(
     private val channel: DuplexChannel,
 ) : RawSource {
-    private val logger = io.github.oshai.kotlinlogging.KotlinLogging.logger {}
+    private val logger = KotlinLogging.logger {}
     private var done = false
     private var chunkNum = 0
 
@@ -58,7 +58,9 @@ private class ChannelReadSource(
         data.size.toLong()
     }
 
-    override fun close() { }
+    override fun close() {
+        channel.cancel()
+    }
 }
 
 /**
