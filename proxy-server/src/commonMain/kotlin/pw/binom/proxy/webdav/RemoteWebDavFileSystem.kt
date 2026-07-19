@@ -80,6 +80,7 @@ private class ChannelWriteSink(
                 lebInt(bytes.size)
                 write(bytes)
             }
+            channel.income.receive()
         }
     }
 

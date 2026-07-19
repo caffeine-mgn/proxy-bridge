@@ -326,6 +326,9 @@ class FileChannel(
                     val tmp = Buffer()
                     tmp.write(data, 0, size)
                     s.write(tmp, tmp.size)
+                    channel.send {
+                        boolean(true)
+                    }
                 }
                 s.flush()
             }
