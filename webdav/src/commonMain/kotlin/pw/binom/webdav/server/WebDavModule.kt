@@ -212,7 +212,8 @@ private fun resolvePath(call: RoutingCall, basePath: String): Path {
     val fullPath = call.request.path()
     val raw = fullPath.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
     val relative = raw.removePrefix("/")
-    return if (relative.isEmpty()) Path(".") else Path(relative)
+    val decoded = java.net.URLDecoder.decode(relative, "UTF-8")
+    return if (decoded.isEmpty()) Path(".") else Path(decoded)
 }
 
 private fun generateETag(metadata: pw.binom.webdav.fs.FileMetadata): String {
@@ -293,7 +294,11 @@ private suspend fun appendPropfindEntry(
 private fun buildHref(path: Path, basePath: String): String {
     val pathStr = path.toString().replace('\\', '/')
     val normalized = if (pathStr.startsWith("/")) pathStr else "/$pathStr"
-    return "$basePath$normalized"
+    val encoded = normalized.split("/").joinToString("/") { segment ->
+        if (segment.isEmpty() || segment == ".") segment
+        else java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+    }
+    return "$basePath$encoded"
 }
 
 private fun formatHttpDate(epochMillis: Long): String {
