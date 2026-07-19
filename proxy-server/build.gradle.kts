@@ -52,6 +52,7 @@ kotlin {
                 api(libs.kotlinx.serialization.yaml)
 
                 api(project(":shared"))
+                api(project(":shared-models"))
 //                api(project(":sound"))
                 api(project(":com"))
                 api(libs.slf4j.simple)
