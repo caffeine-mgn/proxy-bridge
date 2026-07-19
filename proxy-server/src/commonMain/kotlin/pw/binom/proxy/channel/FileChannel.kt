@@ -264,10 +264,12 @@ class FileChannel(
     }
 
     private suspend fun handleReadFile(buffer: Buffer, channel: DuplexChannel, fsName: String) {
+        logger.info { "handleReadFile  -----------" }
         val fs = resolveFs(fsName)
         val path = kotlinx.io.files.Path(buffer.lebString())
         val range = buffer.nullable { LongRange.read(it) }
         try {
+            logger.info { "Reading file: fs=$fsName, path=$path, range=$range..." }
             val source = fs.readFile(path, range)
             source.use { src ->
                 channel.send {

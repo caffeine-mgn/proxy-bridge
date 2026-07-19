@@ -1,6 +1,7 @@
 package pw.binom.proxy.webdav
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.Buffer
 import kotlinx.io.RawSink
@@ -32,7 +33,13 @@ private class ChannelReadSource(
 
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = runBlocking {
         if (done) return@runBlocking -1L
-        val buf = channel.income.receive()
+        val buf = try {
+            channel.income.receive()
+        } catch (e: ClosedReceiveChannelException) {
+            logger.warn { "ChannelReadSource: channel closed prematurely, treating as EOF" }
+            done = true
+            return@runBlocking -1L
+        }
         val size = buf.lebInt()
         if (size == 0) {
             logger.info { "ChannelReadSource: EOF after ${chunkNum} chunks" }
@@ -61,7 +68,7 @@ private class ChannelReadSource(
     }
 
     override fun close() {
-        channel.cancel()
+        // Не закрываем канал — read path закрывается через EOF (lebInt(0))
     }
 }
 

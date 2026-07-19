@@ -32,13 +32,13 @@ fun Application.webDavModule(
         // catch-all for unmatched (registered LAST)
         route("/") {
             handle {
-println("[WebDAV] UNMATCHED ROOT: ${call.request.path()}")
+                println("[WebDAV] UNMATCHED ROOT: ${call.request.path()}")
                 call.respond(HttpStatusCode.NotFound)
             }
         }
         route("{...}") {
             handle {
-println("[WebDAV] UNMATCHED: ${call.request.path()}")
+                println("[WebDAV] UNMATCHED: ${call.request.path()}")
                 call.respond(HttpStatusCode.NotFound)
             }
         }
@@ -47,173 +47,189 @@ println("[WebDAV] UNMATCHED: ${call.request.path()}")
 
 private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: String) {
     options {
-                call.response.headers.append("DAV", "1,2")
-                call.response.headers.append(
-                    "Allow",
-                    "GET,PUT,DELETE,MKCOL,PROPFIND,LOCK,UNLOCK,MOVE,COPY,HEAD,OPTIONS"
-                )
-                call.respond(HttpStatusCode.OK)
+        call.response.headers.append("DAV", "1,2")
+        call.response.headers.append(
+            "Allow",
+            "GET,PUT,DELETE,MKCOL,PROPFIND,LOCK,UNLOCK,MOVE,COPY,HEAD,OPTIONS"
+        )
+        call.respond(HttpStatusCode.OK)
+    }
+
+    method(HttpMethod("PROPFIND")) {
+        handle {
+            val depth = call.request.header("Depth")?.toIntOrNull() ?: 0
+            val targetPath = resolvePath(call, basePath)
+
+            val metadata = fileSystem.getMetadata(targetPath).getOrElse {
+                return@handle call.respond(HttpStatusCode.NotFound)
             }
 
-            method(HttpMethod("PROPFIND")) {
-                handle {
-                    val depth = call.request.header("Depth")?.toIntOrNull() ?: 0
-                    val targetPath = resolvePath(call, basePath)
+            val xml = buildPropfindXml(fileSystem, targetPath, metadata, depth, basePath)
+            call.response.header("Content-Type", "application/xml; charset=utf-8")
+            call.respond(HttpStatusCode.MultiStatus, xml)
+        }
+    }
 
-                    val metadata = fileSystem.getMetadata(targetPath).getOrElse {
-                        return@handle call.respond(HttpStatusCode.NotFound)
-                    }
+    method(HttpMethod("LOCK")) {
+        handle {
+            handleLock(call)
+        }
+    }
 
-                    val xml = buildPropfindXml(fileSystem, targetPath, metadata, depth, basePath)
-                    call.response.header("Content-Type", "application/xml; charset=utf-8")
-                    call.respond(HttpStatusCode.MultiStatus, xml)
+    method(HttpMethod("UNLOCK")) {
+        handle {
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+
+    method(HttpMethod("MKCOL")) {
+        handle {
+            val targetPath = resolvePath(call, basePath)
+            val exists = fileSystem.getMetadata(targetPath).isSuccess
+            if (exists) {
+                call.respond(HttpStatusCode.MethodNotAllowed)
+            } else {
+                fileSystem.createDirectory(targetPath).getOrElse {
+                    return@handle call.respond(
+                        HttpStatusCode.InternalServerError,
+                        it.message ?: "Failed to create directory"
+                    )
                 }
-            }
-
-            method(HttpMethod("LOCK")) {
-                handle {
-                    handleLock(call)
-                }
-            }
-
-            method(HttpMethod("UNLOCK")) {
-                handle {
-                    call.respond(HttpStatusCode.NoContent)
-                }
-            }
-
-            method(HttpMethod("MKCOL")) {
-                handle {
-                    val targetPath = resolvePath(call, basePath)
-                    val exists = fileSystem.getMetadata(targetPath).isSuccess
-                    if (exists) {
-                        call.respond(HttpStatusCode.MethodNotAllowed)
-                    } else {
-                        fileSystem.createDirectory(targetPath).getOrElse {
-                            return@handle call.respond(HttpStatusCode.InternalServerError, it.message ?: "Failed to create directory")
-                        }
-                        call.respond(HttpStatusCode.Created)
-                    }
-                }
-            }
-
-            get {
-                val targetPath = resolvePath(call, basePath)
-                val metadata = fileSystem.getMetadata(targetPath).getOrElse {
-                    return@get call.respond(HttpStatusCode.NotFound)
-                }
-                if (metadata.isDirectory) {
-                    return@get call.respond(HttpStatusCode.NotFound)
-                }
-
-                val etag = generateETag(metadata)
-                call.response.header("ETag", etag)
-                if (metadata.lastModified > 0) {
-                    call.response.header("Last-Modified", formatHttpDate(metadata.lastModified))
-                }
-
-                val ifNoneMatch = call.request.header("If-None-Match")
-                if (ifNoneMatch != null && matchETag(ifNoneMatch, etag)) {
-                    return@get call.respond(HttpStatusCode.NotModified)
-                }
-
-                val fileSize = metadata.size
-                val rangeHeader = call.request.header("Range")
-                val byteRange = parseRange(rangeHeader, fileSize)
-                val range = byteRange?.let { it.first..it.last }
-
-                if (byteRange != null) {
-                    call.response.status(HttpStatusCode.PartialContent)
-                    call.response.header("Content-Range", "bytes ${byteRange.first}-${byteRange.last}/$fileSize")
-                }
-                call.response.header("Accept-Ranges", "bytes")
-
-                call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
-                    val source = fileSystem.readFile(targetPath, range)
-                    source.use { src ->
-                        val buf = Buffer()
-                        while (true) {
-                            val read = src.readAtMostTo(buf, 8192)
-                            if (read <= 0) break
-                            val size = buf.size.toInt()
-                            val bytes = ByteArray(size)
-                            buf.readAtMostTo(bytes, 0, size)
-                            writeFully(bytes)
-                        }
-                    }
-                }
-            }
-
-            put {
-                val targetPath = resolvePath(call, basePath)
-                val existingMeta = fileSystem.getMetadata(targetPath).getOrNull()
-                val etag = if (existingMeta != null) generateETag(existingMeta) else null
-
-                val ifMatch = call.request.header("If-Match")
-                if (ifMatch != null && etag != null && !matchETag(ifMatch, etag)) {
-                    return@put call.respond(HttpStatusCode.PreconditionFailed)
-                }
-                if (ifMatch?.trim() == "*" && existingMeta == null) {
-                    return@put call.respond(HttpStatusCode.PreconditionFailed)
-                }
-
-                try {
-                    val sink = fileSystem.writeFile(targetPath, overwrite = true)
-                    sink.use { s ->
-                        val channel = call.request.receiveChannel()
-                        while (!channel.isClosedForRead) {
-                            val packet = channel.readRemaining() ?: break
-                            if (packet.exhausted()) break
-                            val sinkBuf = Buffer()
-                            packet.transferTo(sinkBuf)
-                            while (sinkBuf.size > 0) {
-                                val chunkSize = minOf(sinkBuf.size, 65536L).toInt()
-                                val chunk = ByteArray(chunkSize)
-                                val read = sinkBuf.readAtMostTo(chunk, 0, chunkSize)
-                                val tmp = Buffer()
-                                tmp.write(chunk, 0, read)
-                                s.write(tmp, tmp.size)
-                            }
-                        }
-                        s.flush()
-                    }
-                    call.respond(HttpStatusCode.Created)
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, e.message ?: "Write failed")
-                }
-            }
-
-            delete {
-                val targetPath = resolvePath(call, basePath)
-                val metadata = fileSystem.getMetadata(targetPath).getOrNull()
-                if (metadata == null) {
-                    return@delete call.respond(HttpStatusCode.NotFound)
-                }
-
-                val etag = generateETag(metadata)
-                val ifMatch = call.request.header("If-Match")
-                if (ifMatch != null && !matchETag(ifMatch, etag)) {
-                    return@delete call.respond(HttpStatusCode.PreconditionFailed, "ETag mismatch")
-                }
-
-                fileSystem.delete(targetPath).getOrElse {
-                    return@delete call.respond(HttpStatusCode.InternalServerError, it.message ?: "Failed to delete")
-                }
-                call.respond(HttpStatusCode.NoContent)
-            }
-
-            method(HttpMethod("MOVE")) {
-                handle {
-                    handleMoveCopy(call, fileSystem, basePath, isMove = true)
-                }
-            }
-
-            method(HttpMethod("COPY")) {
-                handle {
-                    handleMoveCopy(call, fileSystem, basePath, isMove = false)
-                }
+                call.respond(HttpStatusCode.Created)
             }
         }
+    }
+
+    get {
+        val targetPath = resolvePath(call, basePath)
+        val metadata = fileSystem.getMetadata(targetPath).getOrElse {
+            return@get call.respond(HttpStatusCode.NotFound)
+        }
+        if (metadata.isDirectory) {
+            return@get call.respond(HttpStatusCode.NotFound)
+        }
+
+        val etag = generateETag(metadata)
+        call.response.header("ETag", etag)
+        if (metadata.lastModified > 0) {
+            call.response.header("Last-Modified", formatHttpDate(metadata.lastModified))
+        }
+
+        val ifNoneMatch = call.request.header("If-None-Match")
+        if (ifNoneMatch != null && matchETag(ifNoneMatch, etag)) {
+            return@get call.respond(HttpStatusCode.NotModified)
+        }
+
+        val fileSize = metadata.size
+        val rangeHeader = call.request.header("Range")
+        val byteRange = parseRange(rangeHeader, fileSize)
+        val range = byteRange?.let { it.first..it.last }
+
+        if (byteRange != null) {
+            call.response.status(HttpStatusCode.PartialContent)
+            call.response.header("Content-Range", "bytes ${byteRange.first}-${byteRange.last}/$fileSize")
+        }
+        call.response.header("Accept-Ranges", "bytes")
+
+        call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
+            println("GET: $targetPath ---------------")
+            val source = fileSystem.readFile(targetPath, range)
+            source.use { src ->
+                val buf = Buffer()
+                try {
+                    while (true) {
+                        val read = src.readAtMostTo(buf, 8192)
+                        if (read <= 0) {
+                            println("EOF")
+                            break
+                        }
+                        val size = buf.size.toInt()
+                        val bytes = ByteArray(size)
+                        buf.readAtMostTo(sink = bytes, startIndex = 0, endIndex = size)
+                        writeFully(bytes)
+                        flush()
+                        println("Sending ${bytes.size} bytes")
+
+                    }
+                } catch (e: Throwable) {
+                    println("FINISHED!!!")
+                    e.printStackTrace()
+                }
+            }
+
+        }
+    }
+
+    put {
+        val targetPath = resolvePath(call, basePath)
+        val existingMeta = fileSystem.getMetadata(targetPath).getOrNull()
+        val etag = if (existingMeta != null) generateETag(existingMeta) else null
+
+        val ifMatch = call.request.header("If-Match")
+        if (ifMatch != null && etag != null && !matchETag(ifMatch, etag)) {
+            return@put call.respond(HttpStatusCode.PreconditionFailed)
+        }
+        if (ifMatch?.trim() == "*" && existingMeta == null) {
+            return@put call.respond(HttpStatusCode.PreconditionFailed)
+        }
+
+        try {
+            val sink = fileSystem.writeFile(targetPath, overwrite = true)
+            sink.use { s ->
+                val channel = call.request.receiveChannel()
+                while (!channel.isClosedForRead) {
+                    val packet = channel.readRemaining() ?: break
+                    if (packet.exhausted()) break
+                    val sinkBuf = Buffer()
+                    packet.transferTo(sinkBuf)
+                    while (sinkBuf.size > 0) {
+                        val chunkSize = minOf(sinkBuf.size, 65536L).toInt()
+                        val chunk = ByteArray(chunkSize)
+                        val read = sinkBuf.readAtMostTo(chunk, 0, chunkSize)
+                        val tmp = Buffer()
+                        tmp.write(chunk, 0, read)
+                        s.write(tmp, tmp.size)
+                    }
+                }
+                s.flush()
+            }
+            call.respond(HttpStatusCode.Created)
+        } catch (e: Exception) {
+            call.respond(HttpStatusCode.InternalServerError, e.message ?: "Write failed")
+        }
+    }
+
+    delete {
+        val targetPath = resolvePath(call, basePath)
+        val metadata = fileSystem.getMetadata(targetPath).getOrNull()
+        if (metadata == null) {
+            return@delete call.respond(HttpStatusCode.NotFound)
+        }
+
+        val etag = generateETag(metadata)
+        val ifMatch = call.request.header("If-Match")
+        if (ifMatch != null && !matchETag(ifMatch, etag)) {
+            return@delete call.respond(HttpStatusCode.PreconditionFailed, "ETag mismatch")
+        }
+
+        fileSystem.delete(targetPath).getOrElse {
+            return@delete call.respond(HttpStatusCode.InternalServerError, it.message ?: "Failed to delete")
+        }
+        call.respond(HttpStatusCode.NoContent)
+    }
+
+    method(HttpMethod("MOVE")) {
+        handle {
+            handleMoveCopy(call, fileSystem, basePath, isMove = true)
+        }
+    }
+
+    method(HttpMethod("COPY")) {
+        handle {
+            handleMoveCopy(call, fileSystem, basePath, isMove = false)
+        }
+    }
+}
 
 private fun resolvePath(call: RoutingCall, basePath: String): Path {
     val fullPath = call.request.path()
@@ -335,7 +351,8 @@ private suspend fun handleMoveCopy(
     isMove: Boolean,
 ) {
     val sourcePath = resolvePath(call, basePath)
-    val destHeader = call.request.headers["Destination"] ?: return call.respond(HttpStatusCode.BadRequest, "Missing Destination")
+    val destHeader =
+        call.request.headers["Destination"] ?: return call.respond(HttpStatusCode.BadRequest, "Missing Destination")
 
     val destUri = java.net.URI.create(destHeader)
     val destRaw = destUri.path.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"

@@ -86,9 +86,11 @@ class MultiplexerImpl(
                 } catch (_: Throwable) {
                     // best-effort — close notification may fail if output is already closed
                 }
-                val e = CancellationException("Closed by outcome channel closed")
-                outcome.close(e)
-                income.cancel(e)
+                val e1 = CancellationException("Closed by outcome channel closed 11")
+                val e2 = CancellationException("Closed by outcome channel closed 22")
+                outcome.close(e1)
+//                income.cancel(e2)
+                income.close(e2)
                 activeChannelsMutex.withLock {
                     activeChannels.remove(id)
                 }
