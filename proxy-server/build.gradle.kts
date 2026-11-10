@@ -36,14 +36,24 @@ kotlin {
                 mainClass = "pw.binom.proxy.MainJvm"
             }
         }
-//        compilations.all {
-//            kotlinOptions.jvmTarget = "1.8"
-//        }
     }
+    listOf(
+        "linuxX64",
+        "linuxArm64",
+        "mingwX64",
+    ).forEach { targetName ->
+        // Kotlin/Native поддерживает кросс-сборку этих таргетов с Linux.
+        when (targetName) {
+            "linuxX64" -> linuxX64 { binaries { executable { entryPoint = "pw.binom.proxy.main" } } }
+            "linuxArm64" -> linuxArm64 { binaries { executable { entryPoint = "pw.binom.proxy.main" } } }
+            "mingwX64" -> mingwX64 { binaries { executable { entryPoint = "pw.binom.proxy.main" } } }
+        }
+    }
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation("com.github.ajalt.clikt:clikt:5.1.0")
                 api(kotlin("stdlib"))
                 api(libs.kotlinx.serialization.json)
                 api(libs.ktor.server.negotiation)
@@ -53,10 +63,15 @@ kotlin {
 
                 api(project(":shared"))
                 api(project(":shared-models"))
+                api(project(":hid"))
 //                api(project(":sound"))
-                api(project(":com"))
-                api(libs.slf4j.simple)
+//                api(project(":com"))
                 api(libs.koin.core)
+            }
+        }
+        val jvmMain by getting {
+            dependencies {
+                api(libs.slf4j.simple)
             }
         }
         val commonTest by getting {
