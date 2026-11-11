@@ -6,3 +6,8 @@ build
 .continue
 .veai
 kotlin-js-store
+bootstrap/*/build/
+bootstrap/*/.gradle/
+bootstrap/*/.kotlin/
+bootstrap/*/inc*/
+bootstrap/*/incoming/
