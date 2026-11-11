@@ -9,7 +9,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-javac -encoding UTF-8 Bootstrap.java SerialLink.java
+javac -encoding UTF-8 Bootstrap.java
 if errorlevel 1 (
     echo Build failed.
     exit /b 1
@@ -17,7 +17,7 @@ if errorlevel 1 (
 
 jar --create --file bootstrap.jar --main-class Bootstrap *.class
 if errorlevel 1 (
-    echo jar failed — classes built, run:  java -cp . Bootstrap
+    echo jar failed - classes built, run:  java -cp . Bootstrap
     exit /b 1
 )
 

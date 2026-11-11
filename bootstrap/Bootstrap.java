@@ -1,10 +1,13 @@
 import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Бутстрап для удалённой машины: принимает файлы от proxy-bridge по COM-порту
@@ -20,13 +23,13 @@ import java.io.InputStreamReader;
  *   содержимое файла
  * </pre>
  *
- * Сборка и запуск (Java 11+ умеет запускать одиночный файл без сборки):
+ * Всё в одном файле намеренно: Java 11+ запускает одиночный файл без сборки
+ * ({@code java Bootstrap.java}), а лаунчер компилирует ровно один файл — второй
+ * исходник он уже не увидит.
  *
  * <pre>
- *   javac Bootstrap.java SerialLink.java      // вариант с явной сборкой
- *   java Bootstrap
- *
- *   java Bootstrap.java                        // без сборки (Java 11+)
+ *   java Bootstrap.java        // без сборки (Java 11+)
+ *   javac Bootstrap.java && java Bootstrap
  * </pre>
  *
  * Если порт не задан в settings.txt — программа покажет список доступных портов
@@ -43,7 +46,7 @@ public final class Bootstrap {
         String port = settings.port;
         if (port == null || port.trim().isEmpty()) {
             System.out.println("Available ports: " + SerialLink.listPorts());
-            System.out.print("Enter COM port (e.g. COM3 or /dev/ttyACM0): ");
+            System.out.print("Enter COM port (e.g. COM3, /dev/ttyACM0, /dev/cu.usbmodem14201): ");
             port = readLine();
             if (port == null || port.trim().isEmpty()) {
                 System.out.println("No port given — nothing to do.");
@@ -100,6 +103,7 @@ public final class Bootstrap {
         System.out.println("Receiving " + safeName + " (" + size + " bytes)...");
         byte[] buffer = new byte[64 * 1024];
         int remaining = size;
+        int printedPercent = 0;
         FileOutputStream output = new FileOutputStream(target);
         try {
             while (remaining > 0) {
@@ -109,8 +113,10 @@ public final class Bootstrap {
                 }
                 output.write(buffer, 0, read);
                 remaining -= read;
-                if (size > 1024 * 1024 && (size - remaining) % (1024 * 1024) < buffer.length) {
-                    System.out.println("  " + ((size - remaining) * 100L / size) + "%");
+                int percent = (int) ((size - remaining) * 100L / size);
+                if (percent >= printedPercent + 10) {
+                    printedPercent = percent - percent % 10;
+                    System.out.println("  " + printedPercent + "%");
                 }
             }
         } finally {
@@ -164,7 +170,8 @@ public final class Bootstrap {
                 System.out.println("Settings file not found: " + path + " (using defaults)");
                 return settings;
             }
-            BufferedReader reader = new BufferedReader(new InputStreamReader(new java.io.FileInputStream(file), "UTF-8"));
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(file), "UTF-8"));
             try {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -191,5 +198,101 @@ public final class Bootstrap {
             }
             return settings;
         }
+    }
+}
+
+/**
+ * Доступ к последовательному порту без сторонних библиотек.
+ *
+ * В стандартной Java нет API для COM-портов, поэтому:
+ * <ul>
+ *   <li>Linux/macOS: порт — обычный файл устройства. Настраиваем линию через
+ *       {@code stty} и читаем {@link FileInputStream}. Raw-режим обязателен:
+ *       иначе терминал съедает 0x0A/0x0D и байты со старшим битом.</li>
+ *   <li>Windows: порт доступен только через Win32 API, поэтому читаем через
+ *       PowerShell ({@code System.IO.Ports.SerialPort}), который пишет сырые
+ *       байты в свой stdout, а мы читаем этот поток.</li>
+ * </ul>
+ */
+final class SerialLink {
+
+    private SerialLink() {
+    }
+
+    static InputStream open(String port, int baud) throws IOException {
+        if (isWindows()) {
+            return openWindows(port, baud);
+        }
+        return openPosix(port, baud);
+    }
+
+    static List<String> listPorts() {
+        List<String> ports = new ArrayList<String>();
+        File dir = new File("/dev");
+        String[] names = dir.list();
+        if (names != null) {
+            for (String name : names) {
+                // Linux: ttyACM*/ttyUSB*; macOS: cu.*/tty.usbserial*.
+                if (name.startsWith("ttyACM") || name.startsWith("ttyUSB")
+                        || name.startsWith("cu.") || name.startsWith("tty.usbserial")) {
+                    ports.add("/dev/" + name);
+                }
+            }
+        }
+        if (ports.isEmpty() && isWindows()) {
+            ports.add("COM1..COM20 (see Device Manager)");
+        }
+        return ports;
+    }
+
+    private static InputStream openPosix(String port, int baud) throws IOException {
+        configureLine(port, baud);
+        return new FileInputStream(port);
+    }
+
+    /**
+     * Переводит линию в raw-режим. Ошибку игнорируем: на некоторых системах
+     * stty нет, а порт уже настроен пользователем.
+     */
+    private static void configureLine(String port, int baud) {
+        // Linux: stty -F <port> ...
+        if (runStty(new String[] {
+                "stty", "-F", port, String.valueOf(baud), "raw", "-echo", "clocal", "cread",
+                "cs8", "-parenb", "-cstopb",
+        })) {
+            return;
+        }
+        // macOS/BSD: stty -f <port> ...
+        runStty(new String[] {"stty", "-f", port, String.valueOf(baud), "raw", "-echo"});
+    }
+
+    private static boolean runStty(String[] command) {
+        try {
+            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            process.waitFor();
+            return process.exitValue() == 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static InputStream openWindows(String port, int baud) throws IOException {
+        String script =
+                "$ErrorActionPreference='Stop';"
+                        + "$p=New-Object System.IO.Ports.SerialPort('" + port + "'," + baud + ",'None',8,'One');"
+                        + "$p.ReadTimeout=60000;"
+                        + "$p.Open();"
+                        + "$o=[Console]::OpenStandardOutput();"
+                        + "$b=New-Object byte[] 65536;"
+                        + "while($true){$n=$p.Read($b,0,$b.Length);$o.Write($b,0,$n);$o.Flush()}";
+        ProcessBuilder builder = new ProcessBuilder(
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script);
+        builder.redirectError(ProcessBuilder.Redirect.INHERIT);
+        Process process = builder.start();
+        return process.getInputStream();
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().contains("win");
     }
 }

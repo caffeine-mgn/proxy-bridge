@@ -10,7 +10,7 @@ if ! command -v javac >/dev/null 2>&1; then
     exit 1
 fi
 
-javac -encoding UTF-8 Bootstrap.java SerialLink.java
+javac -encoding UTF-8 Bootstrap.java
 jar --create --file bootstrap.jar --main-class Bootstrap ./*.class
 
 echo
