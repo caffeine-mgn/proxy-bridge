@@ -31,6 +31,17 @@ data class Configuration(
      * Файловые системы
      */
     val fileSystems: Map<String, FileSystemConfig> = emptyMap(),
+
+    /**
+     * Режим «фронт»: веб-интерфейс для первичной доставки программы на
+     * удалённую машину (имитация ввода файлов бутстрапа + передача бинарника
+     * по COM-порту).
+     *
+     * Режим ВЗАИМОИСКЛЮЧАЮЩИЙ с обычной работой: когда он включён, сервисы из
+     * [services]/[incomes]/[outcomes] не поднимаются, потому что COM-порт и
+     * клавиатура нужны самому бутстрапу.
+     */
+    val front: Front? = null,
 ) {
 
     @Serializable
@@ -127,6 +138,46 @@ data class Configuration(
         @Serializable
         data class Layer(val path: String, val fs: String)
     }
+
+    @Serializable
+    data class Front(
+        /** Включён ли режим фронта. Выключен — работает обычная логика программы. */
+        val enabled: Boolean = true,
+
+        /** Адрес веб-сервера фронта. */
+        val bind: String = "0.0.0.0",
+        val port: Int = 8900,
+
+        /**
+         * Каталог с файлами бутстрапа. Каждый файл отдаётся в интерфейсе
+         * отдельной кнопкой: пользователь нажимает, ввод «печатается» в окно
+         * блокнота на удалённой машине, а он сохраняет файл под показанным
+         * именем.
+         */
+        val bootstrapDir: String = "bootstrap",
+
+        /** Имя файла настроек бутстрапа внутри [bootstrapDir]. */
+        val settingsFile: String = "settings.txt",
+
+        /**
+         * Что отправлять кнопкой «отправить себя». Если не задано — берётся
+         * файл, из которого запущена программа (JVM-джар), а если и это
+         * недоступно, отправка отключается.
+         */
+        val selfPath: String? = null,
+
+        /** COM-устройство для передачи файла на удалённую машину. */
+        val serialPort: String = "/dev/ttyGS0",
+        val baudRate: Int = 115200,
+
+        /** HID-клавиатура USB-гаджета. */
+        val keyboardDevice: String = "/dev/hidg0",
+
+        /** Профиль имитации ввода (паузы в миллисекундах). */
+        val charDelayMs: Int = 15,
+        val jitterMs: Int = 10,
+        val holdMs: Int = 8,
+    )
 
     @Serializable
     sealed interface Service {

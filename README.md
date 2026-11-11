@@ -1,172 +1,261 @@
 # proxy-bridge
 
-Многопротокольный мост-туннель для передачи сетевого трафика через последовательный порт (RS-232), Bluetooth (
-RFCOMM/SPP) или TCP-соединение.
+Многопротокольный мост-туннель для передачи сетевого трафика через последовательный порт (RS-232 / USB CDC-ACM)
+или TCP-соединение.
+
+```
+[Клиент] <--HTTP/SOCKS5--> [proxy-server на устройстве] <--COM/USB--> [proxy-server на ПК] <--TCP--> [Интернет/сеть]
+```
+
+Проект — Kotlin Multiplatform: один и тот же код собирается в JVM-джарник и в нативные исполняемые файлы
+(Linux x64/arm64, Windows x64). Работа с COM-портом вынесена в отдельную библиотеку
+[serial-kmp](https://git.binom.pw/subochev/serial-kmp) (собственное C-ядро + JNI/cinterop, без jSerialComm).
 
 ## Зачем?
 
 Когда прямое сетевое соединение недоступно или ограничено, proxy-bridge позволяет организовать HTTP/SOCKS5-прокси,
-TCP-форвардинг и доступ к удалённой файловой системе через физический канал связи — например, через UART между Raspberry
-Pi и шлюзом.
+TCP-форвардинг и доступ к удалённой файловой системе через физический канал связи — например, через USB-кабель между
+Raspberry Pi и компьютером.
 
-```
-[Клиент] <--HTTP/SOCKS5--> [proxy-server] <--Serial/BT/TCP--> [proxy-gateway] <--TCP--> [Интернет/сеть]
-```
+## Модули
 
-- **proxy-server** — запускается на удалённом устройстве, принимает HTTP/SOCKS5-запросы от локальных клиентов.
-- **proxy-gateway** — запускается на машине-шлюзе, соединяется с удалённым устройством через COM-порт, Bluetooth или
-  TCP.
+| Модуль                 | Назначение                                                                     |
+|------------------------|--------------------------------------------------------------------------------|
+| `:multiplexer`         | Мультиплексирование виртуальных каналов поверх одного физического соединения    |
+| `:webdav`              | Реализация WebDAV-сервера и файловых систем                                    |
+| `:shared`              | Общая логика: протокол, конфигурация, обработчики каналов, serial-транспорт     |
+| `:hid`                 | USB-клавиатура: имитация ввода (раскладка US, «человеческие» паузы)            |
+| `:proxy-server`        | Приложение: сервисы, каналы, HTTP/SOCKS5/WebDAV/TCP-форвардинг                  |
+| `:file-upload-service` | CLI для заливки файла через COM-порт (утилита сопровождения)                   |
+| `:shared-models`       | Общие DTO для API                                                              |
+| `:front`               | Заготовка веб-интерфейса (Kotlin/JS + Compose)                                 |
 
-## Архитектура
-
-Проект написан на **Kotlin Multiplatform** и состоит из модулей:
-
-| Модуль                 | Назначение                                                                   |
-|------------------------|------------------------------------------------------------------------------|
-| `:shared`              | Общая логика, протоколы, конфигурация, обработчики каналов                   |
-| `:multiplexer`         | Мультиплексирование виртуальных каналов поверх одного физического соединения |
-| `:com`                 | Работа с последовательным портом (jSerialComm)                               |
-| `:proxy-server`        | Серверная часть (запускается на удалённом устройстве)                        |
-| `:bootstrap`           | Утилиты для транспорта                                                       |
-| `:ble`                 | Bluetooth Low Energy                                                         |
-| `:sound`               | Аудио-модуль (интеграция с BlueZ через DBus)                                 |
-| `:file-upload-service` | CLI-утилита для загрузки файлов через COM-порт                               |
+Модули `com`, `ble`, `sound`, `bootstrap` удалены: jSerialComm заменён на serial-kmp, Bluetooth выпилен.
+Бутстрап для доставки на удалённую машину теперь живёт в каталоге
+[`bootstrap/`](./bootstrap) (Java, без зависимостей).
 
 ### Как это работает
 
-1. **proxy-server** поднимает HTTP-прокси и/или SOCKS5-прокси на удалённом устройстве.
-2. **proxy-gateway** подключается к серверу через COM-порт, Bluetooth или TCP.
-3. Поверх физического транспорта работает **мультиплексор** — он создаёт несколько виртуальных каналов на одном
-   соединении.
-4. Каждый канал обрабатывает свой тип трафика: TCP-подключения, файловые запросы, обёртки outcome-сервисов.
-5. **ChannelSelector** направляет входящие данные нужному обработчику по байту-идентификатору.
-
-### Обработчики каналов
-
-- **TcpConnectChannel** (ID=1) — проксирование TCP-соединений
-- **FileChannel** (ID=2) — удалённый доступ к файловой системе
-- **OutcomeWrapperChannel** (ID=3) — обёртка для цепочек outcome-сервисов
+1. **proxy-server** поднимает сервисы (HTTP-прокси, SOCKS5, TCP-форвардинг, WebDAV) и один или несколько транспортов.
+2. Поверх транспорта (COM-порт или TCP) работает **мультиплексор** — он создаёт виртуальные каналы.
+3. **ChannelSelector** направляет входящие данные обработчику по байту-идентификатору:
+   - `TcpConnectChannel` (ID=1) — проксирование TCP-соединений;
+   - `FileChannel` (ID=2) — удалённый доступ к файловой системе;
+   - `OutcomeWrapperChannel` (ID=3) — обёртка цепочек outcome-сервисов.
+4. Стороны соединяются симметрично: одна сторона описывает транспорт в `incomes`, другая — в `outcomes`.
 
 ## Требования
 
-- JDK 17+
-- Gradle (используется wrapper — `./gradlew`)
+- JDK 17+ (сборка JVM-таргета)
+- Gradle wrapper (`./gradlew`)
+- Для нативных таргетов — Kotlin/Native (скачивается Gradle'ом); Apple-таргеты собираются только на macOS
 
 ## Сборка
 
 ```bash
-# Собрать всё
-./gradlew build
-
-# Собрать fat JAR для сервера или шлюза
+# JVM (fat jar)
 ./gradlew :proxy-server:jvmJar
-./gradlew :proxy-gateway:jvmJar
+# -> proxy-server/build/libs/proxy-server-jvm.jar
 
-# Собрать bootstrap
-./gradlew :bootstrap:shadowJar
+# Нативные исполняемые файлы
+./gradlew :proxy-server:linkReleaseExecutableLinuxX64
+./gradlew :proxy-server:linkReleaseExecutableLinuxArm64
+./gradlew :proxy-server:linkReleaseExecutableMingwX64   # .exe, кросс-сборка с Linux
+
+./gradlew :file-upload-service:jvmJar
+```
+
+Apple-таргеты (`macosX64`, `macosArm64`) объявлены, но кросс-компиляция с Linux невозможна — собирать на Mac.
+
+### Зависимость serial-kmp
+
+Используется опубликованная версия `pw.binom.serial:serial-kmp:2` из Nexus (`caffeine`).
+Если библиотеку правишь локально — публикуй в mavenLocal, проект резолвит его первым:
+
+```bash
+cd ../serial-kmp
+./gradlew publishToMavenLocal -Pversion=2
 ```
 
 ## Конфигурация
 
-Создайте `config.yaml` в рабочей директории:
+Приложение читает `config.yaml` из рабочей директории. Стороны описываются одним и тем же файлом с разными секциями.
+
+### Сторона устройства (например, Raspberry Pi, USB-gadget)
 
 ```yaml
-# Транспорт (со стороны сервера)
-income:
-    com:
-        port: "/dev/ttyACM0"   # или "COM4" на Windows
-        speed: 115200
-    # Или TCP:
-    # tcp:
-    #   bind: "0.0.0.0"
-    #   port: 9000
-
-# Каналы наружу (со стороны шлюза)
+# Транспорт наружу — COM-порт устройства
 outcomes:
-    internet:
-        tcp:
-            host: "8.8.8.8"
-            port: 53
-    # Или COM:
-    # com:
-    #   port: "/dev/ttyGS0"
-    #   speed: 115200
+    com: !<com>
+        port: "/dev/ttyGS0"     # на Windows: "COM4"
+        speed: 115200
 
-# Прокси, которые запускает сервер
-proxies:
-    -   type: http
+# Что поднять на устройстве
+services:
+    -   !<http-proxy>
         bind: "0.0.0.0"
-        port: 8080
-    -   type: sock5
+        port: 8077
+    -   !<socks5-proxy>
         bind: "0.0.0.0"
         port: 1080
+    -   !<tcp-port-forward>
+        bind: "0.0.0.0"
+        localPort: 8070
+        remotePort: 8080
+        remoteHost: "127.0.0.1"
+    -   !<webdav>
+        bind: "0.0.0.0"
+        port: 8075
+        basePath: "/dav"
+        fs: "remote"
 
-# Статический TCP-форвардинг
-tcpForwarding:
-    -   localPort: 2222
-        remoteHost: "example.com"
-        remotePort: 22
+# Куда отправлять исходящие соединения
+trafficRoute:
+    -   !<by-domain>
+        host: "*.corp.example"
+        rule: !<outcome>
+            outcome: "com"
+    -   !<always>
+        rule: !<direct>
 
-# Сервисы и фильтрация хостов
-services:
-    -   tcp-connect:
-            hosts:
-                -   hosts: [ "*" ]
-                    filterMode: include
+# Файловая система "remote" живёт на другой стороне (fs: local)
+fileSystems:
+    remote: !<remote>
+        outcome: "com"
+        fs: "local"
 ```
+
+### Сторона ПК (шлюз с выходом в сеть)
+
+```yaml
+incomes:
+    -   !<com>
+        port: "/dev/ttyACM0"    # на Windows: "COM5"
+        speed: 115200
+
+trafficRoute:
+    -   !<always>
+        rule: !<direct>
+
+fileSystems:
+    local: !<local>
+        root: "/home/user/dav-root"
+```
+
+Также поддерживается TCP-транспорт: `incomes: [{ !<tcp> { bind: 0.0.0.0, port: 9000 } }]`
+(на противоположной стороне — `outcomes: { remote: !<tcp> { host: ..., port: 9000 } }`).
+
+## Режим «фронт»: доставка на удалённую машину
+
+Задача: на машине без сети (только USB-кабель) получить нашу программу.
+Устройство представляется **одновременно** COM-портом и USB-клавиатурой
+(`deploy/usb-gadget/setup.sh`), поэтому файлы можно «печатать» в Блокнот.
+
+```yaml
+front:
+  enabled: true          # включает режим и ВЫКЛЮЧАЕТ обычные сервисы
+  bind: 0.0.0.0
+  port: 8900
+  bootstrapDir: bootstrap   # файлы, которые печатаются по кнопке
+  settingsFile: settings.txt
+  selfPath: null            # что отправлять кнопкой «отправить себя» (null = сам jar)
+  serialPort: /dev/ttyGS0
+  baudRate: 115200
+  keyboardDevice: /dev/hidg0
+  charDelayMs: 15
+  jitterMs: 10
+  holdMs: 8
+```
+
+Режимы **взаимоисключающие**: COM-порт и клавиатура нужны бутстрапу, поэтому
+при `front.enabled: true` сервисы из `services`/`incomes` не поднимаются.
+
+```
+GET  /                          страница фронта
+GET  /api/status                режим, число файлов, отправляемый файл
+GET  /api/bootstrap/files       список файлов бутстрапа
+POST /api/bootstrap/type/{id}   «напечатать» файл (HID)
+POST /api/bootstrap/settings    «напечатать» файл настроек
+POST /api/bootstrap/send-self   отправить программу по COM-порту
+```
+
+Порядок работы:
+
+1. На удалённой машине открыть Блокнот (раскладка **US**).
+2. По кнопке напечатать каждый файл бутстрапа и сохранить под показанным именем.
+3. В `settings.txt` указать COM-порт (это осознанный шаг: порт на разных машинах разный).
+4. Собрать и запустить бутстрап (`java Bootstrap.java`).
+5. Нажать «Отправить себя» — бутстрап примет файл в свой рабочий каталог.
+6. Выключить `front.enabled` на устройстве и запустить принятую программу
+   на удалённой машине.
+
+Кнопка «печатает» текст как настоящая клавиатура: паузы, джиттер, отпускание
+клавиш. Раскладка удалённой машины должна быть US — если она другая, символы
+придут «не теми» (это ответственность пользователя, как при живом вводе).
 
 ## Запуск
 
 ```bash
-# Сервер (на удалённом устройстве)
+# JVM (любая ОС с JDK)
 java -jar proxy-server/build/libs/proxy-server-jvm.jar
 
-# Шлюз (на машине с выходом в сеть)
-java -jar proxy-gateway/build/libs/proxy-gateway-jvm.jar
+# Нативно
+./proxy-server/build/bin/linuxX64/releaseExecutable/proxy-server.kexe
+./proxy-server/build/bin/linuxArm64/releaseExecutable/proxy-server.kexe
+proxy-server\build\bin\mingwX64\releaseExecutable\proxy-server.exe
 
-# Загрузка файла через COM-порт
-java -jar file-upload-service/build/libs/file-upload-service-jvm.jar -p /dev/ttyGS0 -f /path/to/file
+# Ключ --tray (только JVM): иконка в системном трее
+java -jar proxy-server-jvm.jar --tray
 ```
 
-## Тестирование
+## Проверка на живом стенде
+
+Стенд: Raspberry Pi 4 (Ubuntu, `192.168.76.108`), USB CDC-ACM gadget (`cdc-acm.service` создаёт `/dev/ttyGS0`),
+на ПК устройство видно как `/dev/ttyACM0` (`1d6b:0104`, драйвер `cdc_acm`).
 
 ```bash
-./gradlew jvmTest          # JVM-тесты
-./gradlew allTests         # Тесты на всех платформах
-./gradlew :multiplexer:jvmTest  # Тесты конкретного модуля
-```
-
-Перед запуском интеграционных тестов требуется `tinyproxy`:
-
-```bash
-tinyproxy -c testing/tinyproxy.conf
+# HTTP-прокси на устройстве
+curl -x http://192.168.76.108:8077 http://example.com/
+# SOCKS5
+curl --socks5-hostname 192.168.76.108:1080 http://example.com/
+# WebDAV (список / скачивание / загрузка)
+curl -X PROPFIND -H "Depth: 1" http://192.168.76.108:8075/dav/
+curl -O http://192.168.76.108:8075/dav/big.bin
+curl -T big.bin http://192.168.76.108:8075/dav/uploaded.bin
 ```
 
 ## Развёртывание на Raspberry Pi
 
-В Gradle есть таски для копирования JAR на Raspberry Pi (192.168.76.108):
-
 ```bash
-./gradlew :proxy-server:copyToRaspberry
-./gradlew :proxy-gateway:copyToRaspberry
+./gradlew :proxy-server:copyToRaspberry        # кладёт jar в /opt/proxy
+ssh root@192.168.76.108 systemctl restart proxy
 ```
 
-## Docker
+Юнит `proxy.service` запускает `/opt/proxy/proxy-server-jvm.jar` из `/opt/proxy` (конфиг там же).
+
+## Тестирование
 
 ```bash
-docker-compose up -d   # WebDAV-сервер для тестов на порту 8011
+./gradlew jvmTest                    # все JVM-тесты
+./gradlew :multiplexer:jvmTest       # тесты конкретного модуля
+./gradlew linuxX64Test               # тесты нативного таргета
+```
+
+Интеграционный тест serial-kmp через pty требует `socat`:
+
+```bash
+./gradlew :shared:jvmTest            # тесты транспортной логики
+cd ../serial-kmp && ./gradlew jvmTest -Dserial.integration=true
 ```
 
 ## Технологии
 
-- **Kotlin** 2.3 + Kotlin Multiplatform
-- **Ktor** 3.4 (сервер, клиент, CIO)
-- **Koin** 4.1 (DI)
-- **kotlinx-serialization** (JSON, Protobuf, YAML)
-- **kotlinx-coroutines** + **kotlinx-io**
-- **Clikt** (CLI)
-- **jSerialComm** (COM-порты)
-- **BlueCove** / **blue-falcon** / **bluez-dbus** (Bluetooth)
+- **Kotlin Multiplatform** 2.4, kotlinx-coroutines, kotlinx-io, kotlinx-serialization
+- **Ktor 3.4** (сервер CIO/Netty, клиент CIO, сетевые сокеты)
+- **Koin 4.1** (DI)
+- **kotaml** (YAML-конфигурация)
+- **serial-kmp** (COM-порты: своё C-ядро, JNI + cinterop)
+- **kotlin-logging** + slf4j-simple (только JVM)
 
 ## Лицензия
 
