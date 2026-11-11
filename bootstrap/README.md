@@ -4,12 +4,13 @@
 (малина) по USB-COM и сохраняет его в рабочий каталог. Дальше вы запускаете
 принятую программу — и туннель работает уже в обратную сторону.
 
-Четыре варианта, один протокол. Выбор — по тому, что реально есть на машине.
+Пять вариантов, один протокол. Выбор — по тому, что реально есть на машине.
 
 | Вариант | ОС | Что нужно на машине | Как доставить |
 |---|---|---|---|
 | [`powershell/`](./powershell) | Windows | PowerShell + `FullLanguage` | напечатать текст |
 | [`csharp/`](./csharp) | Windows | только `csc.exe` из .NET Framework | напечатать текст, `build.bat` |
+| [`python/`](./python) | Windows / Linux / macOS | Python 3 (+ `pyserial` на Windows) | напечатать текст |
 | [`standalone/`](./standalone) | Windows / Linux / macOS | JRE 8+ (**без** библиотек, Gradle, сети) | напечатать текст |
 | [`java/`](./java) | Windows / Linux / macOS | JDK + Gradle + **сеть** (тянет jSerialComm) | напечатать текст, затем `gradle build` |
 
@@ -18,8 +19,9 @@
 
 - **Windows** → `powershell/`; если политика/GPO/AppLocker мешает запускать
   скрипты — `csharp/` (обычный `.exe`, скриптовые политики на него не действуют).
-- **Linux / macOS** → `standalone/`: нужен только JRE, зависимостей ноль.
-  (Этот вариант проверен на стенде: 15 МБ, md5 совпал.)
+- **Linux / macOS** → `standalone/` (только JRE) или `python/` (Python 3 без
+  зависимостей). Оба проверены на стенде: 15 МБ, md5 совпал.
+- **Есть Python на Windows** → `python/` с `pip install pyserial`.
 - **`java/`** — «честный» Gradle-проект с библиотекой `jSerialComm`. Удобен,
   когда машина с Gradle и сетью (или когда бутстрап доставляется не клавиатурой,
   а, например, из вашего репозитория при сборке образа).
@@ -44,6 +46,7 @@ payload     size     тело
 3. Напечатать кнопкой нужные файлы выбранного варианта и сохранить:
    - PowerShell: `bootstrap.ps1`, `run.cmd`, `settings.txt`;
    - C#: `Program.cs`, `build.bat`, `settings.txt`;
+   - Python: `bootstrap.py`, `settings.txt`;
    - standalone: `Bootstrap.java`, `settings.txt`;
    - java: `build.gradle.kts`, `settings.gradle.kts`, `Bootstrap.java`, `Settings.java`, `settings.txt`.
 4. В `settings.txt` вписать COM-порт (это делается руками: на каждой машине он свой).
@@ -55,6 +58,10 @@ payload     size     тело
 
    ```bat
    build.bat && Bootstrap.exe settings.txt
+   ```
+
+   ```bash
+   python bootstrap.py settings.txt
    ```
 
    ```bash
