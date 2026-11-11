@@ -4,18 +4,20 @@
 (малина) по USB-COM и сохраняет его в рабочий каталог. Дальше вы запускаете
 принятую программу — и туннель работает уже в обратную сторону.
 
-Три варианта, один протокол. Выбор — по тому, что реально есть на машине.
+Четыре варианта, один протокол. Выбор — по тому, что реально есть на машине.
 
 | Вариант | ОС | Что нужно на машине | Как доставить |
 |---|---|---|---|
-| [`powershell/`](./powershell) | Windows | только PowerShell (есть всегда) | напечатать текст |
+| [`powershell/`](./powershell) | Windows | PowerShell + `FullLanguage` | напечатать текст |
+| [`csharp/`](./csharp) | Windows | только `csc.exe` из .NET Framework | напечатать текст, `build.bat` |
 | [`standalone/`](./standalone) | Windows / Linux / macOS | JRE 8+ (**без** библиотек, Gradle, сети) | напечатать текст |
 | [`java/`](./java) | Windows / Linux / macOS | JDK + Gradle + **сеть** (тянет jSerialComm) | напечатать текст, затем `gradle build` |
 
 Важно: в реальной ситуации канал доставки — **клавиатура** (в Блокноте), то
 есть доехать может только текст. Поэтому:
 
-- **Windows** → `powershell/`: ничего кроме встроенного PowerShell не нужно.
+- **Windows** → `powershell/`; если политика/GPO/AppLocker мешает запускать
+  скрипты — `csharp/` (обычный `.exe`, скриптовые политики на него не действуют).
 - **Linux / macOS** → `standalone/`: нужен только JRE, зависимостей ноль.
   (Этот вариант проверен на стенде: 15 МБ, md5 совпал.)
 - **`java/`** — «честный» Gradle-проект с библиотекой `jSerialComm`. Удобен,
@@ -40,14 +42,19 @@ payload     size     тело
 1. На малине: `front.enabled: true`, открыть `http://<малина>:8900/`.
 2. На удалённой машине открыть Блокнот (раскладка **US**).
 3. Напечатать кнопкой нужные файлы выбранного варианта и сохранить:
-   - PowerShell: `bootstrap.ps1`, `settings.txt`;
+   - PowerShell: `bootstrap.ps1`, `run.cmd`, `settings.txt`;
+   - C#: `Program.cs`, `build.bat`, `settings.txt`;
    - standalone: `Bootstrap.java`, `settings.txt`;
    - java: `build.gradle.kts`, `settings.gradle.kts`, `Bootstrap.java`, `Settings.java`, `settings.txt`.
 4. В `settings.txt` вписать COM-порт (это делается руками: на каждой машине он свой).
 5. Запустить:
 
    ```bat
-   powershell -NoProfile -ExecutionPolicy Bypass -File bootstrap.ps1 settings.txt
+   run.cmd settings.txt
+   ```
+
+   ```bat
+   build.bat && Bootstrap.exe settings.txt
    ```
 
    ```bash

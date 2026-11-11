@@ -25,6 +25,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Constrained Language Mode (AppLocker/WDAC) запрещает .NET-типы, которыми
+# этот скрипт читает порт. Лучше сказать об этом сразу и понятно.
+if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
+    Write-Host "This script needs FullLanguage mode, current mode is:" `
+        $ExecutionContext.SessionState.LanguageMode
+    Write-Host "The machine has hardened PowerShell (AppLocker/WDAC)."
+    Write-Host "Use the C# bootstrap instead: ..\csharp\build.bat and Bootstrap.exe"
+    exit 2
+}
+
 function Read-Settings([string]$Path) {
     $result = @{ port = ""; baud = 115200; workdir = "incoming" }
     if (-not (Test-Path $Path)) {
