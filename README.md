@@ -158,6 +158,7 @@ front:
   port: 8900
   bootstrapDir: bootstrap   # файлы, которые печатаются по кнопке
   settingsFile: settings.txt
+  bootstrapExclude: []      # что не показывать (README* скрыт всегда)
   selfPath: null            # что отправлять кнопкой «отправить себя» (null = сам jar)
   serialPort: /dev/ttyGS0
   baudRate: 115200

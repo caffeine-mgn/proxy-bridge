@@ -33,6 +33,7 @@ class FrontServer(
             val service = BootstrapService(
                 bootstrapDir = front.bootstrapDir,
                 settingsFile = front.settingsFile,
+                exclude = front.bootstrapExclude,
                 keyboardDevice = front.keyboardDevice,
                 profile = TypingProfile(
                     charDelayMs = front.charDelayMs,

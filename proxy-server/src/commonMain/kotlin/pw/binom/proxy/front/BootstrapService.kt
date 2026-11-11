@@ -28,6 +28,7 @@ import kotlin.use
 class BootstrapService(
     private val bootstrapDir: String,
     private val settingsFile: String,
+    private val exclude: List<String> = emptyList(),
     private val keyboardDevice: String,
     private val profile: TypingProfile,
     private val serialPort: String,
@@ -52,6 +53,7 @@ class BootstrapService(
                 val name = path.name
                 // Документация в бутстрап не входит: её незачем печатать.
                 if (name.startsWith("README", ignoreCase = true)) return@mapNotNull null
+                if (exclude.any { it.equals(name, ignoreCase = true) }) return@mapNotNull null
                 val size = SystemFileSystem.metadataOrNull(path)?.size ?: 0L
                 name to size
             }
