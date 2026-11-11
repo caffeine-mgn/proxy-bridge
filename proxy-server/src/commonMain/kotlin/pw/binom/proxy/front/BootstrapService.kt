@@ -24,16 +24,23 @@ data class BootstrapFile(
     val size: Long,
 )
 
+/** Команды запуска варианта: печатаются в консоль удалённой машины по кнопке. */
+data class LaunchCommand(
+    val name: String,
+    val commands: String,
+)
+
 /**
  * Вариант бутстрапа — подкаталог в каталоге бутстрапа (python, java, csharp…).
  *
- * [launch] — команды запуска из `launch.txt`: печатаются в консоль удалённой
- * машины по кнопке, чтобы не набирать их руками.
+ * [launches] — команды запуска. Один вариант может иметь несколько способов
+ * запуска (например, `java`: через Gradle и через Maven): файлы
+ * `launch.txt` (кнопка «запуск») и `launch-<имя>.txt` (кнопка «<имя>»).
  */
 data class BootstrapVariant(
     val name: String,
     val files: List<BootstrapFile>,
-    val launch: String?,
+    val launches: List<LaunchCommand>,
 )
 
 /**
@@ -60,8 +67,11 @@ class BootstrapService(
     private val typingMutex = Mutex()
 
     companion object {
-        /** Файл с командами запуска внутри каталога варианта. */
-        const val LAUNCH_FILE = "launch.txt"
+        /**
+         * Файлы с командами запуска: `launch.txt` (подпись «запуск») и
+         * `launch-<имя>.txt` (подпись — `<имя>`).
+         */
+        private val LAUNCH_FILE_REGEX = Regex("^launch(?:-([A-Za-z0-9_-]+))?\\.txt$", RegexOption.IGNORE_CASE)
 
         /** Команды запуска пишутся построчно; после каждой — Enter. */
         private const val AFTER_COMMAND_DELAY_MS = 400
@@ -81,9 +91,9 @@ class BootstrapService(
                 val name = dir.name
                 if (name.startsWith(".")) return@mapNotNull null
                 val files = filesOf(dir)
-                val launch = launchOf(dir)
-                if (files.isEmpty() && launch == null) return@mapNotNull null
-                BootstrapVariant(name = name, files = files, launch = launch)
+                val launches = launchesOf(dir)
+                if (files.isEmpty() && launches.isEmpty()) return@mapNotNull null
+                BootstrapVariant(name = name, files = files, launches = launches)
             }
             .sortedBy { it.name }
     }
@@ -95,18 +105,25 @@ class BootstrapService(
                 val name = path.name
                 // Документация и файл команд в списке «сохранить как» не нужны.
                 if (name.startsWith("README", ignoreCase = true)) return@mapNotNull null
-                if (name.equals(LAUNCH_FILE, ignoreCase = true)) return@mapNotNull null
+                if (LAUNCH_FILE_REGEX.matches(name)) return@mapNotNull null
                 if (exclude.any { it.equals(name, ignoreCase = true) }) return@mapNotNull null
                 BootstrapFile(name = name, size = SystemFileSystem.metadataOrNull(path)?.size ?: 0L)
             }
             // settings.txt первым: без него бутстрап не знает COM-порт.
             .sortedWith(compareBy({ it.name != settingsFile }, { it.name }))
 
-    private fun launchOf(dir: Path): String? {
-        val path = Path(dir, LAUNCH_FILE)
-        if (!SystemFileSystem.exists(path)) return null
-        return SystemFileSystem.source(path).buffered().use { it.readString() }.trim().ifEmpty { null }
-    }
+    private fun launchesOf(dir: Path): List<LaunchCommand> =
+        SystemFileSystem.list(dir)
+            .mapNotNull { path ->
+                if (SystemFileSystem.metadataOrNull(path)?.isDirectory == true) return@mapNotNull null
+                val match = LAUNCH_FILE_REGEX.matchEntire(path.name) ?: return@mapNotNull null
+                // launch.txt — подпись «запуск», launch-gradle.txt — «gradle».
+                val label = match.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: "запуск"
+                val commands = SystemFileSystem.source(path).buffered().use { it.readString() }.trim()
+                if (commands.isEmpty()) return@mapNotNull null
+                LaunchCommand(name = label, commands = commands)
+            }
+            .sortedBy { if (it.name == "запуск") "" else it.name }
 
     /** Печатает файл варианта (по имени файла из [variants]). */
     suspend fun typeFile(variant: String, fileName: String): TypeResult = typingMutex.withLock {
@@ -120,9 +137,10 @@ class BootstrapService(
     }
 
     /** Печатает команды запуска варианта и нажимает Enter после каждой. */
-    suspend fun typeLaunch(variant: String): TypeResult = typingMutex.withLock {
-        val launch = variants().firstOrNull { it.name == variant }?.launch
-            ?: return@withLock TypeResult(ok = false, message = "Нет $LAUNCH_FILE для варианта $variant")
+    suspend fun typeLaunch(variant: String, launchName: String): TypeResult = typingMutex.withLock {
+        val launch = variants().firstOrNull { it.name == variant }
+            ?.launches?.firstOrNull { it.name == launchName }?.commands
+            ?: return@withLock TypeResult(ok = false, message = "Нет команд «$launchName» для варианта $variant")
         val started = TimeSource.Monotonic.markNow()
         val keyboard = openKeyboard()
         try {
@@ -138,7 +156,11 @@ class BootstrapService(
             runCatching { keyboard.close() }
         }
         val elapsed = started.elapsedNow().inWholeMilliseconds
-        TypeResult(ok = true, message = "Команды запуска $variant напечатаны", elapsedMs = elapsed)
+        TypeResult(
+            ok = true,
+            message = "Команды запуска «$launchName» ($variant) напечатаны",
+            elapsedMs = elapsed,
+        )
     }
 
     private suspend fun type(text: String, label: String): TypeResult {

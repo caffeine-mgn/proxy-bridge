@@ -176,7 +176,7 @@ GET  /                        страница фронта (группы по �
 GET  /api/status              режим, число вариантов, отправляемый файл
 GET  /api/bootstrap           варианты: файлы + команды запуска
 POST /api/bootstrap/type      {"variant":"python","file":"bootstrap.py"} — напечатать файл
-POST /api/bootstrap/launch    {"variant":"python"} — напечатать команды запуска
+POST /api/bootstrap/launch    {"variant":"java","launch":"maven"} — напечатать команды
 POST /api/bootstrap/send-self отправить программу по COM-порту
 ```
 

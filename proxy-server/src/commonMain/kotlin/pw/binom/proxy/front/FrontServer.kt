@@ -91,7 +91,7 @@ class FrontServer(
                     bootstrap.variants().map { variant ->
                         VariantResponse(
                             name = variant.name,
-                            launch = variant.launch,
+                            launches = variant.launches.map { LaunchResponse(it.name, it.commands) },
                             files = variant.files.map { FileResponse(it.name, it.size) },
                         )
                     },
@@ -105,8 +105,8 @@ class FrontServer(
             }
 
             post("/api/bootstrap/launch") {
-                val request = json.decodeFromString<VariantRequest>(call.receiveText())
-                val result = bootstrap.typeLaunch(request.variant)
+                val request = json.decodeFromString<LaunchRequest>(call.receiveText())
+                val result = bootstrap.typeLaunch(request.variant, request.launch)
                 call.respondJson(ActionResponse(result.ok, result.message))
             }
 
@@ -135,9 +135,12 @@ class FrontServer(
     private data class FileResponse(val name: String, val size: Long)
 
     @Serializable
+    private data class LaunchResponse(val name: String, val commands: String)
+
+    @Serializable
     private data class VariantResponse(
         val name: String,
-        val launch: String?,
+        val launches: List<LaunchResponse>,
         val files: List<FileResponse>,
     )
 
@@ -145,7 +148,7 @@ class FrontServer(
     private data class TypeFileRequest(val variant: String, val file: String)
 
     @Serializable
-    private data class VariantRequest(val variant: String)
+    private data class LaunchRequest(val variant: String, val launch: String)
 
     @Serializable
     private data class ActionResponse(

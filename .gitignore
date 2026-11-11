@@ -11,3 +11,4 @@ bootstrap/*/.gradle/
 bootstrap/*/.kotlin/
 bootstrap/*/inc*/
 bootstrap/*/incoming/
+bootstrap/*/target/

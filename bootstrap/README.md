@@ -92,10 +92,16 @@ front:
 
 Команды запуска (печатаются по кнопке, после каждой строки — Enter):
 
-| Вариант | `launch.txt` |
-|---|---|
-| `powershell` | `run.cmd settings.txt` |
-| `csharp` | `build.bat` + `Bootstrap.exe settings.txt` |
-| `python` | `python bootstrap.py settings.txt` |
-| `standalone` | `java Bootstrap.java settings.txt` |
-| `java` | `gradle run` |
+| Вариант | Файл | Кнопка | Команда |
+|---|---|---|---|
+| `powershell` | `launch.txt` | запуск | `run.cmd settings.txt` |
+| `csharp` | `launch.txt` | запуск | `build.bat` + `Bootstrap.exe settings.txt` |
+| `python` | `launch.txt` | запуск | `python bootstrap.py settings.txt` |
+| `standalone` | `launch.txt` | запуск | `java Bootstrap.java settings.txt` |
+| `java` | `launch-gradle.txt` | gradle | `gradle run` |
+| `java` | `launch-maven.txt` | maven | `mvn -q compile exec:java` |
+
+Один вариант может иметь несколько способов запуска: `launch.txt` даёт кнопку
+«запуск», `launch-<имя>.txt` — кнопку с подписью `<имя>`. У `java` их два
+(Gradle и Maven) — пользуйтесь любым, исходники и `pom.xml`/`build.gradle.kts`
+лежат вместе.

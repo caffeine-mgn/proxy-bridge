@@ -145,16 +145,16 @@ function renderVariants(variants) {
     table.appendChild(tbody);
     box.appendChild(table);
 
-    if (v.launch) {
+    for (const l of (v.launches || [])) {
       const launch = document.createElement('div');
       launch.className = 'launch-box';
       const cmd = document.createElement('div');
       cmd.className = 'launch-cmd';
-      cmd.textContent = v.launch;
+      cmd.textContent = l.commands;
       const btn = document.createElement('button');
       btn.className = 'launch';
-      btn.textContent = 'Напечатать команду запуска';
-      btn.onclick = () => typeLaunch(v.name);
+      btn.textContent = 'Запустить через ' + l.name;
+      btn.onclick = () => typeLaunch(v.name, l.name);
       launch.appendChild(btn);
       launch.appendChild(cmd);
       box.appendChild(launch);
@@ -177,11 +177,11 @@ async function typeFile(variant, file) {
   }
 }
 
-async function typeLaunch(variant) {
+async function typeLaunch(variant, launch) {
   lockAll(true);
-  log('Печатаю команды запуска для ' + variant + '…');
+  log('Печатаю команды запуска «' + launch + '» для ' + variant + '…');
   try {
-    const res = await api('POST', '/api/bootstrap/launch', { variant });
+    const res = await api('POST', '/api/bootstrap/launch', { variant, launch });
     log(res.message, res.ok ? 'ok' : 'err');
   } catch (e) {
     log('Ошибка запроса: ' + e, 'err');

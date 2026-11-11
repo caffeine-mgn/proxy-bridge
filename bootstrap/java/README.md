@@ -15,6 +15,18 @@ gradle build
 java -jar build/libs/bootstrap-1.0.0.jar settings.txt
 ```
 
+## Maven или Gradle
+
+В папке лежат оба build-файла, исходники общие — выберите один инструмент:
+
+| Инструмент | Собрать и запустить | Переносимый jar |
+|---|---|---|
+| Gradle | `gradle run` | `gradle build` → `build/libs/bootstrap-1.0.0.jar` |
+| Maven | `mvn -q compile exec:java` | `mvn -q package` → `target/bootstrap-1.0.0.jar` |
+
+Фронт печатает команду запуска кнопкой: `Запустить через gradle` /
+`Запустить через maven` (файлы `launch-gradle.txt`, `launch-maven.txt`).
+
 ## Почему не годится как «доставка клавиатурой»
 
 Единственный канал на ограниченную машину — ввод с клавиатуры (текст). Gradle
@@ -35,6 +47,7 @@ java -jar build/libs/bootstrap-1.0.0.jar settings.txt
 | `Bootstrap.java` | приём файлов, разбор протокола, запись на диск |
 | `Settings.java` | чтение `settings.txt` (`key=value`) |
 | `build.gradle.kts` | сборка fat-jar (`Main-Class` в манифесте) |
+| `pom.xml` | то же для Maven (`exec-maven-plugin` + манифест) |
 | `settings.txt` | `port=`, `baud=`, `workdir=` |
 
 Исходники лежат плоско (`setSrcDirs(listOf("."))`), чтобы их можно было
