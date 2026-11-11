@@ -1,7 +1,7 @@
 package pw.binom.com
 
-import com.fazecast.jSerialComm.SerialPort
-import io.ktor.utils.io.CancellationException
+import pw.binom.io.ioDispatcher
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,11 +17,19 @@ import kotlinx.io.buffered
 import pw.binom.multiplexer.DuplexChannel
 import pw.binom.multiplexer.lebULong
 import pw.binom.multiplexer.readFully
+import pw.binom.serial.SerialPort
 
+/**
+ * Дуплексный канал поверх открытого [SerialPort] (serial-kmp).
+ *
+ * Кадрирование — LEB128-длина + тело, как и у остальных транспортов проекта.
+ * Чтение и запись живут в отдельных корутинах: у serial-kmp один читатель и
+ * один писатель на порт, что здесь и соблюдается.
+ */
 class SerialConnection(
     private val connect: AutoCloseable,
     override val income: ReceiveChannel<Buffer>,
-    override val outcome: SendChannel<Buffer>
+    override val outcome: SendChannel<Buffer>,
 ) : DuplexChannel {
 
     companion object {
@@ -29,34 +37,28 @@ class SerialConnection(
             port: SerialPort,
             onClosed: () -> Unit = {},
         ): SerialConnection {
-            if (!port.isOpen) {
-                if (!port.openPort()) {
-                    throw IllegalStateException("Can not open ${port.systemPortName}")
-                }
-            }
-
+            val logger = KotlinLogging.logger("SerialConnection")
             val output = Channel<Buffer>(Channel.UNLIMITED)
             val input = Channel<Buffer>(Channel.UNLIMITED)
 
-            val outputStream = RawSinkSerialPort(port).buffered()
-            val inputStream = RawSourceSerialPort(port).buffered()
+            val outputStream = SerialRawSink(port).buffered()
+            val inputStream = SerialRawSource(port).buffered()
 
-            val writeJob = CoroutineScope(Dispatchers.IO).launch(CoroutineName("Serial WRITE CHANNEL")) {
+            val writeJob = CoroutineScope(ioDispatcher).launch(CoroutineName("Serial WRITE CHANNEL")) {
                 try {
                     output.consumeEach { buffer ->
                         outputStream.lebULong(buffer.size.toULong())
                         outputStream.write(buffer, buffer.size)
                         runCatching { outputStream.flush() }
                     }
-                } catch (e: CancellationException) {
-                    // do nothing
-                } catch (e: Throwable) {
-                    println("SerialConnection::writing error: ${e.stackTraceToString()}")
+                } catch (_: Throwable) {
+                    // Порт закрылся или канал отменён — выходим молча, ошибка
+                    // уже видна на уровне мультиплексора.
                 } finally {
-                    println("Serial WRITE CHANNEL FINISHED!")
+                    logger.debug { "Serial WRITE CHANNEL finished" }
                 }
             }
-            val readJob = CoroutineScope(Dispatchers.IO).launch(CoroutineName("Serial READ CHANNEL")) {
+            val readJob = CoroutineScope(ioDispatcher).launch(CoroutineName("Serial READ CHANNEL")) {
                 try {
                     while (isActive) {
                         try {
@@ -64,34 +66,31 @@ class SerialConnection(
                             val buffer = Buffer()
                             inputStream.readFully(buffer, size.toLong())
                             input.send(buffer)
-                        } catch (e: CancellationException) {
-                            // do nothing
                         } catch (_: EOFException) {
                             input.close()
                             break
                         } catch (e: Throwable) {
-                            println("SerialConnection::reading error: ${e.stackTraceToString()}")
+                            logger.debug(e) { "Serial READ CHANNEL stopped" }
+                            input.close()
+                            break
                         }
                     }
                 } finally {
-                    println("Serial READ CHANNEL FINISHED!")
+                    logger.debug { "Serial READ CHANNEL finished" }
                 }
             }
             return SerialConnection(
                 income = input,
                 outcome = output,
-                connect = {
-                    println("Closing COM connection...")
+                connect = AutoCloseable {
                     runCatching { writeJob.cancel() }
-                    runCatching {
-//                        println("Try to cancel ${Throwable().stackTraceToString()}")
-                        readJob.cancel()
-                    }
+                    runCatching { readJob.cancel() }
                     runCatching { outputStream.close() }
                     runCatching { inputStream.close() }
-                    runCatching { port.closePort() }
+                    runCatching { port.close() }
                     runCatching { onClosed() }
-                })
+                },
+            )
         }
     }
 

@@ -4,7 +4,7 @@ import kotlinx.io.Buffer
 import kotlinx.io.RawSink
 import kotlinx.io.RawSource
 
-fun RawSource.copyTo(dest: RawSink, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long{
+fun RawSource.copyTo(dest: RawSink, bufferSize: Int = 8192): Long{
     val bufferField = Buffer()
     var totalBytesWritten: Long = 0
     while (readAtMostTo(bufferField, bufferSize.toLong()) != -1L) {

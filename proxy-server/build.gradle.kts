@@ -64,6 +64,7 @@ kotlin {
                 api(project(":shared"))
                 api(project(":shared-models"))
                 api(project(":hid"))
+                api(project(":usb-gadget"))
 //                api(project(":sound"))
 //                api(project(":com"))
                 api(libs.koin.core)

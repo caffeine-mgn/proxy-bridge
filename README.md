@@ -166,7 +166,32 @@ front:
   charDelayMs: 15
   jitterMs: 10
   holdMs: 8
+  usbGadget:                 # самопроверка и настройка гаджета при старте
+    configure: true          # требует root (configfs)
+    name: g1
+    udc: null                # null = первый из /sys/class/udc
 ```
+
+### USB-гаджет настраивается сам
+
+При старте в режиме фронта приложение проверяет, что устройство прикидывается
+**одновременно** COM-портом и клавиатурой, и если нет — создаёт конфигурацию
+через configfs (`:usb-gadget`), привязывает к UDC и ждёт появления
+`/dev/ttyGS0` + `/dev/hidg0`. Пересоздание выполняется только когда что-то не
+так: лишняя перепривязка меняет имя COM-порта на хосте (COM3 → COM4).
+
+В логе видно состояние и причины:
+
+```
+USB gadget: supported=true udc=fe980000.usb state=not attached functions=[] serial=null keyboard=null
+USB gadget: Гаджет g1 не создан
+USB gadget: настраиваю…
+USB gadget: готов (/dev/ttyGS0 + /dev/hidg0)
+```
+
+Права: запись в configfs идёт от root (systemd-юнит уже запускается от root).
+Если ядро не в режиме peripheral (`dtoverlay=dwc2,dr_mode=peripheral`), это
+чинится только перезагрузкой — приложение честно пишет об этом в problems.
 
 Режимы **взаимоисключающие**: COM-порт и клавиатура нужны бутстрапу, поэтому
 при `front.enabled: true` сервисы из `services`/`incomes` не поднимаются.

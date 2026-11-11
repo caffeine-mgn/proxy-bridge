@@ -13,6 +13,7 @@ import org.koin.dsl.module
 import pw.binom.proxy.channel.TcpConnectChannel
 import pw.binom.proxy.io.SelectorManagerKoinModule
 import pw.binom.proxy.front.FrontServer
+import pw.binom.usb.gadget.UsbGadgetManager
 import pw.binom.properties.Configuration
 import pw.binom.proxy.properties.ConfigModule
 import kotlin.use
@@ -39,6 +40,37 @@ fun loadConfiguration(fileName: String = "config.yaml"): Configuration? {
 }
 
 /**
+ * Проверяет, что USB-гаджет прикидывается COM-портом и клавиатурой, и при
+ * необходимости создаёт его через configfs (нужен root).
+ */
+private fun ensureUsbGadget(front: Configuration.Front) {
+    val gadgetConfig = front.usbGadget
+    if (!gadgetConfig.configure) return
+
+    val manager = UsbGadgetManager(
+        gadgetName = gadgetConfig.name,
+        udcOverride = gadgetConfig.udc,
+        serialDevicePath = front.serialPort,
+        keyboardDevicePath = front.keyboardDevice,
+    )
+    val before = manager.status()
+    println(
+        "USB gadget: supported=${before.supported} udc=${before.udc} state=${before.udcState} " +
+            "functions=${before.functions} serial=${before.serialDevice} keyboard=${before.keyboardDevice}",
+    )
+    if (before.ready) return
+
+    before.problems.forEach { println("USB gadget: $it") }
+    println("USB gadget: настраиваю…")
+    val after = manager.ensureConfigured()
+    if (after.ready) {
+        println("USB gadget: готов (${after.serialDevice} + ${after.keyboardDevice})")
+    } else {
+        after.problems.forEach { println("USB gadget: $it") }
+    }
+}
+
+/**
  * Поднимает все сервисы из конфигурации через Koin.
  *
  * Если включён режим фронта ([Configuration.front]), обычные сервисы НЕ
@@ -58,6 +90,7 @@ fun startProxy(config: Configuration, selfPath: String? = null): KoinApplication
         if (config.services.isNotEmpty() || config.incomes.isNotEmpty()) {
             println("FRONT MODE: services/incomes из конфигурации проигнорированы")
         }
+        ensureUsbGadget(front)
         frontServer = FrontServer.create(front, selfPath)
         return null
     }

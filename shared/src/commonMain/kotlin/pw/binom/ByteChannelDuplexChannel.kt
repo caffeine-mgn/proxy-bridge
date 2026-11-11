@@ -1,5 +1,6 @@
 package pw.binom
 
+import pw.binom.io.ioDispatcher
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.CancellationException
@@ -37,7 +38,7 @@ class ByteChannelDuplexChannel(
             val input = Channel<Buffer>(Channel.UNLIMITED)
             val outputStream = ww.asSink().buffered()
             val inputStream = rr.asSource().buffered()
-            val writeJob = CoroutineScope(Dispatchers.IO).launch {
+            val writeJob = CoroutineScope(ioDispatcher).launch {
                 try {
                     output.consumeEach { buffer ->
                         outputStream.lebULong(buffer.size.toULong())
@@ -50,7 +51,7 @@ class ByteChannelDuplexChannel(
                     println("SerialConnection::writing error: ${e.stackTraceToString()}")
                 }
             }
-            val readJob = CoroutineScope(Dispatchers.IO).launch {
+            val readJob = CoroutineScope(ioDispatcher).launch {
                 while (isActive) {
                     try {
                         val size = inputStream.lebULong()
@@ -70,7 +71,7 @@ class ByteChannelDuplexChannel(
             return SerialConnection(
                 income = input,
                 outcome = output,
-                connect = {
+                connect = AutoCloseable {
                     println("Closing COM connection...")
                     runCatching { writeJob.cancel() }
                     runCatching {

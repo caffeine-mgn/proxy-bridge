@@ -186,7 +186,24 @@ data class Configuration(
         val charDelayMs: Int = 15,
         val jitterMs: Int = 10,
         val holdMs: Int = 8,
-    )
+
+        /**
+         * Настройка USB-гаджета при старте: приложение само проверяет, что
+         * устройство прикидывается COM-портом и клавиатурой, и создаёт
+         * конфигурацию, если её нет. Требует root (configfs).
+         */
+        val usbGadget: UsbGadget = UsbGadget(),
+    ) {
+        @Serializable
+        data class UsbGadget(
+            /** Проверять и при необходимости настраивать гаджет при старте. */
+            val configure: Boolean = true,
+            /** Имя гаджета в configfs. */
+            val name: String = "g1",
+            /** UDC; null — первый доступный в /sys/class/udc. */
+            val udc: String? = null,
+        )
+    }
 
     @Serializable
     sealed interface Service {
