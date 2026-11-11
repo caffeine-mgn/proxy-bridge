@@ -1,2 +1,1 @@
-gradle build
-java -jar build/libs/bootstrap-1.0.0.jar settings.txt
+gradle run

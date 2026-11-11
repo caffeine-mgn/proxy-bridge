@@ -70,7 +70,7 @@ payload     size     тело
    ```
 
    ```bash
-   gradle build && java -jar build/libs/bootstrap-1.0.0.jar settings.txt
+   gradle run     # собрать и запустить сразу; settings.txt берётся по умолчанию
    ```
 
 6. На странице фронта нажать «Отправить себя через bootstrap» — в консоли
@@ -98,4 +98,4 @@ front:
 | `csharp` | `build.bat` + `Bootstrap.exe settings.txt` |
 | `python` | `python bootstrap.py settings.txt` |
 | `standalone` | `java Bootstrap.java settings.txt` |
-| `java` | `gradle build` + `java -jar build/libs/bootstrap-1.0.0.jar settings.txt` |
+| `java` | `gradle run` |

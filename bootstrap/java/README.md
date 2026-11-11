@@ -4,6 +4,13 @@
 исполняемый jar со всеми зависимостями.
 
 ```bash
+gradle run                                  # собрать и запустить одной командой
+gradle run --args="other-settings.txt"      # другой файл настроек
+```
+
+Если нужен переносимый артефакт:
+
+```bash
 gradle build
 java -jar build/libs/bootstrap-1.0.0.jar settings.txt
 ```
