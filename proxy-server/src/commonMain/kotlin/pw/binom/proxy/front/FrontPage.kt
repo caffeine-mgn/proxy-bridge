@@ -43,6 +43,12 @@ object FrontPage {
                 display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .launch-cmd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
                 color: #a7b4c2; white-space: pre-wrap; }
+  .status-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill { font-size: 12px; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+  .pill.ok { background: #14351f; color: #7dd3a0; }
+  .pill.err { background: #3a1c1c; color: #f87171; }
+  .facts { margin-top: 10px; font-size: 12px; color: #8b98a5; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .problems { margin: 10px 0 0; padding-left: 18px; color: #f0a97a; font-size: 13px; }
   #log { background: #0f1216; border-radius: 8px; padding: 12px; min-height: 90px;
          font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
          white-space: pre-wrap; color: #a7b4c2; }
@@ -64,6 +70,16 @@ object FrontPage {
       <li>Нажмите «Отправить себя» — бутстрап примет программу и сохранит её.</li>
       <li>Выключите <code>front.enabled</code> и запустите принятую программу.</li>
     </ol>
+  </div>
+
+  <div class="card">
+    <h2>USB-гаджет</h2>
+    <div class="status-line">
+      <span id="gadgetPill" class="pill err">проверяю…</span>
+      <button id="gadgetSetup">Настроить гаджет</button>
+    </div>
+    <div id="gadgetFacts" class="facts"></div>
+    <ul id="gadgetProblems" class="problems" style="display:none"></ul>
   </div>
 
   <div class="card">
@@ -189,6 +205,68 @@ async function typeLaunch(variant, launch) {
     lockAll(false);
   }
 }
+
+function renderGadget(g) {
+  const pill = document.getElementById('gadgetPill');
+  const facts = document.getElementById('gadgetFacts');
+  const problems = document.getElementById('gadgetProblems');
+
+  if (!g.supported) {
+    pill.className = 'pill err';
+    pill.textContent = 'не поддерживается';
+  } else if (g.ok) {
+    pill.className = 'pill ok';
+    pill.textContent = 'настроен';
+  } else {
+    pill.className = 'pill err';
+    pill.textContent = 'не настроен';
+  }
+
+  const parts = [];
+  if (g.udc) parts.push('UDC: ' + g.udc);
+  if (g.udcState) parts.push('state: ' + g.udcState);
+  if (g.functions && g.functions.length) parts.push('функции: ' + g.functions.join(', '));
+  if (g.serialDevice) parts.push('COM: ' + g.serialDevice);
+  if (g.keyboardDevice) parts.push('клавиатура: ' + g.keyboardDevice);
+  facts.textContent = parts.join('   ·   ');
+
+  if (g.problems && g.problems.length) {
+    problems.style.display = '';
+    problems.innerHTML = '';
+    for (const p of g.problems) {
+      const li = document.createElement('li');
+      li.textContent = p;
+      problems.appendChild(li);
+    }
+  } else {
+    problems.style.display = 'none';
+  }
+}
+
+async function loadGadget() {
+  try {
+    renderGadget(await api('GET', '/api/gadget'));
+  } catch (e) {
+    document.getElementById('gadgetPill').textContent = 'ошибка запроса';
+  }
+}
+
+document.getElementById('gadgetSetup').onclick = async () => {
+  lockAll(true);
+  log('Настраиваю USB-гаджет…');
+  try {
+    const res = await api('POST', '/api/gadget/setup');
+    renderGadget(res);
+    log(res.message, res.ok ? 'ok' : 'err');
+    (res.problems || []).forEach(p => log('  ' + p, 'err'));
+  } catch (e) {
+    log('Ошибка запроса: ' + e, 'err');
+  } finally {
+    lockAll(false);
+  }
+};
+
+loadGadget();
 
 document.getElementById('sendSelf').onclick = async () => {
   lockAll(true);

@@ -225,13 +225,17 @@ class UsbGadgetManager(
             println("USB gadget setup failed: ${error::class.simpleName}: ${error.message}")
         }
 
-        // Ядру нужно немного времени, чтобы создать /dev/ttyGS* и /dev/hidg*.
-        repeat(20) {
-            val result = status()
-            if (result.serialDevice != null && result.keyboardDevice != null) return result
+        // Ядру нужно время на создание /dev/ttyGS* и /dev/hidg* и на само
+        // перечисление устройства хостом (state=configured).
+        var last = status()
+        repeat(30) {
+            last = status()
+            val devicesReady = last.serialDevice != null && last.keyboardDevice != null
+            if (devicesReady && last.udcState == "configured") return last
+            if (devicesReady && it == 29) return last
             runBlocking { delay(100) }
         }
-        return status()
+        return last
     }
 
     /** Отвязывает от [udc] все чужие гаджеты: иначе запись в UDC даёт EBUSY. */

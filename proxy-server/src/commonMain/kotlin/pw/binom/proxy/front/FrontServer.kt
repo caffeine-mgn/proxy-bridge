@@ -15,6 +15,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import pw.binom.hid.TypingProfile
 import pw.binom.properties.Configuration
+import pw.binom.usb.gadget.GadgetStatus
+import pw.binom.usb.gadget.UsbGadgetManager
 
 /**
  * Режим «фронт»: веб-интерфейс для первичной доставки программы на удалённую
@@ -27,9 +29,15 @@ class FrontServer(
     bind: String,
     port: Int,
     private val bootstrap: BootstrapService,
+    /** Менеджер USB-гаджета; null — настройка гаджета недоступна. */
+    private val gadget: UsbGadgetManager? = null,
 ) : AutoCloseable {
     companion object {
-        fun create(front: Configuration.Front, selfPath: String?): FrontServer {
+        fun create(
+            front: Configuration.Front,
+            selfPath: String?,
+            gadget: UsbGadgetManager? = null,
+        ): FrontServer {
             val service = BootstrapService(
                 bootstrapRoot = front.bootstrapDir,
                 settingsFile = front.settingsFile,
@@ -45,7 +53,7 @@ class FrontServer(
                 writeTimeoutMs = front.writeTimeoutMs,
                 exclude = front.bootstrapExclude,
             )
-            return FrontServer(front.bind, front.port, service)
+            return FrontServer(front.bind, front.port, service, gadget)
         }
 
         private val json = Json { encodeDefaults = true }
@@ -110,6 +118,38 @@ class FrontServer(
                 call.respondJson(ActionResponse(result.ok, result.message))
             }
 
+            /** Состояние USB-гаджета: прикидывается ли малина COM + клавиатурой. */
+            get("/api/gadget") {
+                call.respondJson(gadgetStatus(gadget?.status()))
+            }
+
+            /** Настроить гаджет (создать конфигурацию и привязать к UDC). */
+            post("/api/gadget/setup") {
+                val manager = gadget
+                if (manager == null) {
+                    call.respondJson(
+                        GadgetResponse(
+                            ok = false,
+                            message = "Настройка гаджета в этом запуске недоступна " +
+                                "(front.usbGadget.configure = false)",
+                        ),
+                    )
+                } else {
+                    val status = manager.ensureConfigured()
+                    val response = gadgetStatus(status)
+                    call.respondJson(
+                        response.copy(
+                            ok = status.ready,
+                            message = if (status.ready) {
+                                "Гаджет настроен: ${status.serialDevice} + ${status.keyboardDevice}"
+                            } else {
+                                "Не удалось настроить гаджет"
+                            },
+                        ),
+                    )
+                }
+            }
+
             post("/api/bootstrap/send-self") {
                 val result = bootstrap.sendSelf()
                 call.respondJson(
@@ -130,6 +170,35 @@ class FrontServer(
     private suspend fun ApplicationCall.respondJson(body: List<VariantResponse>) {
         respondText(json.encodeToString(body), ContentType.Application.Json)
     }
+
+    private fun gadgetStatus(status: GadgetStatus?) = GadgetResponse(
+        ok = status?.ready == true,
+        message = when {
+            status == null -> "Гаджет не управляется приложением"
+            status.ready -> "Устройство прикидывается COM-портом и клавиатурой"
+            else -> "Гаджет не настроен"
+        },
+        supported = status?.supported ?: false,
+        udc = status?.udc,
+        udcState = status?.udcState,
+        functions = status?.functions ?: emptyList(),
+        serialDevice = status?.serialDevice,
+        keyboardDevice = status?.keyboardDevice,
+        problems = status?.problems ?: emptyList(),
+    )
+
+    @Serializable
+    private data class GadgetResponse(
+        val ok: Boolean,
+        val message: String,
+        val supported: Boolean = false,
+        val udc: String? = null,
+        val udcState: String? = null,
+        val functions: List<String> = emptyList(),
+        val serialDevice: String? = null,
+        val keyboardDevice: String? = null,
+        val problems: List<String> = emptyList(),
+    )
 
     @Serializable
     private data class FileResponse(val name: String, val size: Long)

@@ -24,6 +24,10 @@ private val logger = KotlinLogging.logger("GLOBAL")
 var frontServer: FrontServer? = null
     private set
 
+/** Менеджер USB-гаджета — используется фронтом (кнопка «настроить»). */
+var usbGadgetManager: UsbGadgetManager? = null
+    private set
+
 /**
  * Загружает YAML-конфигурацию из рабочей директории. Возвращает null, если
  * файла нет (поведение историческое: молча завершиться).
@@ -45,22 +49,23 @@ fun loadConfiguration(fileName: String = "config.yaml"): Configuration? {
  */
 private fun ensureUsbGadget(front: Configuration.Front) {
     val gadgetConfig = front.usbGadget
-    if (!gadgetConfig.configure) return
-
     val manager = UsbGadgetManager(
         gadgetName = gadgetConfig.name,
         udcOverride = gadgetConfig.udc,
         serialDevicePath = front.serialPort,
         keyboardDevicePath = front.keyboardDevice,
-    )
+    ).also { usbGadgetManager = it }
     val before = manager.status()
     println(
         "USB gadget: supported=${before.supported} udc=${before.udc} state=${before.udcState} " +
             "functions=${before.functions} serial=${before.serialDevice} keyboard=${before.keyboardDevice}",
     )
     if (before.ready) return
-
     before.problems.forEach { println("USB gadget: $it") }
+    if (!gadgetConfig.configure) {
+        println("USB gadget: автонастройка выключена (front.usbGadget.configure = false)")
+        return
+    }
     println("USB gadget: настраиваю…")
     val after = manager.ensureConfigured()
     if (after.ready) {
@@ -91,7 +96,7 @@ fun startProxy(config: Configuration, selfPath: String? = null): KoinApplication
             println("FRONT MODE: services/incomes из конфигурации проигнорированы")
         }
         ensureUsbGadget(front)
-        frontServer = FrontServer.create(front, selfPath)
+        frontServer = FrontServer.create(front, selfPath, usbGadgetManager)
         return null
     }
     logger.info { "STARTUP" }
