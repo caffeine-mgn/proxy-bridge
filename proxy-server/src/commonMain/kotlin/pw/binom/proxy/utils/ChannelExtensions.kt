@@ -1,5 +1,6 @@
 package pw.binom.proxy.utils
 
+import pw.binom.io.ioDispatcher
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.CancellationException
@@ -39,7 +40,7 @@ suspend fun connect(
     coroutineScope {
         try {
             listOf(
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         income.consumeEach { buffer ->
                             a.send(buffer)
@@ -48,7 +49,7 @@ suspend fun connect(
                         a.close()
                     }
                 },
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         b.consumeEach { buffer ->
                             outcome.send(buffer)
@@ -73,14 +74,14 @@ suspend fun connect(
     coroutineScope {
         try {
             listOf(
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         income.copyTo(a)
                     } finally {
                         a.flushAndClose()
                     }
                 },
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         b.copyTo(outcome)
                     } finally {
@@ -103,7 +104,7 @@ suspend fun connect(
     coroutineScope {
         try {
             listOf(
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         income.consumeEach { buffer ->
                             a.writePacket(buffer)
@@ -113,7 +114,7 @@ suspend fun connect(
                         a.flushAndClose()
                     }
                 },
-                launch(Dispatchers.IO) {
+                launch(ioDispatcher) {
                     try {
                         while (isActive) {
                             val buffer = Buffer()

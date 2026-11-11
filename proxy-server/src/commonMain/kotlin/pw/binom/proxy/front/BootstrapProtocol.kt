@@ -1,12 +1,5 @@
 package pw.binom.proxy.front
 
-/** Один файл бутстрапа, который можно «напечатать» на удалённой машине. */
-data class BootstrapFile(
-    val id: Int,
-    val name: String,
-    val size: Long,
-)
-
 /**
  * Протокол передачи файла на удалённую машину через COM-порт.
  *

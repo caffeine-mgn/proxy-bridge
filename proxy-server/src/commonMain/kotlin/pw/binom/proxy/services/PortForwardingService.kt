@@ -1,5 +1,6 @@
 package pw.binom.proxy.services
 
+import pw.binom.io.ioDispatcher
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.aSocket
@@ -21,9 +22,9 @@ class PortForwardingService(
     private val selectorManager: SelectorManager,
 ) : KoinComponent, AutoCloseable {
     private val logger = KotlinLogging.logger { }
-    private val job = CoroutineScope(Dispatchers.IO).launch {
+    private val job = CoroutineScope(ioDispatcher).launch {
         val serverSocket = try {
-            aSocket(selectorManager).tcp().bind(bindHost, bindPort)
+            aSocket(selectorManager).tcp().bind(bindHost, bindPort) { reuseAddress = true }
         } catch (e: Throwable) {
             logger.error(e) { "Can't bind to $bindHost:$bindPort" }
             return@launch
@@ -32,7 +33,7 @@ class PortForwardingService(
         serverSocket.use { server ->
             while (isActive) {
                 val newClient = server.accept()
-                CoroutineScope(Dispatchers.IO).launch {
+                CoroutineScope(ioDispatcher).launch {
                     try {
                         val r = tcpConnectProvider.connect(remoteHost, remotePort)
                         if (r !is TcpConnectProvider.ConnectResult.Success) {

@@ -294,7 +294,7 @@ class FileChannel(
                     if (data.all { it == 0.toByte() }) {
                         logger.warn { "handleReadFile: chunk $chunkNum is ALL ZEROS! size=$size" }
                     }
-                    val prefix = data.take(8).joinToString(" ") { "%02x".format(it) }
+                    val prefix = data.take(8).joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
                     logger.warn { "[handleReadFile] chunk=$chunkNum size=$size prefix=[$prefix]" }
                     tmp = Buffer()
                     chunkNum++
@@ -330,7 +330,7 @@ class FileChannel(
                     val tmp = Buffer()
                     tmp.write(data, 0, size)
                     s.write(tmp, tmp.size)
-                    val prefix = data.take(8).joinToString(" ") { "%02x".format(it) }
+                    val prefix = data.take(8).joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
                     logger.warn { "[handleWriteFile] chunk size=$size prefix=[$prefix]" }
                     channel.send {
                         boolean(true)

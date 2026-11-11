@@ -1,5 +1,6 @@
 package pw.binom.proxy.services
 
+import pw.binom.io.ioDispatcher
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.aSocket
@@ -16,7 +17,6 @@ import pw.binom.multiplexer.Multiplexer
 import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.properties.CurrentMultiplexer
 import pw.binom.properties.OutcomeService
-import java.lang.AutoCloseable
 import kotlin.time.Duration.Companion.seconds
 import kotlin.use
 
@@ -29,7 +29,7 @@ class TcpOutcomeService(
 ) : OutcomeService, AutoCloseable {
     private val logger = KotlinLogging.logger {}
     private var currentMultiplexer: Multiplexer? = null
-    private val job = CoroutineScope(Dispatchers.IO).launch {
+    private val job = CoroutineScope(ioDispatcher).launch {
         while (isActive) {
             val socket = try {
                 aSocket(selectorManager).tcp().connect(host, port)
@@ -48,14 +48,14 @@ class TcpOutcomeService(
                     MultiplexerImpl(
                         channel = rawChannel,
                         idOdd = false,
-                        ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+                        ioCoroutineScope = CoroutineScope(ioDispatcher)
                     ).use { multiplexer ->
                         try {
                             currentMultiplexer = multiplexer
                             val con = multiplexer.accept()
-                            CoroutineScope(Dispatchers.IO).launch {
+                            CoroutineScope(ioDispatcher).launch {
                                 while (isActive) {
-                                    CoroutineScope(Dispatchers.IO).launch(CurrentMultiplexer(multiplexer)) {
+                                    CoroutineScope(ioDispatcher).launch(CurrentMultiplexer(multiplexer)) {
                                         con.use { channel ->
                                             channelSelectorService.processing(
                                                 connection = channel,

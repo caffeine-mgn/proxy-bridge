@@ -78,11 +78,24 @@ payload     size     тело
 
 ## Каталог фронта
 
-`front.bootstrapDir` указывает, **какую папку** показывать в списке для печати:
+`front.bootstrapDir` указывает **корень**, внутри которого каждый подкаталог —
+отдельный вариант бутстрапа. Фронт показывает их группами: файлы варианта и
+кнопку «Напечатать команду запуска» (команды берутся из `<вариант>/launch.txt`).
 
 ```yaml
 front:
-  bootstrapDir: bootstrap/powershell   # или bootstrap/standalone, или bootstrap/java
+  bootstrapDir: bootstrap      # внутри: python/, csharp/, java/, powershell/, standalone/
 ```
 
-`README*` в список не попадает; лишнее можно скрыть через `front.bootstrapExclude`.
+`README*` и `launch.txt` в список «сохранить как» не попадают; лишнее можно
+скрыть через `front.bootstrapExclude`.
+
+Команды запуска (печатаются по кнопке, после каждой строки — Enter):
+
+| Вариант | `launch.txt` |
+|---|---|
+| `powershell` | `run.cmd settings.txt` |
+| `csharp` | `build.bat` + `Bootstrap.exe settings.txt` |
+| `python` | `python bootstrap.py settings.txt` |
+| `standalone` | `java Bootstrap.java settings.txt` |
+| `java` | `gradle build` + `java -jar build/libs/bootstrap-1.0.0.jar settings.txt` |

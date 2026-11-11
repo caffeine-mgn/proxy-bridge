@@ -43,15 +43,20 @@ class HttpProxy(
     }
 
     private val serverJob = selector.launch {
-        aSocket(selector).tcp().bind(hostname = "0.0.0.0", port = port).use { server ->
-            while (isActive) {
-                val client = server.accept()
-                launch {
-                    client.use { client ->
-                        clientProcessing(client)
+        try {
+            aSocket(selector).tcp().bind(hostname = "0.0.0.0", port = port) { reuseAddress = true }.use { server ->
+                logger.info { "HTTP proxy started on 0.0.0.0:$port" }
+                while (isActive) {
+                    val client = server.accept()
+                    launch {
+                        client.use { client ->
+                            clientProcessing(client)
+                        }
                     }
                 }
             }
+        } catch (e: Throwable) {
+            logger.error(e) { "HTTP proxy stopped on port $port" }
         }
     }
 

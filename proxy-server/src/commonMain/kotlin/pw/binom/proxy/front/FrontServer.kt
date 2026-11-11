@@ -2,11 +2,11 @@ package pw.binom.proxy.front
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -31,9 +31,8 @@ class FrontServer(
     companion object {
         fun create(front: Configuration.Front, selfPath: String?): FrontServer {
             val service = BootstrapService(
-                bootstrapDir = front.bootstrapDir,
+                bootstrapRoot = front.bootstrapDir,
                 settingsFile = front.settingsFile,
-                exclude = front.bootstrapExclude,
                 keyboardDevice = front.keyboardDevice,
                 profile = TypingProfile(
                     charDelayMs = front.charDelayMs,
@@ -44,6 +43,7 @@ class FrontServer(
                 baudRate = front.baudRate,
                 selfPath = front.selfPath ?: selfPath,
                 writeTimeoutMs = front.writeTimeoutMs,
+                exclude = front.bootstrapExclude,
             )
             return FrontServer(front.bind, front.port, service)
         }
@@ -58,7 +58,10 @@ class FrontServer(
     }
 
     init {
-        logger.info { "Starting front server on $bind:$port (bootstrap dir=${bootstrap.files().size} files)" }
+        logger.info {
+            "Starting front server on $bind:$port " +
+                "(bootstrap variants: ${bootstrap.variants().joinToString { it.name }})"
+        }
         server.start(wait = false)
     }
 
@@ -76,28 +79,34 @@ class FrontServer(
                 call.respondJson(
                     StatusResponse(
                         mode = "front",
-                        bootstrapFiles = bootstrap.files().size,
+                        variants = bootstrap.variants().size,
                         selfFile = bootstrap.selfFile?.name,
                     ),
                 )
             }
 
-            get("/api/bootstrap/files") {
-                call.respondJson(bootstrap.files().map { FileResponse(it.id, it.name, it.size) })
+            /** Варианты бутстрапа с файлами и командами запуска. */
+            get("/api/bootstrap") {
+                call.respondJson(
+                    bootstrap.variants().map { variant ->
+                        VariantResponse(
+                            name = variant.name,
+                            launch = variant.launch,
+                            files = variant.files.map { FileResponse(it.name, it.size) },
+                        )
+                    },
+                )
             }
 
-            post("/api/bootstrap/type/{id}") {
-                val id = call.parameters["id"]?.toIntOrNull()
-                if (id == null) {
-                    call.respondJson(ActionResponse(ok = false, message = "Неверный номер файла"))
-                    return@post
-                }
-                val result = bootstrap.typeFile(id)
+            post("/api/bootstrap/type") {
+                val request = json.decodeFromString<TypeFileRequest>(call.receiveText())
+                val result = bootstrap.typeFile(request.variant, request.file)
                 call.respondJson(ActionResponse(result.ok, result.message))
             }
 
-            post("/api/bootstrap/settings") {
-                val result = bootstrap.typeSettings()
+            post("/api/bootstrap/launch") {
+                val request = json.decodeFromString<VariantRequest>(call.receiveText())
+                val result = bootstrap.typeLaunch(request.variant)
                 call.respondJson(ActionResponse(result.ok, result.message))
             }
 
@@ -108,7 +117,6 @@ class FrontServer(
                         ok = result.ok,
                         message = result.message,
                         bytes = result.bytes,
-                        ack = result.ack,
                     ),
                 )
             }
@@ -119,25 +127,37 @@ class FrontServer(
         respondText(json.encodeToString(body), ContentType.Application.Json)
     }
 
-    private suspend fun ApplicationCall.respondJson(body: List<FileResponse>) {
+    private suspend fun ApplicationCall.respondJson(body: List<VariantResponse>) {
         respondText(json.encodeToString(body), ContentType.Application.Json)
     }
 
     @Serializable
-    private data class FileResponse(val id: Int, val name: String, val size: Long)
+    private data class FileResponse(val name: String, val size: Long)
+
+    @Serializable
+    private data class VariantResponse(
+        val name: String,
+        val launch: String?,
+        val files: List<FileResponse>,
+    )
+
+    @Serializable
+    private data class TypeFileRequest(val variant: String, val file: String)
+
+    @Serializable
+    private data class VariantRequest(val variant: String)
 
     @Serializable
     private data class ActionResponse(
         val ok: Boolean,
         val message: String,
         val bytes: Long = 0,
-        val ack: Boolean = false,
     )
 
     @Serializable
     private data class StatusResponse(
         val mode: String,
-        val bootstrapFiles: Int,
+        val variants: Int,
         val selfFile: String?,
     )
 }

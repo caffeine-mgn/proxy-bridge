@@ -52,22 +52,26 @@ class Socks5Server(
     private val logger = KotlinLogging.logger { }
 
     private val serverJob = selectorManager.launch {
-        aSocket(selectorManager).tcp()
-            .bind(bind, port)
-            .use { server ->
-                logger.info { "SOCKS5 server started on port $port" }
-                while (isActive) {
-                    val client = server.accept()
-                    launch {
-                        try {
-                            handleClient(client)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            client.close()
+        try {
+            aSocket(selectorManager).tcp()
+                .bind(bind, port) { reuseAddress = true }
+                .use { server ->
+                    logger.info { "SOCKS5 server started on port $port" }
+                    while (isActive) {
+                        val client = server.accept()
+                        launch {
+                            try {
+                                handleClient(client)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                client.close()
+                            }
                         }
                     }
                 }
-            }
+        } catch (e: Throwable) {
+            logger.error(e) { "SOCKS5 server stopped on $bind:$port" }
+        }
     }
 
 

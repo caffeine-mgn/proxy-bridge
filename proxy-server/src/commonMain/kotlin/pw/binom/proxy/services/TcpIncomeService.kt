@@ -1,5 +1,6 @@
 package pw.binom.proxy.services
 
+import pw.binom.io.ioDispatcher
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.aSocket
 import io.ktor.network.sockets.openReadChannel
@@ -23,8 +24,8 @@ class TcpIncomeService(
         job.cancel()
     }
 
-    private val job = CoroutineScope(Dispatchers.IO).launch {
-        aSocket(selectorManager).tcp().bind(hostname = host, port = port).use { server ->
+    private val job = CoroutineScope(ioDispatcher).launch {
+        aSocket(selectorManager).tcp().bind(hostname = host, port = port) { reuseAddress = true }.use { server ->
             val newClient = server.accept()
             newClient.use { newClient ->
                 ByteChannelDuplexChannel.create(
@@ -34,12 +35,12 @@ class TcpIncomeService(
                     MultiplexerImpl(
                         channel = rawChannel,
                         idOdd = true,
-                        ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+                        ioCoroutineScope = CoroutineScope(ioDispatcher)
                     ).use { multiplexer ->
                         val con = multiplexer.accept()
-                        CoroutineScope(Dispatchers.IO).launch {
+                        CoroutineScope(ioDispatcher).launch {
                             while (isActive) {
-                                CoroutineScope(Dispatchers.IO).launch(CurrentMultiplexer(multiplexer)) {
+                                CoroutineScope(ioDispatcher).launch(CurrentMultiplexer(multiplexer)) {
                                     con.use { channel ->
                                         channelSelectorService.processing(
                                             connection = channel,

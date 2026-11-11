@@ -156,7 +156,7 @@ front:
   enabled: true          # включает режим и ВЫКЛЮЧАЕТ обычные сервисы
   bind: 0.0.0.0
   port: 8900
-  bootstrapDir: bootstrap   # файлы, которые печатаются по кнопке
+  bootstrapDir: bootstrap   # корень: подкаталоги = варианты бутстрапа
   settingsFile: settings.txt
   bootstrapExclude: []      # что не показывать (README* скрыт всегда)
   selfPath: null            # что отправлять кнопкой «отправить себя» (null = сам jar)
@@ -172,13 +172,17 @@ front:
 при `front.enabled: true` сервисы из `services`/`incomes` не поднимаются.
 
 ```
-GET  /                          страница фронта
-GET  /api/status                режим, число файлов, отправляемый файл
-GET  /api/bootstrap/files       список файлов бутстрапа
-POST /api/bootstrap/type/{id}   «напечатать» файл (HID)
-POST /api/bootstrap/settings    «напечатать» файл настроек
-POST /api/bootstrap/send-self   отправить программу по COM-порту
+GET  /                        страница фронта (группы по вариантам)
+GET  /api/status              режим, число вариантов, отправляемый файл
+GET  /api/bootstrap           варианты: файлы + команды запуска
+POST /api/bootstrap/type      {"variant":"python","file":"bootstrap.py"} — напечатать файл
+POST /api/bootstrap/launch    {"variant":"python"} — напечатать команды запуска
+POST /api/bootstrap/send-self отправить программу по COM-порту
 ```
+
+Варианты — подкаталоги `front.bootstrapDir` (`python/`, `csharp/`, `java/`,
+`powershell/`, `standalone/`). Команды запуска для кнопки лежат в
+`<вариант>/launch.txt` (по строке на команду, после каждой нажимается Enter).
 
 Порядок работы:
 

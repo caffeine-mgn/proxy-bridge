@@ -14,7 +14,7 @@ object FrontPage {
   body { margin: 0; padding: 24px; background: #14161a; color: #e6e6e6;
          font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
   h1 { font-size: 20px; margin: 0 0 4px; }
-  h2 { font-size: 15px; margin: 24px 0 8px; color: #9fb3c8; font-weight: 600;
+  h2 { font-size: 15px; margin: 0 0 12px; color: #9fb3c8; font-weight: 600;
        text-transform: uppercase; letter-spacing: .06em; }
   .muted { color: #8b98a5; }
   .card { background: #1b1f26; border: 1px solid #262c35; border-radius: 10px;
@@ -22,15 +22,27 @@ object FrontPage {
   ol { margin: 0; padding-left: 20px; }
   li { margin: 6px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td, th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #232a33; }
+  td, th { text-align: left; padding: 7px 8px; border-bottom: 1px solid #232a33; }
   th { color: #8b98a5; font-weight: 500; font-size: 12px; text-transform: uppercase; }
   code { background: #0f1216; padding: 2px 6px; border-radius: 4px; color: #7dd3a0; }
   button { background: #2b6ef2; color: #fff; border: 0; border-radius: 7px;
-           padding: 8px 14px; cursor: pointer; font-size: 13px; }
+           padding: 6px 12px; cursor: pointer; font-size: 13px; }
   button:hover { background: #3b7dfb; }
   button:disabled { background: #2a3340; color: #6b7785; cursor: default; }
-  button.danger { background: #c2410c; }
+  button.danger { background: #c2410c; padding: 9px 16px; }
   button.danger:hover { background: #ea580c; }
+  button.launch { background: #1f7a4d; }
+  button.launch:hover { background: #26945e; }
+  .variant { background: #191d24; border: 1px solid #262c35; border-radius: 10px;
+             padding: 14px 16px; margin-bottom: 12px; }
+  .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .variant-name { font-size: 16px; font-weight: 600; color: #cbd5e1; }
+  .badge { font-size: 11px; color: #8b98a5; border: 1px solid #2f3742;
+           border-radius: 999px; padding: 1px 8px; }
+  .launch-box { margin-top: 10px; padding-top: 10px; border-top: 1px solid #232a33;
+                display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .launch-cmd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+                color: #a7b4c2; white-space: pre-wrap; }
   #log { background: #0f1216; border-radius: 8px; padding: 12px; min-height: 90px;
          font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
          white-space: pre-wrap; color: #a7b4c2; }
@@ -44,27 +56,25 @@ object FrontPage {
   <div class="card">
     <h2>Как это работает</h2>
     <ol>
-      <li>На удалённой машине откройте <b>Блокнот</b> (или любой текстовый редактор) в <b>US-раскладке</b>.</li>
-      <li>Нажмите «Напечатать» напротив файла — текст впечатается как с клавиатуры.</li>
-      <li>Сохраните файл под именем из колонки «Имя файла» (в ту же папку, где будете собирать).</li>
-      <li>Повторите для всех файлов, включая <code>settings.txt</code>; откройте его и укажите свой COM-порт.</li>
-      <li>Соберите и запустите бутстрап на удалённой машине.</li>
-      <li>Нажмите «Отправить себя» — бутстрап примет программу и сохранит её в свой рабочий каталог.</li>
+      <li>На удалённой машине откройте <b>Блокнот</b> (раскладка <b>US</b>).</li>
+      <li>Выберите <b>один</b> вариант бутстрапа ниже и напечатайте его файлы,
+          сохраняя под показанными именами (settings.txt — тоже).</li>
+      <li>Впишите в settings.txt свой COM-порт (это делается руками).</li>
+      <li>Нажмите «Напечатать команду запуска» — команды впечатаются в консоль.</li>
+      <li>Нажмите «Отправить себя» — бутстрап примет программу и сохранит её.</li>
+      <li>Выключите <code>front.enabled</code> и запустите принятую программу.</li>
     </ol>
   </div>
 
   <div class="card">
-    <h2>Файлы бутстрапа</h2>
-    <table>
-      <thead><tr><th>#</th><th>Имя файла</th><th>Размер</th><th></th></tr></thead>
-      <tbody id="files"><tr><td colspan="4" class="muted">Загрузка…</td></tr></tbody>
-    </table>
-    <p><button id="settings">Напечатать настройки бутстрапа</button></p>
+    <h2>Варианты бутстрапа</h2>
+    <div id="variants"><div class="muted">Загрузка…</div></div>
   </div>
 
   <div class="card">
     <h2>Передать программу</h2>
-    <p class="muted">Файл уйдёт по COM-порту в запущенный бутстрап. Прогресс виден в его консоли.</p>
+    <p class="muted">Файл уйдёт по COM-порту в уже запущенный бутстрап.
+       Прогресс виден в его консоли.</p>
     <button id="sendSelf" class="danger">Отправить себя через bootstrap</button>
   </div>
 
@@ -83,83 +93,125 @@ const log = (text, cls) => {
   el.scrollTop = el.scrollHeight;
 };
 
-async function api(method, url) {
-  const res = await fetch(url, { method });
-  const data = await res.json();
-  return data;
+async function api(method, url, body) {
+  const options = { method, headers: {} };
+  if (body !== undefined) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, options);
+  return await res.json();
 }
 
-async function loadFiles() {
-  const tbody = document.getElementById('files');
-  try {
-    const files = await api('GET', '/api/bootstrap/files');
-    tbody.innerHTML = '';
-    if (!files.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="muted">Каталог бутстрапа пуст</td></tr>';
-      return;
-    }
-    for (const f of files) {
+function lockAll(locked) {
+  document.querySelectorAll('button').forEach(b => b.disabled = locked);
+}
+
+function humanSize(size) {
+  return size > 1024 ? (size / 1024).toFixed(1) + ' КБ' : size + ' Б';
+}
+
+function renderVariants(variants) {
+  const root = document.getElementById('variants');
+  root.innerHTML = '';
+  if (!variants.length) {
+    root.innerHTML = '<div class="muted">Каталог бутстрапа пуст</div>';
+    return;
+  }
+  for (const v of variants) {
+    const box = document.createElement('div');
+    box.className = 'variant';
+
+    const head = document.createElement('div');
+    head.className = 'variant-head';
+    head.innerHTML = '<span class="variant-name"></span>' +
+                     '<span class="badge"></span>';
+    head.querySelector('.variant-name').textContent = v.name;
+    head.querySelector('.badge').textContent = v.files.length + ' файл(ов)';
+    box.appendChild(head);
+
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Имя файла</th><th>Размер</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (const f of v.files) {
       const tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td>' + f.id + '</td>' +
-        '<td><code>' + f.name + '</code></td>' +
-        '<td class="muted">' + (f.size > 1024 ? (f.size / 1024).toFixed(1) + ' КБ' : f.size + ' Б') + '</td>' +
-        '<td><button data-id="' + f.id + '">Напечатать</button></td>';
+      tr.innerHTML = '<td><code></code></td><td class="muted"></td>' +
+                     '<td style="text-align:right"><button>Напечатать</button></td>';
+      tr.querySelector('code').textContent = f.name;
+      tr.querySelector('.muted').textContent = humanSize(f.size);
+      tr.querySelector('button').onclick = () => typeFile(v.name, f.name);
       tbody.appendChild(tr);
     }
-    tbody.querySelectorAll('button[data-id]').forEach(btn => {
-      btn.onclick = () => typeFile(btn.dataset.id, btn);
-    });
-  } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="4" class="err">Не удалось получить список файлов</td></tr>';
+    table.appendChild(tbody);
+    box.appendChild(table);
+
+    if (v.launch) {
+      const launch = document.createElement('div');
+      launch.className = 'launch-box';
+      const cmd = document.createElement('div');
+      cmd.className = 'launch-cmd';
+      cmd.textContent = v.launch;
+      const btn = document.createElement('button');
+      btn.className = 'launch';
+      btn.textContent = 'Напечатать команду запуска';
+      btn.onclick = () => typeLaunch(v.name);
+      launch.appendChild(btn);
+      launch.appendChild(cmd);
+      box.appendChild(launch);
+    }
+
+    root.appendChild(box);
   }
 }
 
-async function typeFile(id, btn) {
-  const buttons = document.querySelectorAll('button');
-  buttons.forEach(b => b.disabled = true);
-  log('Печатаю файл #' + id + ' — не трогайте клавиатуру и мышь на удалённой машине…');
+async function typeFile(variant, file) {
+  lockAll(true);
+  log('Печатаю ' + variant + '/' + file + ' — не трогайте клавиатуру на удалённой машине…');
   try {
-    const res = await api('POST', '/api/bootstrap/type/' + id);
+    const res = await api('POST', '/api/bootstrap/type', { variant, file });
     log(res.message, res.ok ? 'ok' : 'err');
   } catch (e) {
     log('Ошибка запроса: ' + e, 'err');
   } finally {
-    buttons.forEach(b => b.disabled = false);
+    lockAll(false);
   }
 }
 
-document.getElementById('settings').onclick = async (e) => {
-  const buttons = document.querySelectorAll('button');
-  buttons.forEach(b => b.disabled = true);
-  log('Печатаю settings.txt…');
+async function typeLaunch(variant) {
+  lockAll(true);
+  log('Печатаю команды запуска для ' + variant + '…');
   try {
-    const res = await api('POST', '/api/bootstrap/settings');
+    const res = await api('POST', '/api/bootstrap/launch', { variant });
     log(res.message, res.ok ? 'ok' : 'err');
   } catch (e) {
     log('Ошибка запроса: ' + e, 'err');
   } finally {
-    buttons.forEach(b => b.disabled = false);
+    lockAll(false);
   }
-};
+}
 
-document.getElementById('sendSelf').onclick = async (e) => {
-  const buttons = document.querySelectorAll('button');
-  buttons.forEach(b => b.disabled = true);
+document.getElementById('sendSelf').onclick = async () => {
+  lockAll(true);
   log('Отправляю программу по COM-порту…');
   try {
     const res = await api('POST', '/api/bootstrap/send-self');
-    log(res.message + (res.bytes ? ' (' + res.bytes + ' байт)' : ''), res.ok ? 'ok' : 'err');
+    log(res.message, res.ok ? 'ok' : 'err');
   } catch (e) {
     log('Ошибка запроса: ' + e, 'err');
   } finally {
-    buttons.forEach(b => b.disabled = false);
+    lockAll(false);
   }
 };
 
-loadFiles();
+api('GET', '/api/bootstrap')
+  .then(renderVariants)
+  .catch(() => {
+    document.getElementById('variants').innerHTML =
+      '<div class="err">Не удалось получить список вариантов</div>';
+  });
+
 api('GET', '/api/status').then(s => {
-  log('Режим: ' + s.mode + ', файлов бутстрапа: ' + s.bootstrapFiles +
+  log('Режим: ' + s.mode + ', вариантов бутстрапа: ' + s.variants +
       (s.selfFile ? ', отправляемый файл: ' + s.selfFile : ', файл для отправки не задан'),
       s.selfFile ? 'ok' : 'err');
 }).catch(() => {});

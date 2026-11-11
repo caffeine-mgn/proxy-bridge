@@ -1,8 +1,8 @@
 package pw.binom.proxy.service
 
+import pw.binom.io.ioDispatcher
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pw.binom.ConnectionAcceptor
@@ -14,6 +14,7 @@ import pw.binom.multiplexer.MultiplexerImpl
 import pw.binom.properties.CurrentMultiplexer
 import pw.binom.proxy.services.IncomeService
 import pw.binom.properties.OutcomeService
+import pw.binom.serial.SerialConfig
 
 class SerialIncomeService(
     private val serialName: String,
@@ -24,26 +25,29 @@ class SerialIncomeService(
 ) : IncomeService, Multiplexer, ConnectionAcceptor, OutcomeService {
     private val acc = SerialConnectionAcceptor(
         serialName = serialName,
-        baudRate = baudRate,
+        config = SerialConfig(
+            baudRate = baudRate,
+            readTimeoutMs = 200,
+        ),
     )
 
     override suspend fun connection(): DuplexChannel = acc.connection()
 
     private var currentMultiplexer: Multiplexer? = null
 
-    private val job = CoroutineScope(Dispatchers.IO + CoroutineName("Serial Main")).launch {
+    private val job = CoroutineScope(ioDispatcher + CoroutineName("Serial Main")).launch {
         while (isActive) {
             acc.connection().use { rawChannel ->
                 MultiplexerImpl(
                     channel = rawChannel,
                     idOdd = idOdd,
-                    ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+                    ioCoroutineScope = CoroutineScope(ioDispatcher)
                 ).use { multiplexer ->
                     try {
                         currentMultiplexer = multiplexer
                         while (isActive) {
                             val con = multiplexer.accept()
-                            CoroutineScope(Dispatchers.IO)
+                            CoroutineScope(ioDispatcher)
                                 .launch(CurrentMultiplexer(multiplexer) + CoroutineName("Serial Main Processing")) {
                                     con.use { channel ->
                                         channelSelectorService.processing(
