@@ -176,6 +176,9 @@ data class Configuration(
         val serialPort: String = "/dev/ttyGS0",
         val baudRate: Int = 115200,
 
+        /** Сколько ждать записи в порт, прежде чем сообщить, что нас не читают. */
+        val writeTimeoutMs: Int = 5000,
+
         /** HID-клавиатура USB-гаджета. */
         val keyboardDevice: String = "/dev/hidg0",
 

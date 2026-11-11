@@ -34,6 +34,7 @@ class BootstrapService(
     private val serialPort: String,
     private val baudRate: Int,
     private val selfPath: String?,
+    private val writeTimeoutMs: Int = 5000,
 ) {
     private val logger = KotlinLogging.logger("BootstrapService")
 
@@ -112,7 +113,7 @@ class BootstrapService(
                 config = SerialConfig(
                     baudRate = baudRate,
                     readTimeoutMs = 3000,
-                    writeTimeoutMs = 10_000,
+                    writeTimeoutMs = writeTimeoutMs,
                 ),
             ).use { port ->
                 var offset = 0
@@ -132,7 +133,13 @@ class BootstrapService(
             }
         }.getOrElse {
             logger.error(it) { "Sending failed" }
-            SendResult(ok = false, bytes = 0, ack = false, message = "Ошибка порта: ${it.message}")
+            SendResult(
+                ok = false,
+                bytes = 0,
+                ack = false,
+                message = "Ошибка порта $serialPort: ${it.message}. " +
+                    "Проверьте, что бутстрап запущен и COM-порт в его settings.txt тот же.",
+            )
         }
     }
 

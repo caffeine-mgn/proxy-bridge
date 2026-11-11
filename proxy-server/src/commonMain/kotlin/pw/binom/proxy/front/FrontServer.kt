@@ -43,6 +43,7 @@ class FrontServer(
                 serialPort = front.serialPort,
                 baudRate = front.baudRate,
                 selfPath = front.selfPath ?: selfPath,
+                writeTimeoutMs = front.writeTimeoutMs,
             )
             return FrontServer(front.bind, front.port, service)
         }
