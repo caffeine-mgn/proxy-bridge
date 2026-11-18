@@ -10,6 +10,7 @@ import io.ktor.utils.io.core.remaining
 import kotlinx.io.Buffer
 import kotlinx.io.files.Path
 import pw.binom.webdav.fs.WebDavFileSystem
+import kotlin.random.Random
 
 fun Application.webDavModule(
     fileSystem: WebDavFileSystem,
@@ -231,11 +232,25 @@ private fun Route.installWebDavHandlers(fileSystem: WebDavFileSystem, basePath: 
     }
 }
 
+/**
+ * Достаёт path из absolute-uri (http://host:port/path) или origin-form (/path),
+ * не завязываясь на java.net.URI (его нет в Kotlin/Native).
+ */
+private fun uriPath(uri: String): String {
+    val path = if (uri.contains("://")) {
+        val rest = uri.substringAfter("://")
+        "/" + rest.substringAfter('/', "")
+    } else {
+        uri
+    }
+    return path.substringBefore('?').substringBefore('#')
+}
+
 private fun resolvePath(call: RoutingCall, basePath: String): Path {
     val fullPath = call.request.path()
     val raw = fullPath.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
     val relative = raw.removePrefix("/")
-    val decoded = java.net.URLDecoder.decode(relative, "UTF-8")
+    val decoded = relative.decodeURLPart()
     return if (decoded.isEmpty()) Path(".") else Path(decoded)
 }
 
@@ -319,19 +334,59 @@ private fun buildHref(path: Path, basePath: String): String {
     val normalized = if (pathStr.startsWith("/")) pathStr else "/$pathStr"
     val encoded = normalized.split("/").joinToString("/") { segment ->
         if (segment.isEmpty() || segment == ".") segment
-        else java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        else segment.encodeURLPathPart()
     }
     return "$basePath$encoded"
 }
 
+private const val MILLIS_PER_DAY = 86_400_000L
+
+private val WEEKDAYS = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+private val MONTHS = arrayOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+private fun floorDiv(value: Long, divisor: Long): Long {
+    var q = value / divisor
+    if (value % divisor != 0L && (value xor divisor) < 0) q--
+    return q
+}
+
+private fun floorMod(value: Long, divisor: Long): Long = value - floorDiv(value, divisor) * divisor
+
+/**
+ * RFC 1123 в формате HTTP-date ("Sun, 06 Nov 1994 08:49:37 GMT"), но без
+ * java.time — нужен общий код для JVM и Kotlin/Native.
+ */
 private fun formatHttpDate(epochMillis: Long): String {
-    val instant = java.time.Instant.ofEpochMilli(epochMillis)
-    val formatter = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.withZone(java.time.ZoneId.of("GMT"))
-    return formatter.format(instant)
+    val days = floorDiv(epochMillis, MILLIS_PER_DAY)
+    val msOfDay = floorMod(epochMillis, MILLIS_PER_DAY)
+
+    // civil_from_days (Howard Hinnant)
+    val z = days + 719_468
+    val era = (if (z >= 0) z else z - 146_096) / 146_097
+    val doe = z - era * 146_097
+    val yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365
+    val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    val mp = (5 * doy + 2) / 153
+    val day = doy - (153 * mp + 2) / 5 + 1
+    val monthIndex = mp + if (mp < 10) 3 else -9
+    val year = yoe + era * 400 + if (monthIndex <= 2) 1 else 0
+
+    val weekday = WEEKDAYS[floorMod(days + 4, 7).toInt()]
+    val hours = msOfDay / 3_600_000
+    val minutes = (msOfDay % 3_600_000) / 60_000
+    val seconds = (msOfDay % 60_000) / 1_000
+
+    fun two(value: Long) = if (value < 10) "0$value" else "$value"
+
+    return "$weekday, ${two(day)} ${MONTHS[monthIndex.toInt() - 1]} $year " +
+        "${two(hours)}:${two(minutes)}:${two(seconds)} GMT"
 }
 
 private suspend fun handleLock(call: RoutingCall) {
-    val token = "opaquelocktoken:${System.nanoTime()}"
+    val token = "opaquelocktoken:${Random.nextLong()}"
     val xml = """
         <?xml version="1.0" encoding="utf-8"?>
         <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
@@ -354,8 +409,8 @@ private suspend fun handleMoveCopy(
     val destHeader =
         call.request.headers["Destination"] ?: return call.respond(HttpStatusCode.BadRequest, "Missing Destination")
 
-    val destUri = java.net.URI.create(destHeader)
-    val destRaw = destUri.path.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
+    val destPathRaw = uriPath(destHeader)
+    val destRaw = destPathRaw.removePrefix(basePath).takeIf { it.isNotEmpty() } ?: "/"
     val destRelative = destRaw.removePrefix("/")
     val destPath = if (destRelative.isEmpty()) Path(".") else Path(destRelative)
 

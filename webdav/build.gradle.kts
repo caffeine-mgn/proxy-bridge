@@ -2,17 +2,17 @@ plugins {
     kotlin("multiplatform")
     id("kotlinx-serialization")
 }
-val nativeEntryPoint = "pw.binom.proxy.main"
+
 kotlin {
-//    linuxX64()
-//    mingwX64 {
-//        binaries {
-//            executable {
-//                entryPoint = nativeEntryPoint
-//            }
-//        }
-//    }
     jvm()
+    linuxX64()
+    linuxArm64()
+    mingwX64()
+    macosX64()
+    macosArm64()
+
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
         val commonMain by getting {
             dependencies {
@@ -22,7 +22,7 @@ kotlin {
                 api(libs.kotlinx.serialization.protobuf)
                 api(libs.kotlinx.coroutines.core)
                 api(libs.kotlinx.io.core)
-                api(libs.ktor.server.core)
+                api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
             }
         }
         val commonTest by getting {
@@ -30,7 +30,6 @@ kotlin {
                 implementation(kotlin("test-common"))
                 implementation(kotlin("test-annotations-common"))
                 api(libs.kotlinx.coroutines.test)
-                implementation(libs.ktor.server.test.host)
             }
         }
 

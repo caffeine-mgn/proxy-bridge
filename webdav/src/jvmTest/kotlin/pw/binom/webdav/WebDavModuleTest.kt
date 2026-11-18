@@ -38,23 +38,22 @@ class WebDavModuleTest {
         fun setupServer() {
             SystemFileSystem.createDirectories(tempDir)
             try {
-                server = runBlocking {
-                    withTimeout(30.seconds) {
-                        embeddedServer(Netty, port = PORT) {
-                            routing {
-                                get("/ping") {
-                                    call.respondText("pong")
-                                }
-                                route("/dav") {
-                                    get("/ping2") {
-                                        call.respondText("pong2")
-                                    }
-                                }
+                // start() — блокирующий вызов движка; внутри runBlocking/withTimeout
+                // Netty в этом окружении не успевает подняться, поэтому стартуем
+                // напрямую, без обёртки корутинами.
+                server = embeddedServer(Netty, port = PORT) {
+                    routing {
+                        get("/ping") {
+                            call.respondText("pong")
+                        }
+                        route("/dav") {
+                            get("/ping2") {
+                                call.respondText("pong2")
                             }
-                            webDavModule(LocalFileSystem(tempDir))
-                        }.apply { start(wait = false) }
+                        }
                     }
-                }
+                    webDavModule(LocalFileSystem(tempDir))
+                }.apply { start(wait = false) }
             } catch (e: Exception) {
                 throw RuntimeException("Failed to start server", e)
             }
