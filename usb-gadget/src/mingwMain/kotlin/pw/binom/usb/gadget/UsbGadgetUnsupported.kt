@@ -6,3 +6,5 @@ actual fun isUsbGadgetSupported(): Boolean = false
 actual fun createSymbolicLink(link: String, target: String) {
     throw UnsupportedOperationException("USB gadget (configfs) is not supported on Windows")
 }
+
+actual fun loadUsbGadgetModules(): Boolean = false

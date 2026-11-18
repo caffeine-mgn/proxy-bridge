@@ -20,6 +20,12 @@ expect fun isUsbGadgetSupported(): Boolean
 expect fun createSymbolicLink(link: String, target: String)
 
 /**
+ * Загрузить модули ядра, без которых configfs-гаджетов не существует
+ * (`libcomposite`, `usb_f_acm`, `usb_f_hid`). Нужен root.
+ */
+expect fun loadUsbGadgetModules(): Boolean
+
+/**
  * Состояние USB-гаджета: прикидывается ли устройство COM-портом и клавиатурой.
  */
 data class GadgetStatus(
@@ -125,7 +131,8 @@ class UsbGadgetManager(
                 "(dtoverlay=dwc2,dr_mode=peripheral в config.txt и dwc2.dr_mode=peripheral в cmdline.txt)?"
         }
         if (!SystemFileSystem.exists(Path(CONFIGFS_ROOT))) {
-            problems += "configfs не смонтирован: нет $CONFIGFS_ROOT"
+            problems += "нет $CONFIGFS_ROOT: не загружен модуль libcomposite " +
+                "(modprobe libcomposite usb_f_acm usb_f_hid)"
         }
 
         val functions = if (SystemFileSystem.exists(Path(gadgetPath, "functions"))) {
@@ -168,6 +175,13 @@ class UsbGadgetManager(
      */
     fun ensureConfigured(): GadgetStatus {
         if (!isUsbGadgetSupported()) return status()
+
+        // На чистой системе configfs-гаджетов нет, пока не загружен libcomposite.
+        if (!SystemFileSystem.exists(Path(CONFIGFS_ROOT))) {
+            println("USB gadget: загружаю модули ядра (libcomposite/usb_f_acm/usb_f_hid)")
+            loadUsbGadgetModules()
+        }
+
         val udc = udcOverride ?: findUdc()
             ?: return status()
 

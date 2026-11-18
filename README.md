@@ -201,7 +201,8 @@ USB gadget: настраиваю…
 USB gadget: готов (/dev/ttyGS0 + /dev/hidg0)
 ```
 
-Права: запись в configfs идёт от root (systemd-юнит уже запускается от root).
+Права: запись в configfs идёт от root (systemd-юнит запускается от root).
+Если модуль `libcomposite` не загружен, приложение делает `modprobe` само.
 Если ядро не в режиме peripheral (`dtoverlay=dwc2,dr_mode=peripheral`), это
 чинится только перезагрузкой — приложение честно пишет об этом в problems.
 

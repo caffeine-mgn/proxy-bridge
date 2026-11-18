@@ -1,7 +1,7 @@
 # Подготовка Raspberry Pi к работе
 
 Инструкция для «чистой» Ubuntu Server на Raspberry Pi 4 (проверялось на
-Ubuntu 24.04 aarch64; на 26.10 отличается только имя пакета JDK — см. шаг 2).
+Ubuntu 24.04.2 aarch64; на 26.10 отличается только имя пакета JDK — см. шаг 2).
 
 Что получится в итоге: плата, воткнутая в чужой компьютер одним USB-кабелем,
 выглядит для него **одновременно** как COM-порт и как клавиатура, и на ней
@@ -54,10 +54,11 @@ ls /sys/class/udc
 Правка (Ubuntu кладёт файлы в `/boot/firmware/`):
 
 ```bash
-# 1. в config.txt добавить ровно одну строку (и НЕ оставлять рядом dr_mode=host!)
+# 1. режим device для USB-контроллера (проверьте, что такой строки ещё нет)
+grep -n 'dwc2' /boot/firmware/config.txt
 echo 'dtoverlay=dwc2,dr_mode=peripheral' | sudo tee -a /boot/firmware/config.txt
 
-# 2. в cmdline.txt — параметр режима
+# 2. то же самое параметром модуля в cmdline.txt
 sudo sed -i 's/$/ dwc2.dr_mode=peripheral/' /boot/firmware/cmdline.txt
 
 sudo reboot
@@ -65,9 +66,24 @@ sudo reboot
 
 После перезагрузки `ls /sys/class/udc` должен показать `fe980000.usb`.
 
-> **Грабли.** Если в `config.txt` есть две строки `dtoverlay=dwc2,...` —
-> `dr_mode=host` и `dr_mode=peripheral`, — действует **последняя**. Уберите
-> лишнюю: `grep -n dwc2 /boot/firmware/config.txt`.
+> **Про «две строки dwc2».** В стоковом `config.txt` на Pi 4 уже есть
+> `dtoverlay=dwc2,dr_mode=peripheral`, а `dtoverlay=dwc2,dr_mode=host` лежит
+> **внутри секции `[cm4]`** — на Pi 4 она не применяется, так что это не
+> конфликт. Важно лишь, чтобы в общей части файла (до `[cm4]`/`[pi3+]` и т.п.)
+> была строка с `dr_mode=peripheral`, а в `cmdline.txt` — `dwc2.dr_mode=peripheral`
+> (параметр модуля имеет приоритет).
+
+### Модули ядра
+
+Без `libcomposite` каталога `/sys/kernel/config/usb_gadget` не существует
+вообще. Приложение в режиме фронта **само** делает
+`modprobe libcomposite usb_f_acm usb_f_hid` (оно работает от root), поэтому
+отдельный шаг не нужен. Если хотите, чтобы модули были готовы ещё до старта
+приложения, добавьте в `cmdline.txt`:
+
+```
+modules-load=dwc2,libcomposite
+```
 
 ## 4. Куда положить программу
 
@@ -119,10 +135,14 @@ sudo systemctl status proxy
 
 ```
 USB gadget: supported=true udc=fe980000.usb state=not attached functions=[] serial=null keyboard=null
-USB gadget: Гаджет g1 не создан
+USB gadget: нет /sys/kernel/config/usb_gadget: не загружен модуль libcomposite
 USB gadget: настраиваю…
+USB gadget: загружаю модули ядра (libcomposite/usb_f_acm/usb_f_hid)
 USB gadget: готов (/dev/ttyGS0 + /dev/hidg0)
 ```
+
+На уже настроенной системе сообщений меньше: `state=configured`,
+`functions=[hid.usb0, acm.usb0]` — и приложение ничего не трогает.
 
 На плате:
 
@@ -220,6 +240,7 @@ curl -x http://<ip платы>:8077 http://example.com/ -o /dev/null -w "%{http_
 | `state=not attached` | кабель не в USB-C платы, кабель без данных, или хост не видит устройство |
 | `Device or resource busy` при записи UDC | UDC занят другим гаджетом: `cat /sys/kernel/config/usb_gadget/*/UDC` |
 | `/dev/hidg0` нет, `/dev/ttyGS0` есть | не связана hid-функция: смотрите `problems` в `/api/gadget` |
+| `нет /sys/kernel/config/usb_gadget` | не загружен `libcomposite` (приложение грузит сам; если прав нет — `modprobe libcomposite usb_f_acm usb_f_hid`) |
 | Хост видит COM, но имя другое | после пересоздания гаджета порт переименовался: поправьте `settings.txt` бутстрапа |
 | Устройство отваливается | питание: `vcgencmd get_throttled` (ненулевое значение = просадка) |
 | `FRONT MODE: … проксирование выключено` | это норма: `front.enabled: true` отключает сервисы |
@@ -238,8 +259,10 @@ curl -s localhost:8900/api/gadget | python3 -m json.tool
 Если фронт не нужен, но гаджет требуется:
 
 ```bash
-sudo /opt/proxy/deploy/usb-gadget/setup.sh
+sudo ./deploy/usb-gadget/setup.sh      # скрипт лежит в репозитории проекта
 ```
+
+На тестовом стенде он установлен как `/opt/usb-com/setup.sh`.
 
 Скрипт делает то же, что приложение: `acm.usb0` + `hid.usb0` (boot-клавиатура,
 8-байтовые отчёты) и привязка к UDC. Приложение при старте увидит готовый
