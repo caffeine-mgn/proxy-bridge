@@ -4,30 +4,24 @@ plugins {
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
 }
-val nativeEntryPoint = "pw.binom.proxy.main"
+
 kotlin {
-//    linuxX64()
-//    mingwX64 {
-//        binaries {
-//            executable {
-//                entryPoint = nativeEntryPoint
-//            }
-//        }
-//    }
-    jvm {
-//        compilations.all {
-//            kotlinOptions.jvmTarget = "1.8"
-//        }
-    }
+    jvm()
+    linuxX64()
+    linuxArm64()
+    mingwX64()
+    macosX64()
+    macosArm64()
+
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
 
         commonMain.dependencies {
-            api("dev.bluefalcon:blue-falcon:3.1.1")
             api(kotlin("stdlib"))
             api(project(":multiplexer"))
-            api(project(":com"))
             api(project(":webdav"))
-            api("com.fazecast:jSerialComm:2.11.0")
+            api("pw.binom:serial:1.0.0")
             api(libs.kotlinx.io.core)
             api(libs.koin.core)
             api(libs.koin.annotations)
@@ -35,26 +29,21 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.kotlinx.serialization.core)
             api(libs.kotlinx.serialization.protobuf)
-            api(libs.kotlinx.coroutines.core)
-            api(libs.koin.core)
             api("io.github.oshai:kotlin-logging:7.0.3")
-            api("com.github.hypfvieh:dbus-java-core:5.2.0")
-            api("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0")
-            api("com.github.hypfvieh:bluez-dbus:0.3.2")
 
             api("io.ktor:ktor-server-cio:${libs.versions.ktor.get()}")
             api("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
             api("io.ktor:ktor-client-cio:${libs.versions.ktor.get()}")
             api("io.ktor:ktor-client-core:${libs.versions.ktor.get()}")
         }
+        val nativeMain by getting {
+            dependsOn(commonMain.get())
+        }
         commonTest.dependencies {
             api(libs.koin.test)
             implementation(kotlin("test-common"))
             implementation(kotlin("test-annotations-common"))
             api(libs.kotlinx.coroutines.test)
-        }
-        jvmMain.dependencies {
-            api("io.ultreia:bluecove:2.1.1")
         }
         jvmTest {
             dependsOn(commonTest.get())
@@ -67,7 +56,6 @@ kotlin {
 
 tasks {
     withType(Test::class) {
-//        useJUnitPlatform()
         testLogging.showStandardStreams = true
         testLogging.showCauses = true
         testLogging.showExceptions = true

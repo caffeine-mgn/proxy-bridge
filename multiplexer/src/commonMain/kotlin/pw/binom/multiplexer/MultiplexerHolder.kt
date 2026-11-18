@@ -3,6 +3,7 @@ package pw.binom.multiplexer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 
 class MultiplexerHolder : Multiplexer, Lazy<Multiplexer> {
     private val lock = Mutex()

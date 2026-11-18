@@ -17,8 +17,17 @@ buildscript {
 allprojects {
     repositories {
         mavenLocal()
+        maven(url = "https://repo1.maven.org/maven2/")
         maven(url = "https://repo.binom.pw")
         maven(url = "https://jitpack.io")
         mavenCentral()
+        maven {
+            url = uri(findProperty("nexusUrl") ?: "http://192.168.76.117/repository/caffeine/")
+            isAllowInsecureProtocol = true
+            credentials {
+                username = findProperty("nexusUser") as String?
+                password = findProperty("nexusPassword") as String?
+            }
+        }
     }
 }

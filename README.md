@@ -8,8 +8,12 @@
 ```
 
 Проект — Kotlin Multiplatform: один и тот же код собирается в JVM-джарник и в нативные исполняемые файлы
-(Linux x64/arm64, Windows x64). Работа с COM-портом вынесена в отдельную библиотеку
-[serial-kmp](https://git.binom.pw/subochev/serial-kmp) (собственное C-ядро + JNI/cinterop, без jSerialComm).
+(Linux x64/arm64, Windows x64; macOS объявлен, но собирается только на Mac). Работа с COM-портом вынесена
+в отдельную библиотеку [serial-kmp](https://github.com/caffeine-mgn/serial-kmp) — опубликована в Maven Central
+как `pw.binom:serial` (собственное C-ядро + JNI/cinterop, без jSerialComm).
+
+Устройство может прикидываться **одновременно COM-портом и USB-клавиатурой** — это используется для
+первичной доставки программы на машину без сети (режим «фронт», см. ниже).
 
 ## Зачем?
 
@@ -25,14 +29,15 @@ Raspberry Pi и компьютером.
 | `:webdav`              | Реализация WebDAV-сервера и файловых систем                                    |
 | `:shared`              | Общая логика: протокол, конфигурация, обработчики каналов, serial-транспорт     |
 | `:hid`                 | USB-клавиатура: имитация ввода (раскладка US, «человеческие» паузы)            |
+| `:usb-gadget`          | Проверка и настройка USB-гаджета через configfs (COM + клавиатура)             |
 | `:proxy-server`        | Приложение: сервисы, каналы, HTTP/SOCKS5/WebDAV/TCP-форвардинг                  |
 | `:file-upload-service` | CLI для заливки файла через COM-порт (утилита сопровождения)                   |
 | `:shared-models`       | Общие DTO для API                                                              |
 | `:front`               | Заготовка веб-интерфейса (Kotlin/JS + Compose)                                 |
 
-Модули `com`, `ble`, `sound`, `bootstrap` удалены: jSerialComm заменён на serial-kmp, Bluetooth выпилен.
-Бутстрап для доставки на удалённую машину теперь живёт в каталоге
-[`bootstrap/`](./bootstrap) (Java, без зависимостей).
+Модули `com`, `ble`, `sound` удалены: jSerialComm заменён на serial-kmp, Bluetooth выпилен.
+Бутстрап для доставки на удалённую машину живёт в каталоге [`bootstrap/`](./bootstrap) —
+пять вариантов под разные реальности (PowerShell, C#, Python, Java без зависимостей, Gradle/Maven-проект).
 
 ### Как это работает
 
@@ -46,7 +51,7 @@ Raspberry Pi и компьютером.
 
 ## Требования
 
-- JDK 17+ (сборка JVM-таргета)
+- JDK 21 (сборка и запуск JVM-таргета)
 - Gradle wrapper (`./gradlew`)
 - Для нативных таргетов — Kotlin/Native (скачивается Gradle'ом); Apple-таргеты собираются только на macOS
 
@@ -69,12 +74,14 @@ Apple-таргеты (`macosX64`, `macosArm64`) объявлены, но кро�
 
 ### Зависимость serial-kmp
 
-Используется опубликованная версия `pw.binom.serial:serial-kmp:2` из Nexus (`caffeine`).
+Используется `pw.binom:serial:1.0.0` из Maven Central
+(исходники: [github.com/caffeine-mgn/serial-kmp](https://github.com/caffeine-mgn/serial-kmp)).
 Если библиотеку правишь локально — публикуй в mavenLocal, проект резолвит его первым:
 
 ```bash
 cd ../serial-kmp
-./gradlew publishToMavenLocal -Pversion=2
+./gradlew publishToMavenLocal -Pversion=1.0.1
+# затем в shared/build.gradle.kts указать эту версию
 ```
 
 ## Конфигурация
@@ -148,8 +155,8 @@ fileSystems:
 ## Режим «фронт»: доставка на удалённую машину
 
 Задача: на машине без сети (только USB-кабель) получить нашу программу.
-Устройство представляется **одновременно** COM-портом и USB-клавиатурой
-(`deploy/usb-gadget/setup.sh`), поэтому файлы можно «печатать» в Блокнот.
+Устройство представляется **одновременно** COM-портом и USB-клавиатурой,
+поэтому файлы можно «печатать» в Блокнот.
 
 ```yaml
 front:
@@ -213,8 +220,9 @@ POST /api/bootstrap/send-self отправить программу по COM-п�
 ```
 
 Варианты — подкаталоги `front.bootstrapDir` (`python/`, `csharp/`, `java/`,
-`powershell/`, `standalone/`). Команды запуска для кнопки лежат в
-`<вариант>/launch.txt` (по строке на команду, после каждой нажимается Enter).
+`powershell/`, `standalone/`). Команды запуска лежат в `<вариант>/launch.txt`
+(кнопка «запуск») и `<вариант>/launch-<имя>.txt` (кнопка с подписью `<имя>`;
+у `java` их две — gradle и maven). После каждой строки нажимается Enter.
 
 Порядок работы:
 
@@ -247,8 +255,8 @@ java -jar proxy-server-jvm.jar --tray
 
 ## Проверка на живом стенде
 
-Стенд: Raspberry Pi 4 (Ubuntu, `192.168.76.108`), USB CDC-ACM gadget (`cdc-acm.service` создаёт `/dev/ttyGS0`),
-на ПК устройство видно как `/dev/ttyACM0` (`1d6b:0104`, драйвер `cdc_acm`).
+Стенд: Raspberry Pi 4 (Ubuntu, `192.168.76.108`), USB composite gadget (COM + клавиатура, создаётся
+приложением через configfs), на ПК устройство видно как `/dev/ttyACM0` (`1d6b:0104`, драйвер `cdc_acm`).
 
 ```bash
 # HTTP-прокси на устройстве
@@ -261,11 +269,18 @@ curl -O http://192.168.76.108:8075/dav/big.bin
 curl -T big.bin http://192.168.76.108:8075/dav/uploaded.bin
 ```
 
-## Развёртывание на Raspberry Pi
+## Подготовка Raspberry Pi
+
+Пошаговая инструкция для «чистой» Ubuntu Server (включение режима device у
+USB-контроллера, JDK, systemd-юнит, проверка гаджета, режим фронта, диагностика):
+
+**→ [docs/raspberry-pi-setup.md](./docs/raspberry-pi-setup.md)**
+
+Коротко:
 
 ```bash
 ./gradlew :proxy-server:copyToRaspberry        # кладёт jar в /opt/proxy
-ssh root@192.168.76.108 systemctl restart proxy
+ssh root@<pi> systemctl restart proxy
 ```
 
 Юнит `proxy.service` запускает `/opt/proxy/proxy-server-jvm.jar` из `/opt/proxy` (конфиг там же).
@@ -281,8 +296,15 @@ ssh root@192.168.76.108 systemctl restart proxy
 Интеграционный тест serial-kmp через pty требует `socat`:
 
 ```bash
-./gradlew :shared:jvmTest            # тесты транспортной логики
+socat pty,raw,echo=0,link=/tmp/ttyA pty,raw,echo=0,link=/tmp/ttyB &
 cd ../serial-kmp && ./gradlew jvmTest -Dserial.integration=true
+```
+
+Тесты фронта/бутстрапа (раскладка кадра, разбор вариантов):
+
+```bash
+./gradlew :proxy-server:jvmTest --tests "pw.binom.proxy.front.*"
+./gradlew :hid:jvmTest
 ```
 
 ## Технологии
